@@ -46,7 +46,7 @@ void UIButton::render(SDL_Renderer* renderer) {
         SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
     }
     SDL_RenderFillRect(renderer, &bounds);
-    
+
     if (hovered) {
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
     } else {
@@ -58,7 +58,7 @@ void UIButton::render(SDL_Renderer* renderer) {
 
     if (activeFont) {
         SDL_Color textColor = { 255, 255, 255, 255 };
-        SDL_Surface* textSurface = TTF_RenderText_Blended(font, label.c_str(), textColor);
+        SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), textColor);
         if (textSurface) {
             SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
             SDL_Rect textRect = {
