@@ -1,0 +1,66 @@
+#include "UIButton.hpp"
+#include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL.h>
+
+UIButton::UIButton(const std::string& text, int x, int y, int w, int h, TTF_Font* f)
+    : label(text), font(f)
+{
+    bounds = { x, y, w, h };
+}
+
+void UIButton::setOnClick(std::function<void()> callback) {
+    onClick = callback;
+}
+
+void UIButton::handleEvent(const SDL_Event& e) {
+    if (e.type == SDL_MOUSEBUTTONDOWN) {
+        int mx = e.button.x;
+        int my = e.button.y;
+        if (mx >= bounds.x && mx <= bounds.x + bounds.w &&
+            my >= bounds.y && my <= bounds.y + bounds.h) {
+            pressed = true;
+        }
+    } else if (e.type == SDL_MOUSEBUTTONUP && pressed) {
+        int mx = e.button.x;
+        int my = e.button.y;
+        if (mx >= bounds.x && mx <= bounds.x + bounds.w &&
+            my >= bounds.y && my <= bounds.y + bounds.h) {
+            if (onClick) onClick();
+        }
+        pressed = false;
+    }
+}
+
+void UIButton::update(float) {
+    
+}
+
+void UIButton::render(SDL_Renderer* renderer) {
+    SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+    SDL_RenderFillRect(renderer, &bounds);
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    SDL_RenderDrawRect(renderer, &bounds);
+
+    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+
+    if (activeFont) {
+        SDL_Color textColor = { 255, 255, 255, 255 };
+        SDL_Surface* textSurface = TTF_RenderText_Blended(font, label.c_str(), textColor);
+        if (textSurface) {
+            SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+            SDL_Rect textRect = {
+                bounds.x + (bounds.w - textSurface->w) / 2,
+                bounds.y + (bounds.h - textSurface->h) / 2,
+                textSurface->w,
+                textSurface->h
+            };
+            SDL_RenderCopy(renderer, textTexture, NULL, &textRect);
+            SDL_FreeSurface(textSurface);
+            SDL_DestroyTexture(textTexture);
+        }
+    }
+}
+
+void UIButton::setFont(TTF_Font* f) {
+    font = f;
+}

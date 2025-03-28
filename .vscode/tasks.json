@@ -11,9 +11,13 @@
                 "-Wextra",
                 "-g",
                 "${workspaceFolder}/src/main.cpp",
+                "${workspaceFolder}/src/UIManager.cpp",
+                "${workspaceFolder}/src/UIButton.cpp",
+                "${workspaceFolder}/src/UIConfig.cpp",
                 "-I${workspaceFolder}/include",
                 "-L${workspaceFolder}/lib",
                 "-lSDL2",
+                "-lSDL2_ttf",
                 "-o",
                 "${workspaceFolder}/output/main.exe"
             ],
