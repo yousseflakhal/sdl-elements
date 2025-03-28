@@ -40,9 +40,18 @@ void UIButton::update(float) {
 
 
 void UIButton::render(SDL_Renderer* renderer) {
-    SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+    if (hovered) {
+        SDL_SetRenderDrawColor(renderer, 130, 130, 130, 255);
+    } else {
+        SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+    }
     SDL_RenderFillRect(renderer, &bounds);
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    
+    if (hovered) {
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+    } else {
+        SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
+    }
     SDL_RenderDrawRect(renderer, &bounds);
 
     TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
