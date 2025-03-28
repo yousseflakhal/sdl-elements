@@ -2,14 +2,20 @@
 #include <vector>
 #include <memory>
 #include "UIElement.hpp"
+#include "UIButton.hpp"
 
 class UIManager {
-public:
-    void addElement(std::shared_ptr<UIElement> el);
-    void handleEvent(const SDL_Event& e);
-    void update(float dt);
-    void render(SDL_Renderer* renderer);
-
-private:
-    std::vector<std::shared_ptr<UIElement>> elements;
-};
+    public:
+        void initCursors();
+        void cleanupCursors();
+        void addElement(std::shared_ptr<UIElement> el);
+        void handleEvent(const SDL_Event& e);
+        void update(float dt);
+        void render(SDL_Renderer* renderer);
+    
+    private:
+        std::vector<std::shared_ptr<UIElement>> elements;
+        SDL_Cursor* arrowCursor = nullptr;
+        SDL_Cursor* handCursor = nullptr;
+        bool handCursorActive = false;
+    };

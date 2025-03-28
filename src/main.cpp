@@ -54,7 +54,7 @@ int main() {
 
     bool running = true;
     SDL_Event e;
-
+    uiManager.initCursors();
     while (running) {
         while (SDL_PollEvent(&e) != 0) {
             if (e.type == SDL_QUIT) {
@@ -71,6 +71,7 @@ int main() {
     
         SDL_RenderPresent(renderer);
     }
+    uiManager.cleanupCursors();
 
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);

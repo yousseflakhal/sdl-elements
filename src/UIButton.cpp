@@ -32,8 +32,12 @@ void UIButton::handleEvent(const SDL_Event& e) {
 }
 
 void UIButton::update(float) {
-    
+    int mx, my;
+    SDL_GetMouseState(&mx, &my);
+    SDL_Point mousePoint = { mx, my };
+    hovered = SDL_PointInRect(&mousePoint, &bounds);
 }
+
 
 void UIButton::render(SDL_Renderer* renderer) {
     SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
@@ -63,4 +67,8 @@ void UIButton::render(SDL_Renderer* renderer) {
 
 void UIButton::setFont(TTF_Font* f) {
     font = f;
+}
+
+bool UIButton::isHovered() const {
+    return hovered;
 }

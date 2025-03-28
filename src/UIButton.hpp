@@ -9,11 +9,11 @@ class UIButton : public UIElement {
 public:
     UIButton(const std::string& text, int x, int y, int w, int h, TTF_Font* f = nullptr);
     void setOnClick(std::function<void()> callback);
-
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
     void setFont(TTF_Font* f);
+    bool isHovered() const;
 
 private:
     std::string label;
