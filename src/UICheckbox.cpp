@@ -18,6 +18,10 @@ void UICheckbox::handleEvent(const SDL_Event& e) {
     }
 }
 
+bool UICheckbox::isHovered() const {
+    return hovered;
+}
+
 void UICheckbox::update(float) {
     int mx, my;
     SDL_GetMouseState(&mx, &my);
@@ -38,6 +42,15 @@ void UICheckbox::render(SDL_Renderer* renderer) {
     int textW = textSurface->w;
     int textH = textSurface->h;
 
+    int margin = 10;
+    int boxSize = 20;
+
+    int totalWidth = textW + margin + boxSize;
+    int totalHeight = std::max(textH, boxSize);
+
+    bounds.w = totalWidth;
+    bounds.h = totalHeight;
+
     SDL_Rect textRect = {
         bounds.x,
         bounds.y + (bounds.h - textH) / 2,
@@ -47,15 +60,21 @@ void UICheckbox::render(SDL_Renderer* renderer) {
     SDL_RenderCopy(renderer, textTexture, NULL, &textRect);
 
     SDL_Rect box = {
-        bounds.x + textW + 10,
-        bounds.y + (bounds.h - 20) / 2,
-        20,
-        20
+        bounds.x + textW + margin,
+        bounds.y + (bounds.h - boxSize) / 2,
+        boxSize,
+        boxSize
     };
+    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
     SDL_RenderDrawRect(renderer, &box);
 
     if (linkedValue && *linkedValue) {
-        SDL_Rect inner = { box.x + 4, box.y + 4, 12, 12 };
+        SDL_Rect inner = {
+            box.x + 4,
+            box.y + 4,
+            boxSize - 8,
+            boxSize - 8
+        };
         SDL_RenderFillRect(renderer, &inner);
     }
 

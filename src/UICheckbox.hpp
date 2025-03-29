@@ -9,6 +9,7 @@ public:
     UICheckbox(const std::string& label, int x, int y, int w, int h, bool* bind);
 
     void handleEvent(const SDL_Event& e) override;
+    bool isHovered() const override;
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
 

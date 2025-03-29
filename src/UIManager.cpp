@@ -12,24 +12,21 @@ void UIManager::handleEvent(const SDL_Event& e) {
 }
 
 void UIManager::update(float dt) {
-    bool hoveringButton = false;
+    bool hoveringClickable = false;
 
     for (auto& el : elements) {
         if (el->visible) {
             el->update(dt);
-
-            if (auto* button = dynamic_cast<UIButton*>(el.get())) {
-                if (button->isHovered()) {
-                    hoveringButton = true;
-                }
+            if (el->isHovered()) {
+                hoveringClickable = true;
             }
         }
     }
-
-    if (hoveringButton && !handCursorActive) {
+    
+    if (hoveringClickable && !handCursorActive) {
         SDL_SetCursor(handCursor);
         handCursorActive = true;
-    } else if (!hoveringButton && handCursorActive) {
+    } else if (!hoveringClickable && handCursorActive) {
         SDL_SetCursor(arrowCursor);
         handCursorActive = false;
     }
