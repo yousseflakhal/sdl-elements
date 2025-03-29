@@ -23,6 +23,12 @@ namespace FormUI {
         return btn;
     }
 
+    std::shared_ptr<UICheckbox> Checkbox(const std::string& label, int x, int y, int w, int h, bool* bind) {
+        auto box = std::make_shared<UICheckbox>(label, x, y, w, h, bind);
+        uiManager.addElement(box);
+        return box;
+    }
+
     void HandleEvent(const SDL_Event& e) {
         uiManager.handleEvent(e);
     }
