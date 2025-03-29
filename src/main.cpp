@@ -36,8 +36,12 @@ int main() {
     FormUI::Button("Click Me", 100, 100, 120, 40, [] {
         printf("Button clicked!\n");
     });
+
     bool enableMusic = true;
     FormUI::Checkbox("Enable Music", 100, 200, 200, 30, &enableMusic);
+
+    FormUI::Label("Settings", 100, 60, 300, 30);
+
     bool running = true;
     SDL_Event e;
 

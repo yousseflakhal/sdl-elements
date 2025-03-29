@@ -15,6 +15,7 @@
                 "${workspaceFolder}/src/UIButton.cpp",
                 "${workspaceFolder}/src/UIConfig.cpp",
                 "${workspaceFolder}/src/UICheckbox.cpp",
+                "${workspaceFolder}/src/UILabel.cpp",
                 "${workspaceFolder}/src/FormUI.cpp",
                 "-I${workspaceFolder}/include",
                 "-L${workspaceFolder}/lib",
