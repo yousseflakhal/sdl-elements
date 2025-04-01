@@ -11,8 +11,12 @@ public:
     void update(float dt) override { (void)dt; }
     void handleEvent(const SDL_Event& e) override { (void)e; }
 
+    UILabel* setColor(SDL_Color newColor);
+    SDL_Color getColor() const;
+
 private:
     std::string text;
     SDL_Rect bounds;
     TTF_Font* font = nullptr;
+    SDL_Color color = {255, 255, 255, 255};
 };

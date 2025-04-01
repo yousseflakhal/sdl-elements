@@ -11,7 +11,6 @@ void UILabel::render(SDL_Renderer* renderer) {
     TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
     if (!activeFont) return;
 
-    SDL_Color color = { 255, 255, 255, 255 };
     SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, text.c_str(), color);
     if (!textSurface) return;
 
@@ -26,4 +25,13 @@ void UILabel::render(SDL_Renderer* renderer) {
     SDL_RenderCopy(renderer, texture, nullptr, &dstRect);
     SDL_FreeSurface(textSurface);
     SDL_DestroyTexture(texture);
+}
+
+UILabel* UILabel::setColor(SDL_Color newColor) {
+    color = newColor;
+    return this;
+}
+
+SDL_Color UILabel::getColor() const {
+    return color;
 }

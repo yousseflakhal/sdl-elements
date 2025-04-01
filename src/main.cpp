@@ -40,7 +40,7 @@ int main() {
     bool enableMusic = true;
     FormUI::Checkbox("Enable Music", 100, 200, 200, 30, &enableMusic);
 
-    FormUI::Label("Settings", 100, 60, 300, 30);
+    FormUI::Label("Settings", 100, 60, 300, 30)->setColor({100, 200, 255, 255});
 
     bool running = true;
     SDL_Event e;
