@@ -17,6 +17,7 @@
                 "${workspaceFolder}/src/UICheckbox.cpp",
                 "${workspaceFolder}/src/UILabel.cpp",
                 "${workspaceFolder}/src/FormUI.cpp",
+                "${workspaceFolder}/src/UISlider.cpp",
                 "-I${workspaceFolder}/include",
                 "-L${workspaceFolder}/lib",
                 "-lSDL2",

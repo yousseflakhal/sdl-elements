@@ -35,6 +35,12 @@ namespace FormUI {
         return label;
     }
 
+    std::shared_ptr<UISlider> Slider(const std::string& label, int x, int y, int w, int h, float* bind, float min, float max) {
+        auto slider = std::make_shared<UISlider>(label, x, y, w, h, bind, min, max);
+        uiManager.addElement(slider);
+        return slider;
+    }
+
     void HandleEvent(const SDL_Event& e) {
         uiManager.handleEvent(e);
     }

@@ -45,6 +45,10 @@ int main() {
     bool running = true;
     SDL_Event e;
 
+    float volume = 0.5f;
+    FormUI::Slider("Volume", 100, 300, 300, 40, &volume, 0.0f, 1.0f);
+
+
     while (running) {
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT) running = false;
