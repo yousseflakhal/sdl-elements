@@ -56,6 +56,7 @@ void UITextField::render(SDL_Renderer* renderer) {
     if (!font || !linkedText) return;
 
     SDL_Color textColor = { 255, 255, 255, 255 };
+
     SDL_Surface* labelSurface = TTF_RenderText_Blended(font, label.c_str(), textColor);
     SDL_Texture* labelTexture = SDL_CreateTextureFromSurface(renderer, labelSurface);
     SDL_Rect labelRect = {
@@ -70,39 +71,51 @@ void UITextField::render(SDL_Renderer* renderer) {
 
     SDL_SetRenderDrawColor(renderer, focused ? 80 : 40, 40, 40, 255);
     SDL_RenderFillRect(renderer, &bounds);
-
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
     SDL_RenderDrawRect(renderer, &bounds);
 
-    SDL_Surface* textSurface = TTF_RenderText_Blended(font, linkedText->c_str(), textColor);
-    if (!textSurface) return;
-    SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-    SDL_Rect textRect = {
-        bounds.x + 5,
-        bounds.y + (bounds.h - textSurface->h) / 2,
-        textSurface->w,
-        textSurface->h
-    };
-    SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
-    SDL_FreeSurface(textSurface);
-    SDL_DestroyTexture(textTexture);
+    SDL_Rect textRect;
+
+    if (!linkedText->empty()) {
+        SDL_Surface* textSurface = TTF_RenderText_Blended(font, linkedText->c_str(), textColor);
+        if (textSurface) {
+            SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+            textRect = {
+                bounds.x + 5,
+                bounds.y + (bounds.h - textSurface->h) / 2,
+                textSurface->w,
+                textSurface->h
+            };
+            SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
+            SDL_FreeSurface(textSurface);
+            SDL_DestroyTexture(textTexture);
+        }
+    } else {
+        textRect = {
+            bounds.x + 5,
+            bounds.y + bounds.h / 4,
+            0,
+            bounds.h / 2
+        };
+    }
 
     Uint32 now = SDL_GetTicks();
     if (now - lastBlinkTime >= 500) {
         cursorVisible = !cursorVisible;
         lastBlinkTime = now;
     }
-    
+
     if (focused && cursorVisible) {
         int cursorX = textRect.x + textRect.w + 2;
         int cursorY = textRect.y;
         int cursorH = textRect.h;
-    
+
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_Rect cursorRect = { cursorX, cursorY, 2, cursorH };
         SDL_RenderFillRect(renderer, &cursorRect);
     }
 }
+
 
 bool UITextField::isHovered() const {
     return hovered;
