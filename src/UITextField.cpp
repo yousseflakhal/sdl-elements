@@ -32,21 +32,21 @@ void UITextField::handleEvent(const SDL_Event& e) {
     }
 }
 
-void UITextField::update(float dt) {
+void UITextField::update(float) {
     int mx, my;
     SDL_GetMouseState(&mx, &my);
     SDL_Point point = { mx, my };
     hovered = SDL_PointInRect(&point, &bounds);
 
     if (focused) {
-        blinkTimer += dt;
-        if (blinkTimer >= 0.5f) {
+        Uint32 now = SDL_GetTicks();
+        if (now - lastBlinkTime >= 500) {
             cursorVisible = !cursorVisible;
-            blinkTimer = 0.0f;
+            lastBlinkTime = now;
         }
     } else {
         cursorVisible = false;
-        blinkTimer = 0.0f;
+        lastBlinkTime = SDL_GetTicks();
     }
 }
 
@@ -86,6 +86,12 @@ void UITextField::render(SDL_Renderer* renderer) {
     SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
     SDL_FreeSurface(textSurface);
     SDL_DestroyTexture(textTexture);
+
+    Uint32 now = SDL_GetTicks();
+    if (now - lastBlinkTime >= 500) {
+        cursorVisible = !cursorVisible;
+        lastBlinkTime = now;
+    }
     
     if (focused && cursorVisible) {
         int cursorX = textRect.x + textRect.w + 2;

@@ -27,6 +27,6 @@ namespace FormUI {
 
 
     void HandleEvent(const SDL_Event& e);
-    void Update(float dt);
+    void Update();
     void Render(SDL_Renderer* renderer);
 }

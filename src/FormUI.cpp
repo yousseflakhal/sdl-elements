@@ -51,8 +51,8 @@ namespace FormUI {
         uiManager.handleEvent(e);
     }
 
-    void Update(float dt) {
-        uiManager.update(dt);
+    void Update() {
+        uiManager.update(0.0f);
     }
 
     void Render(SDL_Renderer* renderer) {

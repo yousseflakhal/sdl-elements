@@ -52,18 +52,13 @@ int main() {
     FormUI::TextField("Username", 100, 400, 300, 40, &username, 20);
 
     SDL_StartTextInput();
-    Uint32 lastTicks = SDL_GetTicks();
     while (running) {
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT) running = false;
             FormUI::HandleEvent(e);
         }
 
-        Uint32 currentTicks = SDL_GetTicks();
-        float dt = (currentTicks - lastTicks) / 1000.0f;
-        lastTicks = currentTicks;
-
-        FormUI::Update(dt);
+        FormUI::Update();
         SDL_SetRenderDrawColor(renderer, 20, 20, 20, 255);
         SDL_RenderClear(renderer);
         FormUI::Render(renderer);
