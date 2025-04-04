@@ -18,6 +18,7 @@
                 "${workspaceFolder}/src/UILabel.cpp",
                 "${workspaceFolder}/src/FormUI.cpp",
                 "${workspaceFolder}/src/UISlider.cpp",
+                "${workspaceFolder}/src/UITextField.cpp",
                 "-I${workspaceFolder}/include",
                 "-L${workspaceFolder}/lib",
                 "-lSDL2",

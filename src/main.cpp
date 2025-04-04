@@ -48,7 +48,10 @@ int main() {
     float volume = 0.5f;
     FormUI::Slider("Volume", 100, 300, 300, 40, &volume, 0.0f, 1.0f);
 
+    std::string username;
+    FormUI::TextField("Username", 100, 400, 300, 40, &username, 20);
 
+    SDL_StartTextInput();
     while (running) {
         while (SDL_PollEvent(&e)) {
             if (e.type == SDL_QUIT) running = false;
@@ -66,6 +69,7 @@ int main() {
     TTF_CloseFont(font);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
+    SDL_StopTextInput();
     TTF_Quit();
     SDL_Quit();
 

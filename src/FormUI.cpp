@@ -41,6 +41,12 @@ namespace FormUI {
         return slider;
     }
 
+    std::shared_ptr<UITextField> TextField(const std::string& label, int x, int y, int w, int h, std::string* bind, int maxLen) {
+        auto field = std::make_shared<UITextField>(label, x, y, w, h, bind, maxLen);
+        uiManager.addElement(field);
+        return field;
+    }
+
     void HandleEvent(const SDL_Event& e) {
         uiManager.handleEvent(e);
     }
