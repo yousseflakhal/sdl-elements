@@ -21,4 +21,6 @@ private:
     int maxLength = 32;
     bool hovered = false;
     bool focused = false;
+    float blinkTimer = 0.0f;
+    bool cursorVisible = true;
 };

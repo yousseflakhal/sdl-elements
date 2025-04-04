@@ -58,7 +58,7 @@ int main() {
             FormUI::HandleEvent(e);
         }
 
-        FormUI::Update(0);
+        FormUI::Update(0.016f);
         SDL_SetRenderDrawColor(renderer, 20, 20, 20, 255);
         SDL_RenderClear(renderer);
         FormUI::Render(renderer);

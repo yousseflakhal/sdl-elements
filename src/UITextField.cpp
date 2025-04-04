@@ -32,12 +32,24 @@ void UITextField::handleEvent(const SDL_Event& e) {
     }
 }
 
-void UITextField::update(float) {
+void UITextField::update(float dt) {
     int mx, my;
     SDL_GetMouseState(&mx, &my);
     SDL_Point point = { mx, my };
     hovered = SDL_PointInRect(&point, &bounds);
+
+    if (focused) {
+        blinkTimer += dt;
+        if (blinkTimer >= 0.5f) {
+            cursorVisible = !cursorVisible;
+            blinkTimer = 0.0f;
+        }
+    } else {
+        cursorVisible = false;
+        blinkTimer = 0.0f;
+    }
 }
+
 
 void UITextField::render(SDL_Renderer* renderer) {
     TTF_Font* font = UIConfig::getDefaultFont();
@@ -74,6 +86,16 @@ void UITextField::render(SDL_Renderer* renderer) {
     SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
     SDL_FreeSurface(textSurface);
     SDL_DestroyTexture(textTexture);
+    
+    if (focused && cursorVisible) {
+        int cursorX = textRect.x + textRect.w + 2;
+        int cursorY = textRect.y;
+        int cursorH = textRect.h;
+    
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        SDL_Rect cursorRect = { cursorX, cursorY, 2, cursorH };
+        SDL_RenderFillRect(renderer, &cursorRect);
+    }
 }
 
 bool UITextField::isHovered() const {
