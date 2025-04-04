@@ -3,7 +3,8 @@
 #include <memory>
 #include "UIElement.hpp"
 #include "UIButton.hpp"
-
+#include "UITextField.hpp"
+#include "UICheckbox.hpp"
 class UIManager {
     public:
         void initCursors();
@@ -17,5 +18,6 @@ class UIManager {
         std::vector<std::shared_ptr<UIElement>> elements;
         SDL_Cursor* arrowCursor = nullptr;
         SDL_Cursor* handCursor = nullptr;
+        SDL_Cursor* ibeamCursor = nullptr;
         bool handCursorActive = false;
     };

@@ -12,25 +12,27 @@ void UIManager::handleEvent(const SDL_Event& e) {
 }
 
 void UIManager::update(float dt) {
-    bool hoveringClickable = false;
+    SDL_Cursor* cursorToUse = arrowCursor;
 
     for (auto& el : elements) {
-        if (el->visible) {
-            el->update(dt);
-            if (el->isHovered()) {
-                hoveringClickable = true;
+        if (!el->visible) continue;
+
+        el->update(dt);
+
+        if (el->isHovered()) {
+            if (dynamic_cast<UITextField*>(el.get())) {
+                cursorToUse = ibeamCursor;
+            } else if (dynamic_cast<UIButton*>(el.get()) || dynamic_cast<UICheckbox*>(el.get())) {
+                cursorToUse = handCursor;
             }
         }
     }
-    
-    if (hoveringClickable && !handCursorActive) {
-        SDL_SetCursor(handCursor);
-        handCursorActive = true;
-    } else if (!hoveringClickable && handCursorActive) {
-        SDL_SetCursor(arrowCursor);
-        handCursorActive = false;
+
+    if (SDL_GetCursor() != cursorToUse) {
+        SDL_SetCursor(cursorToUse);
     }
 }
+
 
 
 void UIManager::render(SDL_Renderer* renderer) {
@@ -43,10 +45,12 @@ void UIManager::render(SDL_Renderer* renderer) {
 void UIManager::initCursors() {
     arrowCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
     handCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND);
+    ibeamCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_IBEAM);
     SDL_SetCursor(arrowCursor);
 }
 
 void UIManager::cleanupCursors() {
     SDL_FreeCursor(arrowCursor);
     SDL_FreeCursor(handCursor);
+    SDL_FreeCursor(ibeamCursor);
 }
