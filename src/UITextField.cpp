@@ -69,7 +69,7 @@ void UITextField::render(SDL_Renderer* renderer) {
     SDL_FreeSurface(labelSurface);
     SDL_DestroyTexture(labelTexture);
 
-    SDL_SetRenderDrawColor(renderer, focused ? 80 : 40, 40, 40, 255);
+    SDL_SetRenderDrawColor(renderer, 40, 40, 40, 255);
     SDL_RenderFillRect(renderer, &bounds);
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
     SDL_RenderDrawRect(renderer, &bounds);
