@@ -49,7 +49,7 @@ int main() {
     FormUI::Slider("Volume", 100, 300, 300, 40, &volume, 0.0f, 1.0f);
 
     std::string username;
-    FormUI::TextField("Username", 100, 400, 300, 40, &username, 20);
+    FormUI::TextField("Username", 100, 400, 300, 40, &username, 20)->setPlaceholder("Enter your name");
 
     SDL_StartTextInput();
     while (running) {

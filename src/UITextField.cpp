@@ -7,6 +7,15 @@ UITextField::UITextField(const std::string& label, int x, int y, int w, int h, s
     bounds = { x, y, w, h };
 }
 
+UITextField* UITextField::setPlaceholder(const std::string& text) {
+    placeholder = text;
+    return this;
+}
+
+bool UITextField::isHovered() const {
+    return hovered;
+}
+
 void UITextField::handleEvent(const SDL_Event& e) {
     if (!linkedText) return;
 
@@ -76,20 +85,26 @@ void UITextField::render(SDL_Renderer* renderer) {
 
     SDL_Rect textRect;
 
-    if (!linkedText->empty()) {
-        SDL_Surface* textSurface = TTF_RenderText_Blended(font, linkedText->c_str(), textColor);
-        if (textSurface) {
-            SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-            textRect = {
-                bounds.x + 5,
-                bounds.y + (bounds.h - textSurface->h) / 2,
-                textSurface->w,
-                textSurface->h
-            };
-            SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
-            SDL_FreeSurface(textSurface);
-            SDL_DestroyTexture(textTexture);
-        }
+    std::string textToRender = *linkedText;
+    SDL_Color colorToUse = textColor;
+    
+    if (linkedText->empty() && !focused && !placeholder.empty()) {
+        textToRender = placeholder;
+        colorToUse = placeholderColor;
+    }
+    
+    SDL_Surface* textSurface = TTF_RenderText_Blended(font, textToRender.c_str(), colorToUse);
+    if (textSurface) {
+        SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+        textRect = {
+            bounds.x + 5,
+            bounds.y + (bounds.h - textSurface->h) / 2,
+            textSurface->w,
+            textSurface->h
+        };
+        SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
+        SDL_FreeSurface(textSurface);
+        SDL_DestroyTexture(textTexture);
     } else {
         textRect = {
             bounds.x + 5,
@@ -117,6 +132,3 @@ void UITextField::render(SDL_Renderer* renderer) {
 }
 
 
-bool UITextField::isHovered() const {
-    return hovered;
-}
