@@ -1,0 +1,35 @@
+#include "UILayout.hpp"
+
+namespace FormUI {
+
+std::shared_ptr<UILabel> Layout::addLabel(const std::string& text, int width, int height) {
+    auto label = FormUI::Label(text, currentX, currentY, width, height);
+    currentY += height + spacing;
+    return label;
+}
+
+std::shared_ptr<UICheckbox> Layout::addCheckbox(const std::string& label, bool* value, int width, int height) {
+    auto checkbox = FormUI::Checkbox(label, currentX, currentY, width, height, value);
+    currentY += height + spacing;
+    return checkbox;
+}
+
+std::shared_ptr<UISlider> Layout::addSlider(const std::string& label, float* value, float min, float max, int width, int height) {
+    auto slider = FormUI::Slider(label, currentX, currentY, width, height, value, min, max);
+    currentY += height + spacing;
+    return slider;
+}
+
+std::shared_ptr<UITextField> Layout::addTextField(const std::string& label, std::string* bind, int maxLen, int width, int height) {
+    auto textField = FormUI::TextField(label, currentX, currentY, width, height, bind, maxLen);
+    currentY += height + spacing;
+    return textField;
+}
+
+std::shared_ptr<UIButton> Layout::addButton(const std::string& label, std::function<void()> onClick, int width, int height) {
+    auto button = FormUI::Button(label, currentX, currentY, width, height, onClick);
+    currentY += height + spacing;
+    return button;
+}
+
+}

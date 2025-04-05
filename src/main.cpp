@@ -2,6 +2,7 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 #include "FormUI.hpp"
+#include "UILayout.hpp"
 
 int main() {
     if (SDL_Init(SDL_INIT_VIDEO) < 0) return 1;
@@ -33,23 +34,32 @@ int main() {
 
     FormUI::Init(font);
 
-    FormUI::Button("Click Me", 100, 100, 120, 40, [] {
-        printf("Button clicked!\n");
-    });
+    // FormUI::Button("Click Me", 100, 100, 120, 40, [] {
+    //     printf("Button clicked!\n");
+    // });
 
     bool enableMusic = true;
-    FormUI::Checkbox("Enable Music", 100, 200, 200, 30, &enableMusic);
+    // FormUI::Checkbox("Enable Music", 100, 200, 200, 30, &enableMusic);
 
-    FormUI::Label("Settings", 100, 60, 300, 30)->setColor({100, 200, 255, 255});
+    // FormUI::Label("Settings", 100, 60, 300, 30)->setColor({100, 200, 255, 255});
 
     bool running = true;
     SDL_Event e;
 
     float volume = 0.5f;
-    FormUI::Slider("Volume", 100, 300, 300, 40, &volume, 0.0f, 1.0f);
+    // FormUI::Slider("Volume", 100, 300, 300, 40, &volume, 0.0f, 1.0f);
 
     std::string username;
-    FormUI::TextField("Username", 100, 400, 300, 40, &username, 20)->setPlaceholder("Enter your name");
+    // FormUI::TextField("Username", 100, 400, 300, 40, &username, 20)->setPlaceholder("Enter your name");
+
+    FormUI::Layout layout(100, 100, 10);
+    layout.addLabel("Settings");
+    layout.addCheckbox("Enable Music", &enableMusic);
+    layout.addSlider("Volume", &volume, 0.0f, 1.0f);
+    layout.addTextField("Username", &username, 20);
+    layout.addButton("Submit", [] {
+        printf("Form submitted!\n");
+    });
 
     SDL_StartTextInput();
     while (running) {
