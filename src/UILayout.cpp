@@ -32,4 +32,19 @@ std::shared_ptr<UIButton> Layout::addButton(const std::string& label, std::funct
     return button;
 }
 
+std::pair<std::shared_ptr<UILabel>, std::shared_ptr<UIButton>> Layout::addLabelButtonRow(
+    const std::string& labelText,
+    const std::string& buttonText,
+    std::function<void()> onClick,
+    int labelWidth,
+    int buttonWidth,
+    int height
+) {
+    auto label = FormUI::Label(labelText, currentX, currentY, labelWidth, height);
+    auto button = FormUI::Button(buttonText, currentX + labelWidth + 10, currentY, buttonWidth, height, onClick);
+    currentY += height + spacing;
+    return { label, button };
+}
+
+
 }

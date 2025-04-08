@@ -57,6 +57,9 @@ int main() {
     layout.addCheckbox("Enable Music", &enableMusic);
     layout.addSlider("Volume", &volume, 0.0f, 1.0f);
     layout.addTextField("Username", &username, 20);
+    layout.addLabelButtonRow("Username", "Edit", [] {
+        printf("Edit clicked\n");
+    });
     layout.addButton("Submit", [] {
         printf("Form submitted!\n");
     });
