@@ -14,11 +14,10 @@ namespace FormUI {
         uiManager.cleanupCursors();
     }
 
-    std::shared_ptr<UIButton> Button(const std::string& label, int x, int y, int w, int h, std::function<void()> onClick) {
-        auto btn = std::make_shared<UIButton>(label, x, y, w, h);
-        if (onClick) {
-            btn->setOnClick(onClick);
-        }
+    std::shared_ptr<UIButton> Button(const std::string& label, int x, int y, int w, int h, std::function<void()> onClick, TTF_Font* font) 
+    {
+        auto btn = std::make_shared<UIButton>(label, x, y, w, h, font);
+        if (onClick) btn->setOnClick(onClick);
         uiManager.addElement(btn);
         return btn;
     }

@@ -26,8 +26,9 @@ std::shared_ptr<UITextField> Layout::addTextField(const std::string& label, std:
     return textField;
 }
 
-std::shared_ptr<UIButton> Layout::addButton(const std::string& label, std::function<void()> onClick, int width, int height) {
-    auto button = FormUI::Button(label, currentX, currentY, width, height, onClick);
+std::shared_ptr<UIButton> Layout::addButton(const std::string& label, std::function<void()> onClick, int width, int height, TTF_Font* font)
+{
+    auto button = FormUI::Button(label, currentX, currentY, width, height, onClick, font);
     currentY += height + spacing;
     return button;
 }
@@ -38,10 +39,12 @@ std::pair<std::shared_ptr<UILabel>, std::shared_ptr<UIButton>> Layout::addLabelB
     std::function<void()> onClick,
     int labelWidth,
     int buttonWidth,
-    int height
+    int height,
+    TTF_Font* labelFont,
+    TTF_Font* buttonFont
 ) {
-    auto label = FormUI::Label(labelText, currentX, currentY, labelWidth, height);
-    auto button = FormUI::Button(buttonText, currentX + labelWidth + 10, currentY, buttonWidth, height, onClick);
+    auto label = FormUI::Label(labelText, currentX, currentY, labelWidth, height, labelFont);
+    auto button = FormUI::Button(buttonText, currentX + labelWidth + 10, currentY, buttonWidth, height, onClick, buttonFont);
     currentY += height + spacing;
     return { label, button };
 }

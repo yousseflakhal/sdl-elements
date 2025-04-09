@@ -60,9 +60,9 @@ int main() {
     layout.addLabelButtonRow("Username", "Edit", [] {
         printf("Edit clicked\n");
     });
-    layout.addButton("Submit", [] {
-        printf("Form submitted!\n");
-    });
+    // layout.addButton("Submit", [] {
+    //     printf("Form submitted!\n");
+    // });
 
     SDL_StartTextInput();
     while (running) {

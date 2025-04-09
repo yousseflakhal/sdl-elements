@@ -160,7 +160,9 @@ namespace FormUI {
             std::function<void()> onClick,
             int labelWidth = 200,
             int buttonWidth = 100,
-            int height = 30
+            int height = 30,
+            TTF_Font* labelFont = nullptr,
+            TTF_Font* buttonFont = nullptr
         );
             
     
@@ -497,12 +499,19 @@ namespace FormUI {
         std::function<void()> onClick,
         int labelWidth,
         int buttonWidth,
-        int height
+        int height,
+        TTF_Font* labelFont,
+        TTF_Font* buttonFont
     ) {
-        auto label = FormUI::Label(labelText, currentX, currentY, labelWidth, height);
-        auto button = FormUI::Button(buttonText, currentX + labelWidth + 10, currentY, buttonWidth, height, onClick);
+        auto label = std::make_shared<UILabel>(labelText, currentX, currentY, labelWidth, height, labelFont);
+        auto button = std::make_shared<UIButton>(buttonText, currentX + labelWidth + 10, currentY, buttonWidth, height, buttonFont);
+        button->setOnClick(onClick);
+    
+        FormUI::uiManager.addElement(label);
+        FormUI::uiManager.addElement(button);
+    
         currentY += height + spacing;
-        return { label, button };
+        return {label, button};
     }
 }
 
