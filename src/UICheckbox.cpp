@@ -1,10 +1,14 @@
 #include "UICheckbox.hpp"
 #include "UIConfig.hpp"
 
-UICheckbox::UICheckbox(const std::string& label, int x, int y, int w, int h, bool* bind)
-    : label(label), linkedValue(bind)
+UICheckbox::UICheckbox(const std::string& label, int x, int y, int w, int h, bool* bind, TTF_Font* f)
+    : label(label), linkedValue(bind), font(f)
 {
     bounds = { x, y, w, h };
+}
+
+void UICheckbox::setFont(TTF_Font* f) {
+    font = f;
 }
 
 void UICheckbox::handleEvent(const SDL_Event& e) {
@@ -30,12 +34,12 @@ void UICheckbox::update(float) {
 }
 
 void UICheckbox::render(SDL_Renderer* renderer) {
-    TTF_Font* font = UIConfig::getDefaultFont();
-    if (!font) return;
+    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+    if (!activeFont) return;
 
     SDL_Color textColor = { 255, 255, 255, 255 };
 
-    SDL_Surface* textSurface = TTF_RenderText_Blended(font, label.c_str(), textColor);
+    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), textColor);
     if (!textSurface) return;
 
     SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);

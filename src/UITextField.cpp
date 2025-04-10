@@ -12,6 +12,11 @@ UITextField* UITextField::setPlaceholder(const std::string& text) {
     return this;
 }
 
+UITextField* UITextField::setFont(TTF_Font* f) {
+    font = f;
+    return this;
+}
+
 bool UITextField::isHovered() const {
     return hovered;
 }
@@ -61,12 +66,12 @@ void UITextField::update(float) {
 
 
 void UITextField::render(SDL_Renderer* renderer) {
-    TTF_Font* font = UIConfig::getDefaultFont();
-    if (!font || !linkedText) return;
+    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+    if (!activeFont || !linkedText) return;
 
     SDL_Color textColor = { 255, 255, 255, 255 };
 
-    SDL_Surface* labelSurface = TTF_RenderText_Blended(font, label.c_str(), textColor);
+    SDL_Surface* labelSurface = TTF_RenderText_Blended(activeFont, label.c_str(), textColor);
     SDL_Texture* labelTexture = SDL_CreateTextureFromSurface(renderer, labelSurface);
     SDL_Rect labelRect = {
         bounds.x,

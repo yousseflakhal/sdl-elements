@@ -8,6 +8,8 @@ class UITextField : public UIElement {
 public:
     UITextField(const std::string& label, int x, int y, int w, int h, std::string* bind, int maxLen = 32);
     UITextField* setPlaceholder(const std::string& text);
+    UITextField* setFont(TTF_Font* f);
+
     bool isHovered() const override;
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
@@ -26,4 +28,5 @@ private:
     bool cursorVisible = true;
     std::string placeholder;
     SDL_Color placeholderColor = {160, 160, 160, 255};
+    TTF_Font* font = nullptr;
 };

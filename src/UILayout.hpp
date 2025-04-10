@@ -24,11 +24,14 @@ public:
         TTF_Font* labelFont = nullptr,
         TTF_Font* buttonFont = nullptr
     );
+    void setDefaultFont(TTF_Font* font) { defaultFont = font; }
+    TTF_Font* getDefaultFont() const { return defaultFont; }
         
 
 private:
     int currentX, currentY;
     int spacing;
+    TTF_Font* defaultFont = nullptr;
 };
 
 }

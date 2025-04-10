@@ -3,13 +3,13 @@
 namespace FormUI {
 
 std::shared_ptr<UILabel> Layout::addLabel(const std::string& text, int width, int height) {
-    auto label = FormUI::Label(text, currentX, currentY, width, height);
+    auto labelEl = FormUI::Label(text, currentX, currentY, width, height, defaultFont);
     currentY += height + spacing;
-    return label;
+    return labelEl;
 }
 
 std::shared_ptr<UICheckbox> Layout::addCheckbox(const std::string& label, bool* value, int width, int height) {
-    auto checkbox = FormUI::Checkbox(label, currentX, currentY, width, height, value);
+    auto checkbox = FormUI::Checkbox(label, currentX, currentY, width, height, value, defaultFont);
     currentY += height + spacing;
     return checkbox;
 }
@@ -22,13 +22,14 @@ std::shared_ptr<UISlider> Layout::addSlider(const std::string& label, float* val
 
 std::shared_ptr<UITextField> Layout::addTextField(const std::string& label, std::string* bind, int maxLen, int width, int height) {
     auto textField = FormUI::TextField(label, currentX, currentY, width, height, bind, maxLen);
+    textField->setFont(defaultFont);
     currentY += height + spacing;
     return textField;
 }
 
 std::shared_ptr<UIButton> Layout::addButton(const std::string& label, std::function<void()> onClick, int width, int height, TTF_Font* font)
 {
-    auto button = FormUI::Button(label, currentX, currentY, width, height, onClick, font);
+    auto button = FormUI::Button(label, currentX, currentY, width, height, onClick, font ? font : defaultFont);
     currentY += height + spacing;
     return button;
 }
@@ -43,8 +44,8 @@ std::pair<std::shared_ptr<UILabel>, std::shared_ptr<UIButton>> Layout::addLabelB
     TTF_Font* labelFont,
     TTF_Font* buttonFont
 ) {
-    auto label = FormUI::Label(labelText, currentX, currentY, labelWidth, height, labelFont);
-    auto button = FormUI::Button(buttonText, currentX + labelWidth + 10, currentY, buttonWidth, height, onClick, buttonFont);
+    auto label = FormUI::Label(labelText, currentX, currentY, labelWidth, height, labelFont ? labelFont : defaultFont);
+    auto button = FormUI::Button(buttonText, currentX + labelWidth + 10, currentY, buttonWidth, height, onClick, buttonFont ? buttonFont : defaultFont);
     currentY += height + spacing;
     return { label, button };
 }
