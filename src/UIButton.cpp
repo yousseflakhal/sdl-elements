@@ -12,6 +12,14 @@ void UIButton::setOnClick(std::function<void()> callback) {
     onClick = callback;
 }
 
+void UIButton::setText(const std::string& newText) {
+    label = newText;
+}
+
+const std::string& UIButton::getText() const {
+    return label;
+}
+
 void UIButton::handleEvent(const SDL_Event& e) {
     if (e.type == SDL_MOUSEBUTTONDOWN) {
         int mx = e.button.x;
