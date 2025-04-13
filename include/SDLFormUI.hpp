@@ -465,10 +465,19 @@ void UITextField::handleEvent(const SDL_Event& e) {
         int mx = e.button.x;
         int my = e.button.y;
         SDL_Point point = { mx, my };
+
+        bool wasFocused = focused;
         focused = SDL_PointInRect(&point, &bounds);
+
+        if (!wasFocused && focused) {
+            SDL_StartTextInput();
+        } else if (wasFocused && !focused) {
+            SDL_StopTextInput();
+        }
     }
 
     if (focused && e.type == SDL_TEXTINPUT) {
+        SDL_Log("Text input: %s", e.text.text);
         if (linkedText->length() < static_cast<size_t>(maxLength)) {
             linkedText->append(e.text.text);
         }
@@ -479,6 +488,7 @@ void UITextField::handleEvent(const SDL_Event& e) {
             linkedText->pop_back();
         } else if (e.key.keysym.sym == SDLK_RETURN || e.key.keysym.sym == SDLK_KP_ENTER) {
             focused = false;
+            SDL_StopTextInput();
         }
     }
 }
@@ -535,7 +545,8 @@ void UITextField::render(SDL_Renderer* renderer) {
         colorToUse = placeholderColor;
     }
 
-    SDL_Surface* textSurface = TTF_RenderText_Blended(font, textToRender.c_str(), colorToUse);
+    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, textToRender.c_str(), colorToUse);
+
     if (textSurface) {
         SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
         textRect = {
