@@ -77,12 +77,31 @@ void UITextField::update(float) {
 
 void UITextField::render(SDL_Renderer* renderer) {
     TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-    if (!activeFont || !linkedText) return;
+    if (!activeFont) {
+        SDL_Log("UITextField: No valid font for rendering.");
+        return;
+    }
+
+    if (!linkedText) {
+        SDL_Log("UITextField: linkedText is null.");
+        return;
+    }
 
     SDL_Color textColor = { 255, 255, 255, 255 };
 
     SDL_Surface* labelSurface = TTF_RenderText_Blended(activeFont, label.c_str(), textColor);
+    if (!labelSurface) {
+        SDL_Log("UITextField: Failed to render label surface: %s", TTF_GetError());
+        return;
+    }
+
     SDL_Texture* labelTexture = SDL_CreateTextureFromSurface(renderer, labelSurface);
+    if (!labelTexture) {
+        SDL_Log("UITextField: Failed to create label texture: %s", SDL_GetError());
+        SDL_FreeSurface(labelSurface);
+        return;
+    }
+
     SDL_Rect labelRect = {
         bounds.x,
         bounds.y - labelSurface->h - 4,
@@ -99,36 +118,36 @@ void UITextField::render(SDL_Renderer* renderer) {
     SDL_RenderDrawRect(renderer, &bounds);
 
     SDL_Rect textRect;
-
     std::string textToRender = *linkedText;
     SDL_Color colorToUse = textColor;
-    
+
     if (linkedText->empty() && !focused && !placeholder.empty()) {
         textToRender = placeholder;
         colorToUse = placeholderColor;
     }
-    
-    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, textToRender.c_str(), colorToUse);
 
-    if (textSurface) {
-        SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-        textRect = {
-            bounds.x + 5,
-            bounds.y + (bounds.h - textSurface->h) / 2,
-            textSurface->w,
-            textSurface->h
-        };
-        SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
-        SDL_FreeSurface(textSurface);
-        SDL_DestroyTexture(textTexture);
-    } else {
-        textRect = {
-            bounds.x + 5,
-            bounds.y + bounds.h / 4,
-            0,
-            bounds.h / 2
-        };
+    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, textToRender.c_str(), colorToUse);
+    if (!textSurface) {
+        SDL_Log("UITextField: Failed to render input/placeholder surface: %s", TTF_GetError());
+        return;
     }
+
+    SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+    if (!textTexture) {
+        SDL_Log("UITextField: Failed to create text texture: %s", SDL_GetError());
+        SDL_FreeSurface(textSurface);
+        return;
+    }
+
+    textRect = {
+        bounds.x + 5,
+        bounds.y + (bounds.h - textSurface->h) / 2,
+        textSurface->w,
+        textSurface->h
+    };
+    SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
+    SDL_FreeSurface(textSurface);
+    SDL_DestroyTexture(textTexture);
 
     Uint32 now = SDL_GetTicks();
     if (now - lastBlinkTime >= 500) {
@@ -146,5 +165,6 @@ void UITextField::render(SDL_Renderer* renderer) {
         SDL_RenderFillRect(renderer, &cursorRect);
     }
 }
+
 
 

@@ -63,23 +63,35 @@ void UIButton::render(SDL_Renderer* renderer) {
     SDL_RenderDrawRect(renderer, &bounds);
 
     TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-
-    if (activeFont) {
-        SDL_Color textColor = { 255, 255, 255, 255 };
-        SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), textColor);
-        if (textSurface) {
-            SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-            SDL_Rect textRect = {
-                bounds.x + (bounds.w - textSurface->w) / 2,
-                bounds.y + (bounds.h - textSurface->h) / 2,
-                textSurface->w,
-                textSurface->h
-            };
-            SDL_RenderCopy(renderer, textTexture, NULL, &textRect);
-            SDL_FreeSurface(textSurface);
-            SDL_DestroyTexture(textTexture);
-        }
+    if (!activeFont) {
+        SDL_Log("UIButton: No valid font to render label.");
+        return;
     }
+
+    SDL_Color textColor = { 255, 255, 255, 255 };
+    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), textColor);
+    if (!textSurface) {
+        SDL_Log("UIButton: Failed to render text surface: %s", TTF_GetError());
+        return;
+    }
+
+    SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+    if (!textTexture) {
+        SDL_Log("UIButton: Failed to create texture from surface: %s", SDL_GetError());
+        SDL_FreeSurface(textSurface);
+        return;
+    }
+
+    SDL_Rect textRect = {
+        bounds.x + (bounds.w - textSurface->w) / 2,
+        bounds.y + (bounds.h - textSurface->h) / 2,
+        textSurface->w,
+        textSurface->h
+    };
+    SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
+
+    SDL_FreeSurface(textSurface);
+    SDL_DestroyTexture(textTexture);
 }
 
 void UIButton::setFont(TTF_Font* f) {

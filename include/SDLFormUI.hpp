@@ -288,23 +288,35 @@ void UIButton::render(SDL_Renderer* renderer) {
     SDL_RenderDrawRect(renderer, &bounds);
 
     TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-
-    if (activeFont) {
-        SDL_Color textColor = { 255, 255, 255, 255 };
-        SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), textColor);
-        if (textSurface) {
-            SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-            SDL_Rect textRect = {
-                bounds.x + (bounds.w - textSurface->w) / 2,
-                bounds.y + (bounds.h - textSurface->h) / 2,
-                textSurface->w,
-                textSurface->h
-            };
-            SDL_RenderCopy(renderer, textTexture, NULL, &textRect);
-            SDL_FreeSurface(textSurface);
-            SDL_DestroyTexture(textTexture);
-        }
+    if (!activeFont) {
+        SDL_Log("UIButton: No valid font to render label.");
+        return;
     }
+
+    SDL_Color textColor = { 255, 255, 255, 255 };
+    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), textColor);
+    if (!textSurface) {
+        SDL_Log("UIButton: Failed to render text surface: %s", TTF_GetError());
+        return;
+    }
+
+    SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+    if (!textTexture) {
+        SDL_Log("UIButton: Failed to create texture from surface: %s", SDL_GetError());
+        SDL_FreeSurface(textSurface);
+        return;
+    }
+
+    SDL_Rect textRect = {
+        bounds.x + (bounds.w - textSurface->w) / 2,
+        bounds.y + (bounds.h - textSurface->h) / 2,
+        textSurface->w,
+        textSurface->h
+    };
+    SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
+
+    SDL_FreeSurface(textSurface);
+    SDL_DestroyTexture(textTexture);
 }
 
 void UIButton::setFont(TTF_Font* f) {
@@ -350,14 +362,26 @@ void UICheckbox::update(float) {
 
 void UICheckbox::render(SDL_Renderer* renderer) {
     TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-    if (!activeFont) return;
+    if (!activeFont) {
+        SDL_Log("UICheckbox: No valid font for rendering.");
+        return;
+    }
 
     SDL_Color textColor = { 255, 255, 255, 255 };
 
     SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), textColor);
-    if (!textSurface) return;
+    if (!textSurface) {
+        SDL_Log("UICheckbox: Failed to render text surface: %s", TTF_GetError());
+        return;
+    }
 
     SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+    if (!textTexture) {
+        SDL_Log("UICheckbox: Failed to create texture from surface: %s", SDL_GetError());
+        SDL_FreeSurface(textSurface);
+        return;
+    }
+
     int textW = textSurface->w;
     int textH = textSurface->h;
 
@@ -376,7 +400,7 @@ void UICheckbox::render(SDL_Renderer* renderer) {
         textW,
         textH
     };
-    SDL_RenderCopy(renderer, textTexture, NULL, &textRect);
+    SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
 
     SDL_Rect box = {
         bounds.x + textW + margin,
@@ -410,12 +434,24 @@ UILabel::UILabel(const std::string& text, int x, int y, int w, int h, TTF_Font* 
 
 void UILabel::render(SDL_Renderer* renderer) {
     TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-    if (!activeFont) return;
+    if (!activeFont) {
+        SDL_Log("UILabel: No valid font to render text.");
+        return;
+    }
 
     SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, text.c_str(), color);
-    if (!textSurface) return;
+    if (!textSurface) {
+        SDL_Log("UILabel: Failed to render text surface: %s", TTF_GetError());
+        return;
+    }
 
     SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, textSurface);
+    if (!texture) {
+        SDL_Log("UILabel: Failed to create texture from surface: %s", SDL_GetError());
+        SDL_FreeSurface(textSurface);
+        return;
+    }
+
     SDL_Rect dstRect = {
         bounds.x,
         bounds.y + (bounds.h - textSurface->h) / 2,
@@ -424,9 +460,11 @@ void UILabel::render(SDL_Renderer* renderer) {
     };
 
     SDL_RenderCopy(renderer, texture, nullptr, &dstRect);
+
     SDL_FreeSurface(textSurface);
     SDL_DestroyTexture(texture);
 }
+
 
 UILabel* UILabel::setColor(SDL_Color newColor) {
     color = newColor;
@@ -514,12 +552,31 @@ void UITextField::update(float) {
 
 void UITextField::render(SDL_Renderer* renderer) {
     TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-    if (!activeFont || !linkedText) return;
+    if (!activeFont) {
+        SDL_Log("UITextField: No valid font for rendering.");
+        return;
+    }
+
+    if (!linkedText) {
+        SDL_Log("UITextField: linkedText is null.");
+        return;
+    }
 
     SDL_Color textColor = { 255, 255, 255, 255 };
 
     SDL_Surface* labelSurface = TTF_RenderText_Blended(activeFont, label.c_str(), textColor);
+    if (!labelSurface) {
+        SDL_Log("UITextField: Failed to render label surface: %s", TTF_GetError());
+        return;
+    }
+
     SDL_Texture* labelTexture = SDL_CreateTextureFromSurface(renderer, labelSurface);
+    if (!labelTexture) {
+        SDL_Log("UITextField: Failed to create label texture: %s", SDL_GetError());
+        SDL_FreeSurface(labelSurface);
+        return;
+    }
+
     SDL_Rect labelRect = {
         bounds.x,
         bounds.y - labelSurface->h - 4,
@@ -536,7 +593,6 @@ void UITextField::render(SDL_Renderer* renderer) {
     SDL_RenderDrawRect(renderer, &bounds);
 
     SDL_Rect textRect;
-
     std::string textToRender = *linkedText;
     SDL_Color colorToUse = textColor;
 
@@ -546,26 +602,27 @@ void UITextField::render(SDL_Renderer* renderer) {
     }
 
     SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, textToRender.c_str(), colorToUse);
-
-    if (textSurface) {
-        SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-        textRect = {
-            bounds.x + 5,
-            bounds.y + (bounds.h - textSurface->h) / 2,
-            textSurface->w,
-            textSurface->h
-        };
-        SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
-        SDL_FreeSurface(textSurface);
-        SDL_DestroyTexture(textTexture);
-    } else {
-        textRect = {
-            bounds.x + 5,
-            bounds.y + bounds.h / 4,
-            0,
-            bounds.h / 2
-        };
+    if (!textSurface) {
+        SDL_Log("UITextField: Failed to render input/placeholder surface: %s", TTF_GetError());
+        return;
     }
+
+    SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+    if (!textTexture) {
+        SDL_Log("UITextField: Failed to create text texture: %s", SDL_GetError());
+        SDL_FreeSurface(textSurface);
+        return;
+    }
+
+    textRect = {
+        bounds.x + 5,
+        bounds.y + (bounds.h - textSurface->h) / 2,
+        textSurface->w,
+        textSurface->h
+    };
+    SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
+    SDL_FreeSurface(textSurface);
+    SDL_DestroyTexture(textTexture);
 
     Uint32 now = SDL_GetTicks();
     if (now - lastBlinkTime >= 500) {
@@ -583,6 +640,7 @@ void UITextField::render(SDL_Renderer* renderer) {
         SDL_RenderFillRect(renderer, &cursorRect);
     }
 }
+
 
 
 
@@ -620,11 +678,31 @@ void UISlider::update(float) {
 
 void UISlider::render(SDL_Renderer* renderer) {
     TTF_Font* font = UIConfig::getDefaultFont();
-    if (!font || !linkedValue) return;
+    if (!font) {
+        SDL_Log("UISlider: No valid font set for rendering.");
+        return;
+    }
+
+    if (!linkedValue) {
+        SDL_Log("UISlider: linkedValue is null.");
+        return;
+    }
 
     SDL_Color textColor = { 255, 255, 255, 255 };
+
     SDL_Surface* labelSurface = TTF_RenderText_Blended(font, label.c_str(), textColor);
+    if (!labelSurface) {
+        SDL_Log("UISlider: Failed to render label surface: %s", TTF_GetError());
+        return;
+    }
+
     SDL_Texture* labelTexture = SDL_CreateTextureFromSurface(renderer, labelSurface);
+    if (!labelTexture) {
+        SDL_Log("UISlider: Failed to create label texture: %s", SDL_GetError());
+        SDL_FreeSurface(labelSurface);
+        return;
+    }
+
     SDL_Rect labelRect = { bounds.x, bounds.y - labelSurface->h - 4, labelSurface->w, labelSurface->h };
     SDL_RenderCopy(renderer, labelTexture, nullptr, &labelRect);
     SDL_FreeSurface(labelSurface);
@@ -650,7 +728,18 @@ void UISlider::render(SDL_Renderer* renderer) {
     ss << std::fixed << *linkedValue;
 
     SDL_Surface* valueSurface = TTF_RenderText_Blended(font, ss.str().c_str(), textColor);
+    if (!valueSurface) {
+        SDL_Log("UISlider: Failed to render value surface: %s", TTF_GetError());
+        return;
+    }
+
     SDL_Texture* valueTexture = SDL_CreateTextureFromSurface(renderer, valueSurface);
+    if (!valueTexture) {
+        SDL_Log("UISlider: Failed to create value texture: %s", SDL_GetError());
+        SDL_FreeSurface(valueSurface);
+        return;
+    }
+
     SDL_Rect valueRect = {
         bounds.x + bounds.w + 10,
         bounds.y + (bounds.h - valueSurface->h) / 2,

@@ -35,14 +35,26 @@ void UICheckbox::update(float) {
 
 void UICheckbox::render(SDL_Renderer* renderer) {
     TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-    if (!activeFont) return;
+    if (!activeFont) {
+        SDL_Log("UICheckbox: No valid font for rendering.");
+        return;
+    }
 
     SDL_Color textColor = { 255, 255, 255, 255 };
 
     SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), textColor);
-    if (!textSurface) return;
+    if (!textSurface) {
+        SDL_Log("UICheckbox: Failed to render text surface: %s", TTF_GetError());
+        return;
+    }
 
     SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+    if (!textTexture) {
+        SDL_Log("UICheckbox: Failed to create texture from surface: %s", SDL_GetError());
+        SDL_FreeSurface(textSurface);
+        return;
+    }
+
     int textW = textSurface->w;
     int textH = textSurface->h;
 
@@ -61,7 +73,7 @@ void UICheckbox::render(SDL_Renderer* renderer) {
         textW,
         textH
     };
-    SDL_RenderCopy(renderer, textTexture, NULL, &textRect);
+    SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
 
     SDL_Rect box = {
         bounds.x + textW + margin,
