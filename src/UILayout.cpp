@@ -8,19 +8,19 @@ std::shared_ptr<UILabel> Layout::addLabel(const std::string& text, int width, in
     return labelEl;
 }
 
-std::shared_ptr<UICheckbox> Layout::addCheckbox(const std::string& label, bool* value, int width, int height) {
+std::shared_ptr<UICheckbox> Layout::addCheckbox(const std::string& label, bool& value, int width, int height) {
     auto checkbox = FormUI::Checkbox(label, currentX, currentY, width, height, value, defaultFont);
     currentY += height + spacing;
     return checkbox;
 }
 
-std::shared_ptr<UISlider> Layout::addSlider(const std::string& label, float* value, float min, float max, int width, int height) {
+std::shared_ptr<UISlider> Layout::addSlider(const std::string& label, float& value, float min, float max, int width, int height) {
     auto slider = FormUI::Slider(label, currentX, currentY, width, height, value, min, max);
     currentY += height + spacing;
     return slider;
 }
 
-std::shared_ptr<UITextField> Layout::addTextField(const std::string& label, std::string* bind, int maxLen, int width, int height) {
+std::shared_ptr<UITextField> Layout::addTextField(const std::string& label, std::string& bind, int maxLen, int width, int height) {
     auto textField = FormUI::TextField(label, currentX, currentY, width, height, bind, maxLen);
     textField->setFont(defaultFont);
     currentY += height + spacing;

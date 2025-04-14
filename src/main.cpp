@@ -54,9 +54,9 @@ int main() {
 
     FormUI::Layout layout(100, 100, 10);
     layout.addLabel("Settings");
-    layout.addCheckbox("Enable Music", &enableMusic);
-    layout.addSlider("Volume", &volume, 0.0f, 1.0f);
-    layout.addTextField("Username", &username, 20);
+    layout.addCheckbox("Enable Music", enableMusic);
+    layout.addSlider("Volume", volume, 0.0f, 1.0f);
+    layout.addTextField("Username", username, 20);
     layout.addLabelButtonRow("Username", "Edit", [] {
         printf("Edit clicked\n");
     });

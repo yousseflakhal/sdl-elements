@@ -1,7 +1,7 @@
 #include "UICheckbox.hpp"
 #include "UIConfig.hpp"
 
-UICheckbox::UICheckbox(const std::string& label, int x, int y, int w, int h, bool* bind, TTF_Font* f)
+UICheckbox::UICheckbox(const std::string& label, int x, int y, int w, int h, bool& bind, TTF_Font* f)
     : label(label), linkedValue(bind), font(f)
 {
     bounds = { x, y, w, h };
@@ -17,7 +17,7 @@ void UICheckbox::handleEvent(const SDL_Event& e) {
         int my = e.button.y;
         if (mx >= bounds.x && mx <= bounds.x + bounds.w &&
             my >= bounds.y && my <= bounds.y + bounds.h) {
-            if (linkedValue) *linkedValue = !(*linkedValue);
+            linkedValue.get() = !linkedValue.get();
         }
     }
 }
@@ -84,7 +84,7 @@ void UICheckbox::render(SDL_Renderer* renderer) {
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
     SDL_RenderDrawRect(renderer, &box);
 
-    if (linkedValue && *linkedValue) {
+    if (linkedValue) {
         SDL_Rect inner = {
             box.x + 4,
             box.y + 4,

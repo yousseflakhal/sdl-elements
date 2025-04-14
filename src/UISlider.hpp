@@ -6,7 +6,7 @@
 
 class UISlider : public UIElement {
 public:
-    UISlider(const std::string& label, int x, int y, int w, int h, float* bind, float min, float max);
+    UISlider(const std::string& label, int x, int y, int w, int h, float& bind, float min, float max);
 
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
@@ -15,7 +15,7 @@ public:
 private:
     std::string label;
     SDL_Rect bounds;
-    float* linkedValue = nullptr;
+    std::reference_wrapper<float> linkedValue;
     float minValue = 0.0f;
     float maxValue = 1.0f;
     bool hovered = false;

@@ -22,7 +22,7 @@ namespace FormUI {
         return btn;
     }
 
-    std::shared_ptr<UICheckbox> Checkbox(const std::string& label, int x, int y, int w, int h, bool* bind, TTF_Font* font) {
+    std::shared_ptr<UICheckbox> Checkbox(const std::string& label, int x, int y, int w, int h, bool& bind, TTF_Font* font) {
         auto box = std::make_shared<UICheckbox>(label, x, y, w, h, bind, font);
         uiManager.addElement(box);
         return box;
@@ -34,13 +34,13 @@ namespace FormUI {
         return label;
     }
 
-    std::shared_ptr<UISlider> Slider(const std::string& label, int x, int y, int w, int h, float* bind, float min, float max) {
+    std::shared_ptr<UISlider> Slider(const std::string& label, int x, int y, int w, int h, float& bind, float min, float max) {
         auto slider = std::make_shared<UISlider>(label, x, y, w, h, bind, min, max);
         uiManager.addElement(slider);
         return slider;
     }
 
-    std::shared_ptr<UITextField> TextField(const std::string& label, int x, int y, int w, int h, std::string* bind, int maxLen) {
+    std::shared_ptr<UITextField> TextField(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen) {
         auto field = std::make_shared<UITextField>(label, x, y, w, h, bind, maxLen);
         uiManager.addElement(field);
         return field;

@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <sstream>
 
-UISlider::UISlider(const std::string& label, int x, int y, int w, int h, float* bind, float min, float max)
+UISlider::UISlider(const std::string& label, int x, int y, int w, int h, float& bind, float min, float max)
     : label(label), linkedValue(bind), minValue(min), maxValue(max)
 {
     bounds = { x, y, w, h };
@@ -23,7 +23,7 @@ void UISlider::handleEvent(const SDL_Event& e) {
     } else if (e.type == SDL_MOUSEMOTION && dragging && linkedValue) {
         float relX = mx - bounds.x;
         float t = std::clamp(relX / float(bounds.w), 0.0f, 1.0f);
-        *linkedValue = minValue + t * (maxValue - minValue);
+        linkedValue.get() = minValue + t * (maxValue - minValue);
     }
 }
 
@@ -75,7 +75,7 @@ void UISlider::render(SDL_Renderer* renderer) {
     SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
     SDL_RenderFillRect(renderer, &track);
 
-    float t = (*linkedValue - minValue) / (maxValue - minValue);
+    float t = (linkedValue.get() - minValue) / (maxValue - minValue);
     int thumbX = bounds.x + static_cast<int>(t * bounds.w);
     SDL_Rect thumb = { thumbX - 6, bounds.y + bounds.h / 2 - 10, 12, 20 };
     SDL_SetRenderDrawColor(renderer, hovered ? 255 : 200, 200, 255, 255);
@@ -83,7 +83,7 @@ void UISlider::render(SDL_Renderer* renderer) {
 
     std::stringstream ss;
     ss.precision(2);
-    ss << std::fixed << *linkedValue;
+    ss << std::fixed << linkedValue.get();
 
     SDL_Surface* valueSurface = TTF_RenderText_Blended(font, ss.str().c_str(), textColor);
     if (!valueSurface) {

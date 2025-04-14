@@ -1,7 +1,7 @@
 #include "UITextField.hpp"
 #include "UIConfig.hpp"
 
-UITextField::UITextField(const std::string& label, int x, int y, int w, int h, std::string* bind, int maxLen)
+UITextField::UITextField(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen)
     : label(label), linkedText(bind), maxLength(maxLen)
 {
     bounds = { x, y, w, h };
@@ -22,8 +22,6 @@ bool UITextField::isHovered() const {
 }
 
 void UITextField::handleEvent(const SDL_Event& e) {
-    if (!linkedText) return;
-
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
         int mx = e.button.x;
         int my = e.button.y;
@@ -41,14 +39,14 @@ void UITextField::handleEvent(const SDL_Event& e) {
 
     if (focused && e.type == SDL_TEXTINPUT) {
         SDL_Log("Text input: %s", e.text.text);
-        if (linkedText->length() < static_cast<size_t>(maxLength)) {
-            linkedText->append(e.text.text);
+        if (linkedText.get().length() < static_cast<size_t>(maxLength)) {
+            linkedText.get().append(e.text.text);
         }
     }
 
     if (focused && e.type == SDL_KEYDOWN) {
-        if (e.key.keysym.sym == SDLK_BACKSPACE && !linkedText->empty()) {
-            linkedText->pop_back();
+        if (e.key.keysym.sym == SDLK_BACKSPACE && !linkedText.get().empty()) {
+            linkedText.get().pop_back();
         } else if (e.key.keysym.sym == SDLK_RETURN || e.key.keysym.sym == SDLK_KP_ENTER) {
             focused = false;
             SDL_StopTextInput();
@@ -79,11 +77,6 @@ void UITextField::render(SDL_Renderer* renderer) {
     TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
     if (!activeFont) {
         SDL_Log("UITextField: No valid font for rendering.");
-        return;
-    }
-
-    if (!linkedText) {
-        SDL_Log("UITextField: linkedText is null.");
         return;
     }
 
@@ -118,14 +111,18 @@ void UITextField::render(SDL_Renderer* renderer) {
     SDL_RenderDrawRect(renderer, &bounds);
 
     SDL_Rect textRect;
-    std::string textToRender = *linkedText;
+    std::string textToRender = linkedText.get();
     SDL_Color colorToUse = textColor;
 
-    if (linkedText->empty() && !focused && !placeholder.empty()) {
+    if (linkedText.get().empty() && !focused && !placeholder.empty()) {
         textToRender = placeholder;
         colorToUse = placeholderColor;
     }
 
+    if (textToRender.empty()) {
+        return;
+    }
+    
     SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, textToRender.c_str(), colorToUse);
     if (!textSurface) {
         SDL_Log("UITextField: Failed to render input/placeholder surface: %s", TTF_GetError());

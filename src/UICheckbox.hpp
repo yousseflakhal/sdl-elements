@@ -6,7 +6,7 @@
 
 class UICheckbox : public UIElement {
 public:
-    UICheckbox(const std::string& label, int x, int y, int w, int h, bool* bind, TTF_Font* f);
+    UICheckbox(const std::string& label, int x, int y, int w, int h, bool& bind, TTF_Font* f);
 
     void setFont(TTF_Font* f);
 
@@ -19,6 +19,6 @@ private:
     std::string label;
     SDL_Rect bounds;
     bool hovered = false;
-    bool* linkedValue = nullptr;
+    std::reference_wrapper<bool> linkedValue;
     TTF_Font* font = nullptr;
 };

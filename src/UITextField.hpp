@@ -6,7 +6,7 @@
 
 class UITextField : public UIElement {
 public:
-    UITextField(const std::string& label, int x, int y, int w, int h, std::string* bind, int maxLen = 32);
+    UITextField(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen = 32);
     UITextField* setPlaceholder(const std::string& text);
     UITextField* setFont(TTF_Font* f);
 
@@ -20,7 +20,7 @@ public:
 private:
     std::string label;
     SDL_Rect bounds;
-    std::string* linkedText;
+    std::reference_wrapper<std::string> linkedText;
     int maxLength = 32;
     bool hovered = false;
     bool focused = false;
