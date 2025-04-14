@@ -9,6 +9,7 @@ public:
     UISlider(const std::string& label, int x, int y, int w, int h, float& bind, float min, float max);
 
     void handleEvent(const SDL_Event& e) override;
+    bool isHovered() const override;
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
 

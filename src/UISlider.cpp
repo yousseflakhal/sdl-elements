@@ -27,6 +27,10 @@ void UISlider::handleEvent(const SDL_Event& e) {
     }
 }
 
+bool UISlider::isHovered() const {
+    return hovered;
+}
+
 void UISlider::update(float) {
     int mx, my;
     SDL_GetMouseState(&mx, &my);

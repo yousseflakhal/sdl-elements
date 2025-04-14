@@ -127,6 +127,7 @@ public:
     UISlider(const std::string& label, int x, int y, int w, int h, float& bind, float min, float max);
 
     void handleEvent(const SDL_Event& e) override;
+    bool isHovered() const override;
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
 
@@ -666,6 +667,10 @@ void UISlider::handleEvent(const SDL_Event& e) {
     }
 }
 
+bool UISlider::isHovered() const {
+    return hovered;
+}
+
 void UISlider::update(float) {
     int mx, my;
     SDL_GetMouseState(&mx, &my);
@@ -772,6 +777,8 @@ void UIManager::update(float dt) {
             if (dynamic_cast<UITextField*>(el.get())) {
                 cursorToUse = ibeamCursor;
             } else if (dynamic_cast<UIButton*>(el.get()) || dynamic_cast<UICheckbox*>(el.get())) {
+                cursorToUse = handCursor;
+            } else if (dynamic_cast<UISlider*>(el.get())) {
                 cursorToUse = handCursor;
             }
         }

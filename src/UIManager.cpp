@@ -24,6 +24,8 @@ void UIManager::update(float dt) {
                 cursorToUse = ibeamCursor;
             } else if (dynamic_cast<UIButton*>(el.get()) || dynamic_cast<UICheckbox*>(el.get())) {
                 cursorToUse = handCursor;
+            } else if (dynamic_cast<UISlider*>(el.get())) {
+                cursorToUse = handCursor;
             }
         }
     }
