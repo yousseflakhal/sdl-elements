@@ -8,13 +8,15 @@ UILabel::UILabel(const std::string& text, int x, int y, int w, int h, TTF_Font* 
 }
 
 void UILabel::render(SDL_Renderer* renderer) {
-    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+    TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
     if (!activeFont) {
         SDL_Log("UILabel: No valid font to render text.");
         return;
     }
 
-    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, text.c_str(), color);
+    const SDL_Color& textColor = color.a == 0 ? UIConfig::getTheme().textColor : color;
+
+    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, text.c_str(), textColor);
     if (!textSurface) {
         SDL_Log("UILabel: Failed to render text surface: %s", TTF_GetError());
         return;

@@ -20,6 +20,7 @@
                 "${workspaceFolder}/src/UISlider.cpp",
                 "${workspaceFolder}/src/UITextField.cpp",
                 "${workspaceFolder}/src/UILayout.cpp",
+                "${workspaceFolder}/src/UITheme.cpp",
                 "-I${workspaceFolder}/include",
                 "-L${workspaceFolder}/lib",
                 "-lSDL2",

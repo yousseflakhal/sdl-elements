@@ -34,15 +34,14 @@ void UICheckbox::update(float) {
 }
 
 void UICheckbox::render(SDL_Renderer* renderer) {
-    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+    const UITheme& theme = UIConfig::getTheme();
+    TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
     if (!activeFont) {
         SDL_Log("UICheckbox: No valid font for rendering.");
         return;
     }
 
-    SDL_Color textColor = { 255, 255, 255, 255 };
-
-    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), textColor);
+    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), theme.textColor);
     if (!textSurface) {
         SDL_Log("UICheckbox: Failed to render text surface: %s", TTF_GetError());
         return;
@@ -57,13 +56,11 @@ void UICheckbox::render(SDL_Renderer* renderer) {
 
     int textW = textSurface->w;
     int textH = textSurface->h;
-
     int margin = 10;
     int boxSize = 20;
 
     int totalWidth = textW + margin + boxSize;
     int totalHeight = std::max(textH, boxSize);
-
     bounds.w = totalWidth;
     bounds.h = totalHeight;
 
@@ -81,10 +78,20 @@ void UICheckbox::render(SDL_Renderer* renderer) {
         boxSize,
         boxSize
     };
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+
+    SDL_SetRenderDrawColor(renderer,
+        hovered ? theme.borderHoverColor.r : theme.borderColor.r,
+        hovered ? theme.borderHoverColor.g : theme.borderColor.g,
+        hovered ? theme.borderHoverColor.b : theme.borderColor.b,
+        hovered ? theme.borderHoverColor.a : theme.borderColor.a);
     SDL_RenderDrawRect(renderer, &box);
 
-    if (linkedValue) {
+    if (linkedValue.get()) {
+        SDL_SetRenderDrawColor(renderer,
+            theme.checkboxTickColor.r,
+            theme.checkboxTickColor.g,
+            theme.checkboxTickColor.b,
+            theme.checkboxTickColor.a);
         SDL_Rect inner = {
             box.x + 4,
             box.y + 4,

@@ -12,6 +12,26 @@
 #include <sstream>
 
 
+struct UIConfig;
+
+struct UITheme {
+    SDL_Color backgroundColor     = { 100, 100, 100, 255 };
+    SDL_Color hoverColor          = { 130, 130, 130, 255 };
+    SDL_Color borderColor         = { 200, 200, 200, 255 };
+    SDL_Color borderHoverColor    = { 255, 255, 255, 255 };
+    SDL_Color textColor           = { 255, 255, 255, 255 };
+    SDL_Color placeholderColor    = { 160, 160, 160, 255 };
+    SDL_Color cursorColor         = { 255, 255, 255, 255 };
+    SDL_Color sliderTrackColor    = { 80, 80, 80, 255 };
+    SDL_Color sliderThumbColor    = { 180, 180, 255, 255 };
+    SDL_Color checkboxTickColor   = { 255, 255, 255, 255 };
+
+    TTF_Font* font = nullptr;
+};
+
+TTF_Font* getThemeFont(const UITheme& theme);
+
+
 class UIElement {
 public:
     SDL_Rect bounds;
@@ -21,17 +41,31 @@ public:
     virtual bool isHovered() const { return false; }
     virtual void update(float dt) = 0;
     virtual void render(SDL_Renderer* renderer) = 0;
+    void setTheme(const UITheme& theme) { customTheme = theme; hasCustomTheme = true; }
+    const UITheme& getTheme() const { return hasCustomTheme ? customTheme : UIConfig::getTheme(); }
+
     virtual ~UIElement() = default;
+
+private:
+    UITheme customTheme;
+    bool hasCustomTheme = false;
 };
 
 
+struct UITheme;
 class UIConfig {
 public:
+    // NOTE: SDLFormUI does NOT take ownership. Caller must manage the lifetime (TTF_CloseFont).
     static void setDefaultFont(TTF_Font* font);
     static TTF_Font* getDefaultFont();
 
+    static void setTheme(const UITheme& theme);
+    static const UITheme& getTheme();
+    static TTF_Font** getDefaultFontPtr();
+
 private:
     static TTF_Font* defaultFont;
+    static UITheme defaultTheme;
 };
 
 
@@ -197,6 +231,7 @@ private:
 
 
 namespace FormUI {
+    // NOTE: SDLFormUI does not take ownership of the font.
     void Init(TTF_Font* defaultFont = nullptr);
     void Shutdown();
 
@@ -217,14 +252,32 @@ namespace FormUI {
 #ifdef SDLFORMUI_IMPLEMENTATION
 
 
+TTF_Font* getThemeFont(const UITheme& theme) {
+    return theme.font ? theme.font : UIConfig::getDefaultFont();
+}
+
+
 TTF_Font* UIConfig::defaultFont = nullptr;
+UITheme UIConfig::defaultTheme;
 
 void UIConfig::setDefaultFont(TTF_Font* font) {
-    UIConfig::defaultFont = font;
+    defaultFont = font;
 }
 
 TTF_Font* UIConfig::getDefaultFont() {
-    return UIConfig::defaultFont;
+    return defaultFont;
+}
+
+void UIConfig::setTheme(const UITheme& theme) {
+    defaultTheme = theme;
+}
+
+const UITheme& UIConfig::getTheme() {
+    return defaultTheme;
+}
+
+TTF_Font** UIConfig::getDefaultFontPtr() {
+    return &defaultFont;
 }
 
 
@@ -274,28 +327,29 @@ void UIButton::update(float) {
 
 
 void UIButton::render(SDL_Renderer* renderer) {
-    if (hovered) {
-        SDL_SetRenderDrawColor(renderer, 130, 130, 130, 255);
-    } else {
-        SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
-    }
+    const UITheme& theme = UIConfig::getTheme();
+
+    SDL_SetRenderDrawColor(renderer,
+                           hovered ? theme.hoverColor.r : theme.backgroundColor.r,
+                           hovered ? theme.hoverColor.g : theme.backgroundColor.g,
+                           hovered ? theme.hoverColor.b : theme.backgroundColor.b,
+                           hovered ? theme.hoverColor.a : theme.backgroundColor.a);
     SDL_RenderFillRect(renderer, &bounds);
 
-    if (hovered) {
-        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-    } else {
-        SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
-    }
+    SDL_SetRenderDrawColor(renderer,
+                           hovered ? theme.borderHoverColor.r : theme.borderColor.r,
+                           hovered ? theme.borderHoverColor.g : theme.borderColor.g,
+                           hovered ? theme.borderHoverColor.b : theme.borderColor.b,
+                           hovered ? theme.borderHoverColor.a : theme.borderColor.a);
     SDL_RenderDrawRect(renderer, &bounds);
 
-    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+    TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
     if (!activeFont) {
         SDL_Log("UIButton: No valid font to render label.");
         return;
     }
 
-    SDL_Color textColor = { 255, 255, 255, 255 };
-    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), textColor);
+    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), theme.textColor);
     if (!textSurface) {
         SDL_Log("UIButton: Failed to render text surface: %s", TTF_GetError());
         return;
@@ -362,15 +416,14 @@ void UICheckbox::update(float) {
 }
 
 void UICheckbox::render(SDL_Renderer* renderer) {
-    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+    const UITheme& theme = UIConfig::getTheme();
+    TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
     if (!activeFont) {
         SDL_Log("UICheckbox: No valid font for rendering.");
         return;
     }
 
-    SDL_Color textColor = { 255, 255, 255, 255 };
-
-    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), textColor);
+    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), theme.textColor);
     if (!textSurface) {
         SDL_Log("UICheckbox: Failed to render text surface: %s", TTF_GetError());
         return;
@@ -385,13 +438,11 @@ void UICheckbox::render(SDL_Renderer* renderer) {
 
     int textW = textSurface->w;
     int textH = textSurface->h;
-
     int margin = 10;
     int boxSize = 20;
 
     int totalWidth = textW + margin + boxSize;
     int totalHeight = std::max(textH, boxSize);
-
     bounds.w = totalWidth;
     bounds.h = totalHeight;
 
@@ -409,10 +460,20 @@ void UICheckbox::render(SDL_Renderer* renderer) {
         boxSize,
         boxSize
     };
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+
+    SDL_SetRenderDrawColor(renderer,
+        hovered ? theme.borderHoverColor.r : theme.borderColor.r,
+        hovered ? theme.borderHoverColor.g : theme.borderColor.g,
+        hovered ? theme.borderHoverColor.b : theme.borderColor.b,
+        hovered ? theme.borderHoverColor.a : theme.borderColor.a);
     SDL_RenderDrawRect(renderer, &box);
 
-    if (linkedValue) {
+    if (linkedValue.get()) {
+        SDL_SetRenderDrawColor(renderer,
+            theme.checkboxTickColor.r,
+            theme.checkboxTickColor.g,
+            theme.checkboxTickColor.b,
+            theme.checkboxTickColor.a);
         SDL_Rect inner = {
             box.x + 4,
             box.y + 4,
@@ -434,13 +495,15 @@ UILabel::UILabel(const std::string& text, int x, int y, int w, int h, TTF_Font* 
 }
 
 void UILabel::render(SDL_Renderer* renderer) {
-    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+    TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
     if (!activeFont) {
         SDL_Log("UILabel: No valid font to render text.");
         return;
     }
 
-    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, text.c_str(), color);
+    const SDL_Color& textColor = color.a == 0 ? UIConfig::getTheme().textColor : color;
+
+    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, text.c_str(), textColor);
     if (!textSurface) {
         SDL_Log("UILabel: Failed to render text surface: %s", TTF_GetError());
         return;
@@ -514,7 +577,7 @@ void UITextField::handleEvent(const SDL_Event& e) {
     }
 
     if (focused && e.type == SDL_TEXTINPUT) {
-        SDL_Log("Text input: %s", e.text.text);
+        // SDL_Log("Text input: %s", e.text.text);
         if (linkedText.get().length() < static_cast<size_t>(maxLength)) {
             linkedText.get().append(e.text.text);
         }
@@ -550,96 +613,55 @@ void UITextField::update(float) {
 
 
 void UITextField::render(SDL_Renderer* renderer) {
-    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-    if (!activeFont) {
-        SDL_Log("UITextField: No valid font for rendering.");
-        return;
-    }
+    const UITheme& theme = getTheme();
+    TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
+    if (!activeFont) return;
 
-    SDL_Color textColor = { 255, 255, 255, 255 };
-
-    SDL_Surface* labelSurface = TTF_RenderText_Blended(activeFont, label.c_str(), textColor);
-    if (!labelSurface) {
-        SDL_Log("UITextField: Failed to render label surface: %s", TTF_GetError());
-        return;
-    }
+    SDL_Surface* labelSurface = TTF_RenderText_Blended(activeFont, label.c_str(), theme.textColor);
+    if (!labelSurface) return;
 
     SDL_Texture* labelTexture = SDL_CreateTextureFromSurface(renderer, labelSurface);
-    if (!labelTexture) {
-        SDL_Log("UITextField: Failed to create label texture: %s", SDL_GetError());
-        SDL_FreeSurface(labelSurface);
-        return;
-    }
-
-    SDL_Rect labelRect = {
-        bounds.x,
-        bounds.y - labelSurface->h - 4,
-        labelSurface->w,
-        labelSurface->h
-    };
+    SDL_Rect labelRect = { bounds.x, bounds.y - labelSurface->h - 4, labelSurface->w, labelSurface->h };
     SDL_RenderCopy(renderer, labelTexture, nullptr, &labelRect);
     SDL_FreeSurface(labelSurface);
     SDL_DestroyTexture(labelTexture);
 
-    SDL_SetRenderDrawColor(renderer, 40, 40, 40, 255);
+    SDL_SetRenderDrawColor(renderer, theme.backgroundColor.r, theme.backgroundColor.g, theme.backgroundColor.b, theme.backgroundColor.a);
     SDL_RenderFillRect(renderer, &bounds);
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+
+    SDL_Color borderCol = hovered ? theme.borderHoverColor : theme.borderColor;
+    SDL_SetRenderDrawColor(renderer, borderCol.r, borderCol.g, borderCol.b, borderCol.a);
     SDL_RenderDrawRect(renderer, &bounds);
 
-    SDL_Rect textRect;
-    std::string textToRender = linkedText.get();
-    SDL_Color colorToUse = textColor;
-
-    if (linkedText.get().empty() && !focused && !placeholder.empty()) {
-        textToRender = placeholder;
-        colorToUse = placeholderColor;
+    std::string toRender = linkedText.get();
+    SDL_Color textCol = theme.textColor;
+    if (toRender.empty() && !focused && !placeholder.empty()) {
+        toRender = placeholder;
+        textCol = theme.placeholderColor;
     }
 
-    if (textToRender.empty()) {
-        return;
-    }
+    if (!toRender.empty()) {
+        SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, toRender.c_str(), textCol);
+        if (textSurface) {
+            SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+            SDL_Rect textRect = {
+                bounds.x + 5,
+                bounds.y + (bounds.h - textSurface->h) / 2,
+                textSurface->w,
+                textSurface->h
+            };
+            SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
+            SDL_FreeSurface(textSurface);
+            SDL_DestroyTexture(textTexture);
 
-    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, textToRender.c_str(), colorToUse);
-    if (!textSurface) {
-        SDL_Log("UITextField: Failed to render input/placeholder surface: %s", TTF_GetError());
-        return;
-    }
-
-    SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-    if (!textTexture) {
-        SDL_Log("UITextField: Failed to create text texture: %s", SDL_GetError());
-        SDL_FreeSurface(textSurface);
-        return;
-    }
-
-    textRect = {
-        bounds.x + 5,
-        bounds.y + (bounds.h - textSurface->h) / 2,
-        textSurface->w,
-        textSurface->h
-    };
-    SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
-    SDL_FreeSurface(textSurface);
-    SDL_DestroyTexture(textTexture);
-
-    Uint32 now = SDL_GetTicks();
-    if (now - lastBlinkTime >= 500) {
-        cursorVisible = !cursorVisible;
-        lastBlinkTime = now;
-    }
-
-    if (focused && cursorVisible) {
-        int cursorX = textRect.x + textRect.w + 2;
-        int cursorY = textRect.y;
-        int cursorH = textRect.h;
-
-        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-        SDL_Rect cursorRect = { cursorX, cursorY, 2, cursorH };
-        SDL_RenderFillRect(renderer, &cursorRect);
+            if (focused && cursorVisible) {
+                SDL_SetRenderDrawColor(renderer, theme.cursorColor.r, theme.cursorColor.g, theme.cursorColor.b, theme.cursorColor.a);
+                SDL_Rect cursorRect = { textRect.x + textRect.w + 2, textRect.y, 2, textRect.h };
+                SDL_RenderFillRect(renderer, &cursorRect);
+            }
+        }
     }
 }
-
-
 
 
 
@@ -679,36 +701,18 @@ void UISlider::update(float) {
 }
 
 void UISlider::render(SDL_Renderer* renderer) {
-    TTF_Font* font = UIConfig::getDefaultFont();
-    if (!font) {
-        SDL_Log("UISlider: No valid font set for rendering.");
-        return;
-    }
+    const UITheme& theme = getTheme();
+    TTF_Font* font = getThemeFont(getTheme());
+    if (!font || !linkedValue) return;
 
-    if (!linkedValue) {
-        SDL_Log("UISlider: linkedValue is null.");
-        return;
-    }
-
-    SDL_Color textColor = { 255, 255, 255, 255 };
-
-    SDL_Surface* labelSurface = TTF_RenderText_Blended(font, label.c_str(), textColor);
-    if (!labelSurface) {
-        SDL_Log("UISlider: Failed to render label surface: %s", TTF_GetError());
-        return;
-    }
-
-    SDL_Texture* labelTexture = SDL_CreateTextureFromSurface(renderer, labelSurface);
-    if (!labelTexture) {
-        SDL_Log("UISlider: Failed to create label texture: %s", SDL_GetError());
+    SDL_Surface* labelSurface = TTF_RenderText_Blended(font, label.c_str(), theme.textColor);
+    if (labelSurface) {
+        SDL_Texture* labelTexture = SDL_CreateTextureFromSurface(renderer, labelSurface);
+        SDL_Rect labelRect = { bounds.x, bounds.y - labelSurface->h - 4, labelSurface->w, labelSurface->h };
+        SDL_RenderCopy(renderer, labelTexture, nullptr, &labelRect);
         SDL_FreeSurface(labelSurface);
-        return;
+        SDL_DestroyTexture(labelTexture);
     }
-
-    SDL_Rect labelRect = { bounds.x, bounds.y - labelSurface->h - 4, labelSurface->w, labelSurface->h };
-    SDL_RenderCopy(renderer, labelTexture, nullptr, &labelRect);
-    SDL_FreeSurface(labelSurface);
-    SDL_DestroyTexture(labelTexture);
 
     SDL_Rect track = {
         bounds.x,
@@ -716,41 +720,30 @@ void UISlider::render(SDL_Renderer* renderer) {
         bounds.w,
         8
     };
-    SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+    SDL_SetRenderDrawColor(renderer, theme.sliderTrackColor.r, theme.sliderTrackColor.g, theme.sliderTrackColor.b, theme.sliderTrackColor.a);
     SDL_RenderFillRect(renderer, &track);
 
     float t = (linkedValue.get() - minValue) / (maxValue - minValue);
     int thumbX = bounds.x + static_cast<int>(t * bounds.w);
     SDL_Rect thumb = { thumbX - 6, bounds.y + bounds.h / 2 - 10, 12, 20 };
-    SDL_SetRenderDrawColor(renderer, hovered ? 255 : 200, 200, 255, 255);
+    SDL_SetRenderDrawColor(renderer, theme.sliderThumbColor.r, theme.sliderThumbColor.g, theme.sliderThumbColor.b, theme.sliderThumbColor.a);
     SDL_RenderFillRect(renderer, &thumb);
 
-    std::stringstream ss;
-    ss.precision(2);
-    ss << std::fixed << linkedValue.get();
-
-    SDL_Surface* valueSurface = TTF_RenderText_Blended(font, ss.str().c_str(), textColor);
-    if (!valueSurface) {
-        SDL_Log("UISlider: Failed to render value surface: %s", TTF_GetError());
-        return;
-    }
-
-    SDL_Texture* valueTexture = SDL_CreateTextureFromSurface(renderer, valueSurface);
-    if (!valueTexture) {
-        SDL_Log("UISlider: Failed to create value texture: %s", SDL_GetError());
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(2) << linkedValue.get();
+    SDL_Surface* valueSurface = TTF_RenderText_Blended(font, oss.str().c_str(), theme.textColor);
+    if (valueSurface) {
+        SDL_Texture* valueTexture = SDL_CreateTextureFromSurface(renderer, valueSurface);
+        SDL_Rect valueRect = {
+            bounds.x + bounds.w + 10,
+            bounds.y + (bounds.h - valueSurface->h) / 2,
+            valueSurface->w,
+            valueSurface->h
+        };
+        SDL_RenderCopy(renderer, valueTexture, nullptr, &valueRect);
         SDL_FreeSurface(valueSurface);
-        return;
+        SDL_DestroyTexture(valueTexture);
     }
-
-    SDL_Rect valueRect = {
-        bounds.x + bounds.w + 10,
-        bounds.y + (bounds.h - valueSurface->h) / 2,
-        valueSurface->w,
-        valueSurface->h
-    };
-    SDL_RenderCopy(renderer, valueTexture, nullptr, &valueRect);
-    SDL_FreeSurface(valueSurface);
-    SDL_DestroyTexture(valueTexture);
 }
 
 

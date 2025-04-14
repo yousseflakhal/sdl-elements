@@ -14,6 +14,7 @@
 
 
 namespace FormUI {
+    // NOTE: SDLFormUI does not take ownership of the font.
     void Init(TTF_Font* defaultFont = nullptr);
     void Shutdown();
 

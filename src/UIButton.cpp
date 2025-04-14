@@ -48,28 +48,29 @@ void UIButton::update(float) {
 
 
 void UIButton::render(SDL_Renderer* renderer) {
-    if (hovered) {
-        SDL_SetRenderDrawColor(renderer, 130, 130, 130, 255);
-    } else {
-        SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
-    }
+    const UITheme& theme = UIConfig::getTheme();
+
+    SDL_SetRenderDrawColor(renderer,
+                           hovered ? theme.hoverColor.r : theme.backgroundColor.r,
+                           hovered ? theme.hoverColor.g : theme.backgroundColor.g,
+                           hovered ? theme.hoverColor.b : theme.backgroundColor.b,
+                           hovered ? theme.hoverColor.a : theme.backgroundColor.a);
     SDL_RenderFillRect(renderer, &bounds);
 
-    if (hovered) {
-        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-    } else {
-        SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255);
-    }
+    SDL_SetRenderDrawColor(renderer,
+                           hovered ? theme.borderHoverColor.r : theme.borderColor.r,
+                           hovered ? theme.borderHoverColor.g : theme.borderColor.g,
+                           hovered ? theme.borderHoverColor.b : theme.borderColor.b,
+                           hovered ? theme.borderHoverColor.a : theme.borderColor.a);
     SDL_RenderDrawRect(renderer, &bounds);
 
-    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+    TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
     if (!activeFont) {
         SDL_Log("UIButton: No valid font to render label.");
         return;
     }
 
-    SDL_Color textColor = { 255, 255, 255, 255 };
-    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), textColor);
+    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), theme.textColor);
     if (!textSurface) {
         SDL_Log("UIButton: Failed to render text surface: %s", TTF_GetError());
         return;
