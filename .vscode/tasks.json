@@ -21,6 +21,8 @@
                 "${workspaceFolder}/src/UITextField.cpp",
                 "${workspaceFolder}/src/UILayout.cpp",
                 "${workspaceFolder}/src/UITheme.cpp",
+                "${workspaceFolder}/src/UIRadioGroup.cpp",
+                "${workspaceFolder}/src/UIRadioButton.cpp",
                 "-I${workspaceFolder}/include",
                 "-L${workspaceFolder}/lib",
                 "-lSDL2",

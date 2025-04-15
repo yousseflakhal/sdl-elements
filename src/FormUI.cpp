@@ -46,6 +46,10 @@ namespace FormUI {
         return field;
     }
 
+    void AddElement(std::shared_ptr<UIElement> element) {
+        uiManager.addElement(element);
+    }
+
     void HandleEvent(const SDL_Event& e) {
         uiManager.handleEvent(e);
     }
