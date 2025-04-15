@@ -41,26 +41,18 @@ void UIRadioButton::render(SDL_Renderer* renderer) {
     TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
     if (!activeFont) return;
 
-    int radius = 8;
-    int cx = bounds.x + 10;
+    int cx = bounds.x + 12;
     int cy = bounds.y + bounds.h / 2;
+    int outerRadius = 10;
+    int thickness = 2;
 
-    SDL_Rect outer = { cx - radius, cy - radius, radius * 2, radius * 2 };
-    SDL_SetRenderDrawColor(renderer,
-        hovered ? theme.borderHoverColor.r : theme.borderColor.r,
-        hovered ? theme.borderHoverColor.g : theme.borderColor.g,
-        hovered ? theme.borderHoverColor.b : theme.borderColor.b,
-        hovered ? theme.borderHoverColor.a : theme.borderColor.a);
-    SDL_RenderDrawRect(renderer, &outer);
+    SDL_Color ringColor = hovered ? theme.borderHoverColor : theme.borderColor;
+
+    UIHelpers::DrawCircleRing(renderer, cx, cy, outerRadius, thickness, ringColor);
 
     if (group && group->getSelectedID() == id) {
-        SDL_Rect inner = { cx - radius / 2, cy - radius / 2, radius, radius };
-        SDL_SetRenderDrawColor(renderer,
-            theme.checkboxTickColor.r,
-            theme.checkboxTickColor.g,
-            theme.checkboxTickColor.b,
-            theme.checkboxTickColor.a);
-        SDL_RenderFillRect(renderer, &inner);
+        int innerRadius = outerRadius - thickness - 2;
+        UIHelpers::DrawFilledCircle(renderer, cx, cy, innerRadius, ringColor);
     }
 
     SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), theme.textColor);
@@ -68,13 +60,12 @@ void UIRadioButton::render(SDL_Renderer* renderer) {
 
     SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
     SDL_Rect textRect = {
-        cx + radius + 10,
+        bounds.x + 30,
         bounds.y + (bounds.h - textSurface->h) / 2,
         textSurface->w,
         textSurface->h
     };
     SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
-
     SDL_FreeSurface(textSurface);
     SDL_DestroyTexture(textTexture);
 }

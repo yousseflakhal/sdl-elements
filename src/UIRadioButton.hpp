@@ -2,6 +2,9 @@
 #include "UIElement.hpp"
 #include <string>
 #include "UIRadioGroup.hpp"
+#include "UIHelpers.hpp"
+#include <cmath>
+
 
 class UIRadioGroup;
 
