@@ -6,6 +6,7 @@
 #include "UITextField.hpp"
 #include "UICheckbox.hpp"
 #include "UISlider.hpp"
+#include "UIRadioButton.hpp"
 class UIManager {
     public:
         void initCursors();

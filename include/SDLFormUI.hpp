@@ -805,9 +805,12 @@ void UIManager::update(float dt) {
         if (el->isHovered()) {
             if (dynamic_cast<UITextField*>(el.get())) {
                 cursorToUse = ibeamCursor;
-            } else if (dynamic_cast<UIButton*>(el.get()) || dynamic_cast<UICheckbox*>(el.get())) {
-                cursorToUse = handCursor;
-            } else if (dynamic_cast<UISlider*>(el.get())) {
+            } else if (
+                dynamic_cast<UIButton*>(el.get()) ||
+                dynamic_cast<UICheckbox*>(el.get()) ||
+                dynamic_cast<UIRadioButton*>(el.get()) ||
+                dynamic_cast<UISlider*>(el.get())
+            ) {
                 cursorToUse = handCursor;
             }
         }
