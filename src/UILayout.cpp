@@ -50,5 +50,25 @@ std::pair<std::shared_ptr<UILabel>, std::shared_ptr<UIButton>> Layout::addLabelB
     return { label, button };
 }
 
+std::shared_ptr<UIRadioGroup> Layout::addRadioGroup(
+    const std::vector<std::pair<std::string, int>>& options,
+    int& selectedID,
+    int width,
+    int height,
+    int groupSpacing
+) {
+    auto group = std::make_shared<UIRadioGroup>();
+    group->select(selectedID);
+
+    for (const auto& [label, id] : options) {
+        auto btn = std::make_shared<UIRadioButton>(label, currentX, currentY, width, height, group.get(), id, defaultFont);
+        group->addButton(btn);
+        FormUI::AddElement(btn);
+        currentY += height + groupSpacing;
+    }
+
+    return group;
+}
 
 }
+

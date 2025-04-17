@@ -24,6 +24,13 @@ public:
         TTF_Font* labelFont = nullptr,
         TTF_Font* buttonFont = nullptr
     );
+    std::shared_ptr<UIRadioGroup> addRadioGroup(
+        const std::vector<std::pair<std::string, int>>& options,
+        int& selectedID,
+        int width = 300,
+        int height = 30,
+        int groupSpacing = 10
+    );
     void setDefaultFont(TTF_Font* font) { defaultFont = font; }
     TTF_Font* getDefaultFont() const { return defaultFont; }
         

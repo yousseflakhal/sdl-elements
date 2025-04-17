@@ -216,6 +216,13 @@ public:
         TTF_Font* labelFont = nullptr,
         TTF_Font* buttonFont = nullptr
     );
+    std::shared_ptr<UIRadioGroup> addRadioGroup(
+        const std::vector<std::pair<std::string, int>>& options,
+        int& selectedID,
+        int width = 300,
+        int height = 30,
+        int groupSpacing = 10
+    );
     void setDefaultFont(TTF_Font* font) { defaultFont = font; }
     TTF_Font* getDefaultFont() const { return defaultFont; }
 
@@ -895,8 +902,28 @@ std::pair<std::shared_ptr<UILabel>, std::shared_ptr<UIButton>> Layout::addLabelB
     return { label, button };
 }
 
+std::shared_ptr<UIRadioGroup> Layout::addRadioGroup(
+    const std::vector<std::pair<std::string, int>>& options,
+    int& selectedID,
+    int width,
+    int height,
+    int groupSpacing
+) {
+    auto group = std::make_shared<UIRadioGroup>();
+    group->select(selectedID);
+
+    for (const auto& [label, id] : options) {
+        auto btn = std::make_shared<UIRadioButton>(label, currentX, currentY, width, height, group.get(), id, defaultFont);
+        group->addButton(btn);
+        FormUI::AddElement(btn);
+        currentY += height + groupSpacing;
+    }
+
+    return group;
+}
 
 }
+
 
 
 namespace FormUI {
