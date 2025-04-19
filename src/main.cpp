@@ -5,6 +5,7 @@
 #include "UILayout.hpp"
 #include "UIRadioGroup.hpp"
 #include "UIRadioButton.hpp"
+#include "UIGroupBox.hpp"
 
 int main() {
     SDL_Init(SDL_INIT_VIDEO);
@@ -21,50 +22,17 @@ int main() {
 
     FormUI::Init(font);
 
-    bool checked = false;
-    std::string name;
-    float volume = 0.5f;
+    bool optionA = false;
+    float settingLevel = 0.3f;
 
-    auto layout = FormUI::Layout(50, 50, 40);
-    // layout.addLabel("Settings");
-    // layout.addTextField("Name:", name);
-    // layout.addSlider("Volume", volume, 0.0f, 1.0f);
-    // layout.addCheckbox("Enable Feature", checked);
-    // layout.addButton("OK", []() { SDL_Log("Clicked OK!"); }, 100, 40, nullptr);
+    auto groupBox = std::make_shared<UIGroupBox>("Audio Settings", 400, 50, 300, 200);
+    FormUI::AddElement(groupBox);
 
-    // Set theme
-    UITheme redTheme;
-    redTheme.backgroundColor     = { 80, 0, 0, 255 };
-    redTheme.hoverColor          = { 120, 0, 0, 255 };
-    redTheme.borderColor         = { 180, 50, 50, 255 };
-    redTheme.borderHoverColor    = { 255, 100, 100, 255 };
-    redTheme.textColor           = { 255, 255, 255, 255 };
-    UIConfig::setTheme(redTheme);
+    auto checkbox = std::make_shared<UICheckbox>("Enable Sound", 420, 90, 200, 30, optionA, font);
+    auto slider   = std::make_shared<UISlider>("Volume", 420, 130, 250, 40, settingLevel, 0.0f, 1.0f);
 
-    // Create radio group
-    auto radioGroup = std::make_shared<UIRadioGroup>();
-    radioGroup->select(1); // Default selection
-
-    // Create radio buttons
-    auto radio1 = std::make_shared<UIRadioButton>("Easy",   50, 300, 200, 30, radioGroup.get(), 1, font);
-    auto radio2 = std::make_shared<UIRadioButton>("Medium", 50, 340, 200, 30, radioGroup.get(), 2, font);
-    auto radio3 = std::make_shared<UIRadioButton>("Hard",   50, 380, 200, 30, radioGroup.get(), 3, font);
-
-    radioGroup->addButton(radio1);
-    radioGroup->addButton(radio2);
-    radioGroup->addButton(radio3);
-
-    // Register radio buttons in UI
-    FormUI::AddElement(radio1);
-    FormUI::AddElement(radio2);
-    FormUI::AddElement(radio3);
-
-    // Add print selection button
-    FormUI::Button("Print Selection", 50, 430, 200, 40, [radioGroup]() {
-        SDL_Log("Selected Radio ID: %d", radioGroup->getSelectedID());
-    });
-
-    // Main loop
+    groupBox->addChild(checkbox);
+    groupBox->addChild(slider);
     bool quit = false;
     SDL_Event e;
     while (!quit) {
@@ -81,7 +49,6 @@ int main() {
         SDL_RenderPresent(renderer);
     }
 
-    // Cleanup
     FormUI::Shutdown();
     TTF_CloseFont(font);
     SDL_DestroyRenderer(renderer);

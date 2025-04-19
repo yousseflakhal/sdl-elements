@@ -24,32 +24,45 @@ void UIGroupBox::update(float dt) {
 
 void UIGroupBox::render(SDL_Renderer* renderer) {
     const UITheme& theme = getTheme();
-
-    SDL_SetRenderDrawColor(renderer,
-        theme.backgroundColor.r,
-        theme.backgroundColor.g,
-        theme.backgroundColor.b,
-        theme.backgroundColor.a);
-    SDL_RenderFillRect(renderer, &bounds);
-
     SDL_SetRenderDrawColor(renderer,
         theme.borderColor.r,
         theme.borderColor.g,
         theme.borderColor.b,
         theme.borderColor.a);
-    SDL_RenderDrawRect(renderer, &bounds);
+
+    int titleWidth = 0, titleHeight = 0;
+    if (!title.empty() && font) {
+        TTF_SizeText(font, title.c_str(), &titleWidth, &titleHeight);
+    }
+
+    const int padding = 8;
+    const int gapStart = bounds.x + padding;
+    const int gapEnd = gapStart + titleWidth + padding;
+
+    SDL_RenderDrawLine(renderer, bounds.x, bounds.y, gapStart, bounds.y);
+    SDL_RenderDrawLine(renderer, gapEnd, bounds.y, bounds.x + bounds.w, bounds.y);
+
+    SDL_RenderDrawLine(renderer, bounds.x, bounds.y, bounds.x, bounds.y + bounds.h);
+    SDL_RenderDrawLine(renderer, bounds.x + bounds.w, bounds.y, bounds.x + bounds.w, bounds.y + bounds.h);
+    SDL_RenderDrawLine(renderer, bounds.x, bounds.y + bounds.h, bounds.x + bounds.w, bounds.y + bounds.h);
 
     if (!title.empty() && font) {
         SDL_Surface* surf = TTF_RenderText_Blended(font, title.c_str(), theme.textColor);
         if (surf) {
             SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, surf);
-            SDL_Rect textRect = { bounds.x + 8, bounds.y - surf->h / 2, surf->w, surf->h };
+            SDL_Rect textRect = {
+                bounds.x + padding + 4,
+                bounds.y - surf->h / 2,
+                surf->w,
+                surf->h
+            };
             SDL_RenderCopy(renderer, tex, nullptr, &textRect);
             SDL_FreeSurface(surf);
             SDL_DestroyTexture(tex);
         }
     }
 
-    for (auto& child : children)
+    for (auto& child : children) {
         child->render(renderer);
+    }
 }
