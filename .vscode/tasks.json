@@ -25,6 +25,8 @@
                 "${workspaceFolder}/src/UIRadioButton.cpp",
                 "${workspaceFolder}/src/UIHelpers.cpp",
                 "${workspaceFolder}/src/UIGroupBox.cpp",
+                "${workspaceFolder}/src/UIDialog.cpp",
+                "${workspaceFolder}/src/UIPopup.cpp",
                 "-I${workspaceFolder}/include",
                 "-L${workspaceFolder}/lib",
                 "-lSDL2",

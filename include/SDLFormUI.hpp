@@ -310,6 +310,46 @@ private:
     TTF_Font* font = nullptr;
 };
 
+
+class UIDialog : public UIPopup {
+public:
+    UIDialog(const std::string& title,
+             const std::string& message,
+             std::function<void()> onOk = nullptr,
+             std::function<void()> onCancel = nullptr);
+
+    void render(SDL_Renderer* renderer) override;
+    void handleEvent(const SDL_Event& e) override;
+
+    void close() { visible = false; }
+
+private:
+    std::string title;
+    std::string message;
+    std::function<void()> onOk;
+    std::function<void()> onCancel;
+
+    std::shared_ptr<UIButton> okButton;
+    std::shared_ptr<UIButton> cancelButton;
+};
+
+
+class UIPopup : public UIElement {
+public:
+    UIPopup(int x, int y, int w, int h);
+
+    void addChild(std::shared_ptr<UIElement> el);
+
+    void handleEvent(const SDL_Event& e) override;
+
+    void update(float dt) override;
+
+    void render(SDL_Renderer* renderer) override;
+
+protected:
+    std::vector<std::shared_ptr<UIElement>> children;
+};
+
 #ifdef SDLFORMUI_IMPLEMENTATION
 
 
@@ -1152,6 +1192,133 @@ void UIGroupBox::render(SDL_Renderer* renderer) {
         }
     }
 
+    for (auto& child : children) {
+        child->render(renderer);
+    }
+}
+
+
+UIDialog::UIDialog(const std::string& title,
+                   const std::string& message,
+                   std::function<void()> onOk,
+                   std::function<void()> onCancel)
+    : UIPopup((800 - 400) / 2, (600 - 200) / 2, 400, 200),
+      title(title), message(message), onOk(onOk), onCancel(onCancel)
+{
+    const int dialogWidth = 400;
+    const int dialogHeight = 200;
+    bounds = {
+        (800 - dialogWidth) / 2,
+        (600 - dialogHeight) / 2,
+        dialogWidth,
+        dialogHeight
+    };
+
+    TTF_Font* font = UIConfig::getDefaultFont();
+    int btnW = 100, btnH = 40, spacing = 20;
+    int btnY = bounds.y + bounds.h - btnH - spacing;
+    int okX = bounds.x + bounds.w / 2 - btnW - spacing / 2;
+    int cancelX = bounds.x + bounds.w / 2 + spacing / 2;
+
+    okButton = std::make_shared<UIButton>("OK", okX, btnY, btnW, btnH, font);
+    cancelButton = std::make_shared<UIButton>("Cancel", cancelX, btnY, btnW, btnH, font);
+
+    okButton->setOnClick([this, onOk]() {
+        if (onOk) onOk();
+        close();
+    });
+
+    cancelButton->setOnClick([this, onCancel]() {
+        if (onCancel) onCancel();
+        close();
+    });
+
+    addChild(okButton);
+    addChild(cancelButton);
+}
+
+void UIDialog::render(SDL_Renderer* renderer) {
+    const UITheme& theme = getTheme();
+    TTF_Font* font = UIConfig::getDefaultFont();
+    if (!font) return;
+
+    SDL_SetRenderDrawColor(renderer, theme.backgroundColor.r, theme.backgroundColor.g, theme.backgroundColor.b, theme.backgroundColor.a);
+    SDL_RenderFillRect(renderer, &bounds);
+
+    SDL_SetRenderDrawColor(renderer, theme.borderColor.r, theme.borderColor.g, theme.borderColor.b, theme.borderColor.a);
+    SDL_RenderDrawRect(renderer, &bounds);
+
+    SDL_Surface* titleSurf = TTF_RenderText_Blended(font, title.c_str(), theme.textColor);
+    SDL_Surface* msgSurf = TTF_RenderText_Blended(font, message.c_str(), theme.textColor);
+
+    if (titleSurf) {
+        SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, titleSurf);
+        SDL_Rect titleRect = {
+            bounds.x + 20,
+            bounds.y + 20,
+            titleSurf->w,
+            titleSurf->h
+        };
+        SDL_RenderCopy(renderer, tex, nullptr, &titleRect);
+        SDL_FreeSurface(titleSurf);
+        SDL_DestroyTexture(tex);
+    }
+
+    if (msgSurf) {
+        SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, msgSurf);
+        SDL_Rect msgRect = {
+            bounds.x + 20,
+            bounds.y + 70,
+            msgSurf->w,
+            msgSurf->h
+        };
+        SDL_RenderCopy(renderer, tex, nullptr, &msgRect);
+        SDL_FreeSurface(msgSurf);
+        SDL_DestroyTexture(tex);
+    }
+
+    UIPopup::render(renderer);
+}
+
+void UIDialog::handleEvent(const SDL_Event& e) {
+    if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) {
+        close();
+        return;
+    }
+
+    if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
+        SDL_Point point = { e.button.x, e.button.y };
+        if (!SDL_PointInRect(&point, &bounds)) {
+            close();
+            return;
+        }
+    }
+
+    UIPopup::handleEvent(e);
+}
+
+
+UIPopup::UIPopup(int x, int y, int w, int h) {
+    bounds = { x, y, w, h };
+}
+
+void UIPopup::addChild(std::shared_ptr<UIElement> el) {
+    children.push_back(el);
+}
+
+void UIPopup::handleEvent(const SDL_Event& e) {
+    for (auto& child : children) {
+        child->handleEvent(e);
+    }
+}
+
+void UIPopup::update(float dt) {
+    for (auto& child : children) {
+        child->update(dt);
+    }
+}
+
+void UIPopup::render(SDL_Renderer* renderer) {
     for (auto& child : children) {
         child->render(renderer);
     }
