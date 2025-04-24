@@ -50,6 +50,14 @@ namespace FormUI {
         uiManager.addElement(element);
     }
 
+    void ShowPopup(std::shared_ptr<UIPopup> popup) {
+        uiManager.showPopup(popup);
+    }
+    
+    void ClosePopup() {
+        uiManager.closePopup();
+    }
+
     void HandleEvent(const SDL_Event& e) {
         uiManager.handleEvent(e);
     }

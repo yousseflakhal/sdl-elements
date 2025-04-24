@@ -101,3 +101,8 @@ void UIDialog::handleEvent(const SDL_Event& e) {
 
     UIPopup::handleEvent(e);
 }
+
+void UIDialog::close() {
+    visible = false;
+    FormUI::ClosePopup();
+}

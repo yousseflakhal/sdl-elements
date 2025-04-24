@@ -7,14 +7,18 @@
 #include "UICheckbox.hpp"
 #include "UISlider.hpp"
 #include "UIRadioButton.hpp"
+#include "UIPopup.hpp"
 class UIManager {
     public:
         void initCursors();
         void cleanupCursors();
         void addElement(std::shared_ptr<UIElement> el);
+        void showPopup(std::shared_ptr<UIPopup> popup);
+        void closePopup();
         void handleEvent(const SDL_Event& e);
         void update(float dt);
         void render(SDL_Renderer* renderer);
+        
     
     private:
         std::vector<std::shared_ptr<UIElement>> elements;
@@ -22,4 +26,5 @@ class UIManager {
         SDL_Cursor* handCursor = nullptr;
         SDL_Cursor* ibeamCursor = nullptr;
         bool handCursorActive = false;
+        std::shared_ptr<UIPopup> activePopup;
     };

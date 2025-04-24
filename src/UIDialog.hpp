@@ -4,6 +4,7 @@
 #include <SDL2/SDL.h>
 #include <functional>
 #include <memory>
+#include "FormUI.hpp"
 
 class UIDialog : public UIPopup {
 public:
@@ -15,7 +16,7 @@ public:
     void render(SDL_Renderer* renderer) override;
     void handleEvent(const SDL_Event& e) override;
 
-    void close() { visible = false; }
+    void close();
 
 private:
     std::string title;

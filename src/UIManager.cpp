@@ -4,6 +4,14 @@ void UIManager::addElement(std::shared_ptr<UIElement> el) {
     elements.push_back(el);
 }
 
+void UIManager::showPopup(std::shared_ptr<UIPopup> popup) {
+    activePopup = popup;
+}
+
+void UIManager::closePopup() {
+    activePopup = nullptr;
+}
+
 void UIManager::handleEvent(const SDL_Event& e) {
     for (auto& el : elements) {
         if (el->visible)
@@ -38,15 +46,21 @@ void UIManager::update(float dt) {
     }
 }
 
-
-
 void UIManager::render(SDL_Renderer* renderer) {
     for (auto& el : elements) {
         if (el->visible)
             el->render(renderer);
     }
-}
+    if (activePopup && activePopup->visible) {
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);
+        SDL_Rect fullscreen = { 0, 0, 800, 600 };
+        SDL_RenderFillRect(renderer, &fullscreen);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 
+        activePopup->render(renderer);
+    }
+}
 void UIManager::initCursors() {
     arrowCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
     handCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND);
