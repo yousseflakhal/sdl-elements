@@ -13,30 +13,56 @@ void UIManager::closePopup() {
 }
 
 void UIManager::handleEvent(const SDL_Event& e) {
-    for (auto& el : elements) {
-        if (el->visible)
-            el->handleEvent(e);
+    auto popup = activePopup;
+    
+    if (popup && popup->visible) {
+        popup->handleEvent(e);
+    } else {
+        for (auto& el : elements) {
+            if (el->visible) el->handleEvent(e);
+        }
     }
 }
 
 void UIManager::update(float dt) {
+    auto popup = activePopup;
     SDL_Cursor* cursorToUse = arrowCursor;
 
-    for (auto& el : elements) {
-        if (!el->visible) continue;
+    if (popup && popup->visible) {
+        popup->update(dt);
 
-        el->update(dt);
+        for (const auto& child : popup->children) {
+            if (child->isHovered()) {
+                if (dynamic_cast<UITextField*>(child.get())) {
+                    cursorToUse = ibeamCursor;
+                } else if (
+                    dynamic_cast<UIButton*>(child.get()) || 
+                    dynamic_cast<UICheckbox*>(child.get()) ||
+                    dynamic_cast<UIRadioButton*>(child.get()) ||
+                    dynamic_cast<UISlider*>(child.get())
+                ) {
+                    cursorToUse = handCursor;
+                }
+                break;
+            }
+        }
+    } else {
+        for (auto& el : elements) {
+            if (!el->visible) continue;
 
-        if (el->isHovered()) {
-            if (dynamic_cast<UITextField*>(el.get())) {
-                cursorToUse = ibeamCursor;
-            } else if (
-                dynamic_cast<UIButton*>(el.get()) || 
-                dynamic_cast<UICheckbox*>(el.get()) ||
-                dynamic_cast<UIRadioButton*>(el.get()) ||
-                dynamic_cast<UISlider*>(el.get())
-            ) {
-                cursorToUse = handCursor;
+            el->update(dt);
+
+            if (el->isHovered()) {
+                if (dynamic_cast<UITextField*>(el.get())) {
+                    cursorToUse = ibeamCursor;
+                } else if (
+                    dynamic_cast<UIButton*>(el.get()) || 
+                    dynamic_cast<UICheckbox*>(el.get()) ||
+                    dynamic_cast<UIRadioButton*>(el.get()) ||
+                    dynamic_cast<UISlider*>(el.get())
+                ) {
+                    cursorToUse = handCursor;
+                }
             }
         }
     }

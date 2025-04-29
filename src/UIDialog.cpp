@@ -90,15 +90,6 @@ void UIDialog::handleEvent(const SDL_Event& e) {
         close();
         return;
     }
-
-    if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
-        SDL_Point point = { e.button.x, e.button.y };
-        if (!SDL_PointInRect(&point, &bounds)) {
-            close();
-            return;
-        }
-    }
-
     UIPopup::handleEvent(e);
 }
 

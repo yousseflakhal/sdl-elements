@@ -180,9 +180,12 @@ class UIManager {
         void initCursors();
         void cleanupCursors();
         void addElement(std::shared_ptr<UIElement> el);
+        void showPopup(std::shared_ptr<UIPopup> popup);
+        void closePopup();
         void handleEvent(const SDL_Event& e);
         void update(float dt);
         void render(SDL_Renderer* renderer);
+
 
     private:
         std::vector<std::shared_ptr<UIElement>> elements;
@@ -190,6 +193,7 @@ class UIManager {
         SDL_Cursor* handCursor = nullptr;
         SDL_Cursor* ibeamCursor = nullptr;
         bool handCursorActive = false;
+        std::shared_ptr<UIPopup> activePopup;
     };
 
 
@@ -248,6 +252,8 @@ namespace FormUI {
     std::shared_ptr<UISlider> Slider(const std::string& label, int x, int y, int w, int h, float& bind, float min, float max);
     std::shared_ptr<UITextField> TextField(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen = 32);
     void AddElement(std::shared_ptr<UIElement> element);
+    void ShowPopup(std::shared_ptr<UIPopup> popup);
+    void ClosePopup();
 
 
 
@@ -321,7 +327,7 @@ public:
     void render(SDL_Renderer* renderer) override;
     void handleEvent(const SDL_Event& e) override;
 
-    void close() { visible = false; }
+    void close();
 
 private:
     std::string title;
@@ -337,17 +343,13 @@ private:
 class UIPopup : public UIElement {
 public:
     UIPopup(int x, int y, int w, int h);
-
     void addChild(std::shared_ptr<UIElement> el);
-
     void handleEvent(const SDL_Event& e) override;
-
     void update(float dt) override;
-
     void render(SDL_Renderer* renderer) override;
 
-protected:
     std::vector<std::shared_ptr<UIElement>> children;
+
 };
 
 #ifdef SDLFORMUI_IMPLEMENTATION
@@ -852,31 +854,65 @@ void UIManager::addElement(std::shared_ptr<UIElement> el) {
     elements.push_back(el);
 }
 
+void UIManager::showPopup(std::shared_ptr<UIPopup> popup) {
+    activePopup = popup;
+}
+
+void UIManager::closePopup() {
+    activePopup = nullptr;
+}
+
 void UIManager::handleEvent(const SDL_Event& e) {
-    for (auto& el : elements) {
-        if (el->visible)
-            el->handleEvent(e);
+    auto popup = activePopup;
+
+    if (popup && popup->visible) {
+        popup->handleEvent(e);
+    } else {
+        for (auto& el : elements) {
+            if (el->visible) el->handleEvent(e);
+        }
     }
 }
 
 void UIManager::update(float dt) {
+    auto popup = activePopup;
     SDL_Cursor* cursorToUse = arrowCursor;
 
-    for (auto& el : elements) {
-        if (!el->visible) continue;
+    if (popup && popup->visible) {
+        popup->update(dt);
 
-        el->update(dt);
+        for (const auto& child : popup->children) {
+            if (child->isHovered()) {
+                if (dynamic_cast<UITextField*>(child.get())) {
+                    cursorToUse = ibeamCursor;
+                } else if (
+                    dynamic_cast<UIButton*>(child.get()) ||
+                    dynamic_cast<UICheckbox*>(child.get()) ||
+                    dynamic_cast<UIRadioButton*>(child.get()) ||
+                    dynamic_cast<UISlider*>(child.get())
+                ) {
+                    cursorToUse = handCursor;
+                }
+                break;
+            }
+        }
+    } else {
+        for (auto& el : elements) {
+            if (!el->visible) continue;
 
-        if (el->isHovered()) {
-            if (dynamic_cast<UITextField*>(el.get())) {
-                cursorToUse = ibeamCursor;
-            } else if (
-                dynamic_cast<UIButton*>(el.get()) ||
-                dynamic_cast<UICheckbox*>(el.get()) ||
-                dynamic_cast<UIRadioButton*>(el.get()) ||
-                dynamic_cast<UISlider*>(el.get())
-            ) {
-                cursorToUse = handCursor;
+            el->update(dt);
+
+            if (el->isHovered()) {
+                if (dynamic_cast<UITextField*>(el.get())) {
+                    cursorToUse = ibeamCursor;
+                } else if (
+                    dynamic_cast<UIButton*>(el.get()) ||
+                    dynamic_cast<UICheckbox*>(el.get()) ||
+                    dynamic_cast<UIRadioButton*>(el.get()) ||
+                    dynamic_cast<UISlider*>(el.get())
+                ) {
+                    cursorToUse = handCursor;
+                }
             }
         }
     }
@@ -886,15 +922,21 @@ void UIManager::update(float dt) {
     }
 }
 
-
-
 void UIManager::render(SDL_Renderer* renderer) {
     for (auto& el : elements) {
         if (el->visible)
             el->render(renderer);
     }
-}
+    if (activePopup && activePopup->visible) {
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);
+        SDL_Rect fullscreen = { 0, 0, 800, 600 };
+        SDL_RenderFillRect(renderer, &fullscreen);
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 
+        activePopup->render(renderer);
+    }
+}
 void UIManager::initCursors() {
     arrowCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
     handCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND);
@@ -1031,6 +1073,14 @@ namespace FormUI {
 
     void AddElement(std::shared_ptr<UIElement> element) {
         uiManager.addElement(element);
+    }
+
+    void ShowPopup(std::shared_ptr<UIPopup> popup) {
+        uiManager.showPopup(popup);
+    }
+
+    void ClosePopup() {
+        uiManager.closePopup();
     }
 
     void HandleEvent(const SDL_Event& e) {
@@ -1285,16 +1335,12 @@ void UIDialog::handleEvent(const SDL_Event& e) {
         close();
         return;
     }
-
-    if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
-        SDL_Point point = { e.button.x, e.button.y };
-        if (!SDL_PointInRect(&point, &bounds)) {
-            close();
-            return;
-        }
-    }
-
     UIPopup::handleEvent(e);
+}
+
+void UIDialog::close() {
+    visible = false;
+    FormUI::ClosePopup();
 }
 
 
