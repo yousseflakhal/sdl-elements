@@ -191,6 +191,7 @@ class UIManager {
         void addElement(std::shared_ptr<UIElement> el);
         void showPopup(std::shared_ptr<UIPopup> popup);
         void closePopup();
+        void checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_Cursor*& cursorToUse);
         void handleEvent(const SDL_Event& e);
         void update(float dt);
         void render(SDL_Renderer* renderer);
@@ -314,6 +315,7 @@ public:
     UIGroupBox(const std::string& title, int x, int y, int w, int h);
 
     void addChild(std::shared_ptr<UIElement> child);
+    const std::vector<std::shared_ptr<UIElement>>& getChildren() const;
 
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
@@ -896,6 +898,31 @@ void UIManager::closePopup() {
     activePopup = nullptr;
 }
 
+void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_Cursor*& cursorToUse) {
+    if (!el->visible) return;
+
+    el->update(0.0f);
+
+    if (el->isHovered()) {
+        if (dynamic_cast<UITextField*>(el.get())) {
+            cursorToUse = ibeamCursor;
+        } else if (
+            dynamic_cast<UIButton*>(el.get()) ||
+            dynamic_cast<UICheckbox*>(el.get()) ||
+            dynamic_cast<UIRadioButton*>(el.get()) ||
+            dynamic_cast<UISlider*>(el.get())
+        ) {
+            cursorToUse = handCursor;
+        }
+    }
+
+    if (auto group = dynamic_cast<UIGroupBox*>(el.get())) {
+        for (auto& child : group->getChildren()) {
+            checkCursorForElement(child, cursorToUse);
+        }
+    }
+}
+
 void UIManager::handleEvent(const SDL_Event& e) {
     auto popup = activePopup;
 
@@ -932,22 +959,7 @@ void UIManager::update(float dt) {
         }
     } else {
         for (auto& el : elements) {
-            if (!el->visible) continue;
-
-            el->update(dt);
-
-            if (el->isHovered()) {
-                if (dynamic_cast<UITextField*>(el.get())) {
-                    cursorToUse = ibeamCursor;
-                } else if (
-                    dynamic_cast<UIButton*>(el.get()) ||
-                    dynamic_cast<UICheckbox*>(el.get()) ||
-                    dynamic_cast<UIRadioButton*>(el.get()) ||
-                    dynamic_cast<UISlider*>(el.get())
-                ) {
-                    cursorToUse = handCursor;
-                }
-            }
+            checkCursorForElement(el, cursorToUse);
         }
     }
 
@@ -1224,6 +1236,10 @@ UIGroupBox::UIGroupBox(const std::string& title, int x, int y, int w, int h)
 
 void UIGroupBox::addChild(std::shared_ptr<UIElement> child) {
     children.push_back(child);
+}
+
+const std::vector<std::shared_ptr<UIElement>>& UIGroupBox::getChildren() const {
+    return children;
 }
 
 void UIGroupBox::handleEvent(const SDL_Event& e) {

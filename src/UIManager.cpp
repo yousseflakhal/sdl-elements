@@ -12,6 +12,31 @@ void UIManager::closePopup() {
     activePopup = nullptr;
 }
 
+void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_Cursor*& cursorToUse) {
+    if (!el->visible) return;
+
+    el->update(0.0f);
+
+    if (el->isHovered()) {
+        if (dynamic_cast<UITextField*>(el.get())) {
+            cursorToUse = ibeamCursor;
+        } else if (
+            dynamic_cast<UIButton*>(el.get()) ||
+            dynamic_cast<UICheckbox*>(el.get()) ||
+            dynamic_cast<UIRadioButton*>(el.get()) ||
+            dynamic_cast<UISlider*>(el.get())
+        ) {
+            cursorToUse = handCursor;
+        }
+    }
+
+    if (auto group = dynamic_cast<UIGroupBox*>(el.get())) {
+        for (auto& child : group->getChildren()) {
+            checkCursorForElement(child, cursorToUse);
+        }
+    }
+}
+
 void UIManager::handleEvent(const SDL_Event& e) {
     auto popup = activePopup;
     
@@ -48,22 +73,7 @@ void UIManager::update(float dt) {
         }
     } else {
         for (auto& el : elements) {
-            if (!el->visible) continue;
-
-            el->update(dt);
-
-            if (el->isHovered()) {
-                if (dynamic_cast<UITextField*>(el.get())) {
-                    cursorToUse = ibeamCursor;
-                } else if (
-                    dynamic_cast<UIButton*>(el.get()) || 
-                    dynamic_cast<UICheckbox*>(el.get()) ||
-                    dynamic_cast<UIRadioButton*>(el.get()) ||
-                    dynamic_cast<UISlider*>(el.get())
-                ) {
-                    cursorToUse = handCursor;
-                }
-            }
+            checkCursorForElement(el, cursorToUse);
         }
     }
 

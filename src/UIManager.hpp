@@ -8,6 +8,7 @@
 #include "UISlider.hpp"
 #include "UIRadioButton.hpp"
 #include "UIPopup.hpp"
+#include "UIGroupBox.hpp"
 class UIManager {
     public:
         void initCursors();
@@ -15,6 +16,7 @@ class UIManager {
         void addElement(std::shared_ptr<UIElement> el);
         void showPopup(std::shared_ptr<UIPopup> popup);
         void closePopup();
+        void checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_Cursor*& cursorToUse);
         void handleEvent(const SDL_Event& e);
         void update(float dt);
         void render(SDL_Renderer* renderer);

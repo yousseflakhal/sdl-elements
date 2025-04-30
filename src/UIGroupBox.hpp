@@ -9,6 +9,7 @@ public:
     UIGroupBox(const std::string& title, int x, int y, int w, int h);
 
     void addChild(std::shared_ptr<UIElement> child);
+    const std::vector<std::shared_ptr<UIElement>>& getChildren() const;
 
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;

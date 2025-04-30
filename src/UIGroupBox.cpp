@@ -12,6 +12,10 @@ void UIGroupBox::addChild(std::shared_ptr<UIElement> child) {
     children.push_back(child);
 }
 
+const std::vector<std::shared_ptr<UIElement>>& UIGroupBox::getChildren() const {
+    return children;
+}
+
 void UIGroupBox::handleEvent(const SDL_Event& e) {
     for (auto& child : children)
         child->handleEvent(e);
