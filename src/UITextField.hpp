@@ -3,12 +3,15 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 #include <string>
+#include <algorithm>
+#include "UICommon.hpp"
 
 class UITextField : public UIElement {
 public:
     UITextField(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen = 32);
     UITextField* setPlaceholder(const std::string& text);
     UITextField* setFont(TTF_Font* f);
+    UITextField* setInputType(InputType type);
 
     bool isHovered() const override;
     void handleEvent(const SDL_Event& e) override;
@@ -29,4 +32,5 @@ private:
     std::string placeholder;
     SDL_Color placeholderColor = {160, 160, 160, 255};
     TTF_Font* font = nullptr;
+    InputType inputType = InputType::TEXT;
 };

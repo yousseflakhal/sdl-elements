@@ -12,6 +12,13 @@
 #include <sstream>
 
 
+enum class InputType {
+    TEXT,
+    NUMERIC,
+    EMAIL
+};
+
+
 struct UIConfig;
 
 struct UITheme {
@@ -133,6 +140,7 @@ public:
     UITextField(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen = 32);
     UITextField* setPlaceholder(const std::string& text);
     UITextField* setFont(TTF_Font* f);
+    UITextField* setInputType(InputType type);
 
     bool isHovered() const override;
     void handleEvent(const SDL_Event& e) override;
@@ -153,6 +161,7 @@ private:
     std::string placeholder;
     SDL_Color placeholderColor = {160, 160, 160, 255};
     TTF_Font* font = nullptr;
+    InputType inputType = InputType::TEXT;
 };
 
 
@@ -659,6 +668,11 @@ UITextField* UITextField::setFont(TTF_Font* f) {
     return this;
 }
 
+UITextField* UITextField::setInputType(InputType type) {
+    inputType = type;
+    return this;
+}
+
 bool UITextField::isHovered() const {
     return hovered;
 }
@@ -682,7 +696,27 @@ void UITextField::handleEvent(const SDL_Event& e) {
     if (focused && e.type == SDL_TEXTINPUT) {
         // SDL_Log("Text input: %s", e.text.text);
         if (linkedText.get().length() < static_cast<size_t>(maxLength)) {
-            linkedText.get().append(e.text.text);
+            std::string input = e.text.text;
+
+            bool valid = true;
+            switch (inputType) {
+                case InputType::NUMERIC:
+                    valid = std::all_of(input.begin(), input.end(), ::isdigit);
+                    break;
+                case InputType::EMAIL:
+                    valid = std::all_of(input.begin(), input.end(), [](char c) {
+                        return std::isalnum(c) || c == '@' || c == '.' || c == '-' || c == '_';
+                    });
+                    break;
+                case InputType::TEXT:
+                default:
+                    valid = true;
+                    break;
+            }
+
+            if (valid) {
+                linkedText.get().append(input);
+            }
         }
     }
 
