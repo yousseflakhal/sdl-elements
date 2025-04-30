@@ -15,6 +15,7 @@ class UIManager {
         void cleanupCursors();
         void addElement(std::shared_ptr<UIElement> el);
         void showPopup(std::shared_ptr<UIPopup> popup);
+        std::shared_ptr<UIPopup> GetActivePopup();
         void closePopup();
         void checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_Cursor*& cursorToUse);
         void handleEvent(const SDL_Event& e);

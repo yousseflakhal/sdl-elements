@@ -2,6 +2,7 @@
 
 namespace FormUI {
     static UIManager uiManager;
+    static std::shared_ptr<UIPopup> internalPopup;
 
     void Init(TTF_Font* defaultFont) {
         if (defaultFont) {
@@ -51,10 +52,12 @@ namespace FormUI {
     }
 
     void ShowPopup(std::shared_ptr<UIPopup> popup) {
+        internalPopup = popup;
         uiManager.showPopup(popup);
     }
     
     void ClosePopup() {
+        internalPopup.reset();
         uiManager.closePopup();
     }
 
