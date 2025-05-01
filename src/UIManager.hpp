@@ -9,6 +9,7 @@
 #include "UIRadioButton.hpp"
 #include "UIPopup.hpp"
 #include "UIGroupBox.hpp"
+#include "UIComboBox.hpp"
 class UIManager {
     public:
         void initCursors();

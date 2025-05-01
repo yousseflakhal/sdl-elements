@@ -172,6 +172,11 @@ public:
 
     void setFont(TTF_Font* f);
     void setOnSelect(std::function<void(int)> callback);
+    bool isHovered() const override;
+    bool isExpanded() const;
+    int getItemCount() const;
+    int getItemHeight() const;
+    const SDL_Rect& getBounds() const;
 
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
@@ -184,6 +189,7 @@ private:
     TTF_Font* font = nullptr;
     bool expanded = false;
     int hoveredIndex = -1;
+    bool hovered = false;
 };
 
 
@@ -843,6 +849,27 @@ void UIComboBox::setOnSelect(std::function<void(int)> callback) {
     onSelect = callback;
 }
 
+bool UIComboBox::isHovered() const {
+    return hovered;
+}
+
+bool UIComboBox::isExpanded() const {
+    return expanded;
+
+}
+
+int UIComboBox::getItemCount() const {
+    return static_cast<int>(options.size());
+}
+
+int UIComboBox::getItemHeight() const {
+    return bounds.h;
+}
+
+const SDL_Rect& UIComboBox::getBounds() const {
+    return bounds;
+}
+
 void UIComboBox::handleEvent(const SDL_Event& e) {
     int mx = e.button.x;
     int my = e.button.y;
@@ -870,26 +897,29 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
 }
 
 void UIComboBox::update(float) {
+    int mx, my;
+    SDL_GetMouseState(&mx, &my);
+    SDL_Point p = { mx, my };
+
+    hovered = SDL_PointInRect(&p, &bounds);
+
     if (!expanded) {
         hoveredIndex = -1;
         return;
     }
-
-    int mx, my;
-    SDL_GetMouseState(&mx, &my);
 
     int itemHeight = bounds.h;
     hoveredIndex = -1;
 
     for (size_t i = 0; i < options.size(); ++i) {
         SDL_Rect itemRect = { bounds.x, bounds.y + static_cast<int>((i + 1) * itemHeight), bounds.w, itemHeight };
-        if (mx >= itemRect.x && mx <= itemRect.x + itemRect.w &&
-            my >= itemRect.y && my <= itemRect.y + itemRect.h) {
+        if (SDL_PointInRect(&p, &itemRect)) {
             hoveredIndex = static_cast<int>(i);
             break;
         }
     }
 }
+
 
 void UIComboBox::render(SDL_Renderer* renderer) {
     const UITheme& theme = getTheme();
@@ -1060,7 +1090,8 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
             dynamic_cast<UIButton*>(el.get()) ||
             dynamic_cast<UICheckbox*>(el.get()) ||
             dynamic_cast<UIRadioButton*>(el.get()) ||
-            dynamic_cast<UISlider*>(el.get())
+            dynamic_cast<UISlider*>(el.get()) ||
+            dynamic_cast<UIComboBox*>(el.get())
         ) {
             cursorToUse = handCursor;
         }
@@ -1069,6 +1100,29 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
     if (auto group = dynamic_cast<UIGroupBox*>(el.get())) {
         for (auto& child : group->getChildren()) {
             checkCursorForElement(child, cursorToUse);
+        }
+    }
+
+    if (auto combo = dynamic_cast<UIComboBox*>(el.get())) {
+        if (combo->isExpanded()) {
+            int mx, my;
+            SDL_GetMouseState(&mx, &my);
+            int itemHeight = combo->getItemHeight();
+            int baseY = combo->getBounds().y;
+            int itemCount = combo->getItemCount();
+            for (int i = 0; i < itemCount; ++i) {
+                SDL_Rect itemRect = {
+                    combo->getBounds().x,
+                    baseY + (i + 1) * itemHeight,
+                    combo->getBounds().w,
+                    itemHeight
+                };
+                SDL_Point pt = { mx, my };
+                if (SDL_PointInRect(&pt, &itemRect)) {
+                    cursorToUse = handCursor;
+                    return;
+                }
+            }
         }
     }
 }

@@ -24,7 +24,8 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
             dynamic_cast<UIButton*>(el.get()) ||
             dynamic_cast<UICheckbox*>(el.get()) ||
             dynamic_cast<UIRadioButton*>(el.get()) ||
-            dynamic_cast<UISlider*>(el.get())
+            dynamic_cast<UISlider*>(el.get()) ||
+            dynamic_cast<UIComboBox*>(el.get())
         ) {
             cursorToUse = handCursor;
         }
@@ -33,6 +34,29 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
     if (auto group = dynamic_cast<UIGroupBox*>(el.get())) {
         for (auto& child : group->getChildren()) {
             checkCursorForElement(child, cursorToUse);
+        }
+    }
+
+    if (auto combo = dynamic_cast<UIComboBox*>(el.get())) {
+        if (combo->isExpanded()) {
+            int mx, my;
+            SDL_GetMouseState(&mx, &my);
+            int itemHeight = combo->getItemHeight();
+            int baseY = combo->getBounds().y;
+            int itemCount = combo->getItemCount();
+            for (int i = 0; i < itemCount; ++i) {
+                SDL_Rect itemRect = {
+                    combo->getBounds().x,
+                    baseY + (i + 1) * itemHeight,
+                    combo->getBounds().w,
+                    itemHeight
+                };
+                SDL_Point pt = { mx, my };
+                if (SDL_PointInRect(&pt, &itemRect)) {
+                    cursorToUse = handCursor;
+                    return;
+                }
+            }
         }
     }
 }

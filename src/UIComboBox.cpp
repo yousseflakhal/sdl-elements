@@ -17,6 +17,27 @@ void UIComboBox::setOnSelect(std::function<void(int)> callback) {
     onSelect = callback;
 }
 
+bool UIComboBox::isHovered() const { 
+    return hovered;
+}
+
+bool UIComboBox::isExpanded() const { 
+    return expanded;
+
+}
+
+int UIComboBox::getItemCount() const { 
+    return static_cast<int>(options.size());
+}
+
+int UIComboBox::getItemHeight() const {
+    return bounds.h;
+}
+
+const SDL_Rect& UIComboBox::getBounds() const {
+    return bounds;
+}
+
 void UIComboBox::handleEvent(const SDL_Event& e) {
     int mx = e.button.x;
     int my = e.button.y;
@@ -44,26 +65,29 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
 }
 
 void UIComboBox::update(float) {
+    int mx, my;
+    SDL_GetMouseState(&mx, &my);
+    SDL_Point p = { mx, my };
+
+    hovered = SDL_PointInRect(&p, &bounds);
+
     if (!expanded) {
         hoveredIndex = -1;
         return;
     }
-
-    int mx, my;
-    SDL_GetMouseState(&mx, &my);
 
     int itemHeight = bounds.h;
     hoveredIndex = -1;
 
     for (size_t i = 0; i < options.size(); ++i) {
         SDL_Rect itemRect = { bounds.x, bounds.y + static_cast<int>((i + 1) * itemHeight), bounds.w, itemHeight };
-        if (mx >= itemRect.x && mx <= itemRect.x + itemRect.w &&
-            my >= itemRect.y && my <= itemRect.y + itemRect.h) {
+        if (SDL_PointInRect(&p, &itemRect)) {
             hoveredIndex = static_cast<int>(i);
             break;
         }
     }
 }
+
 
 void UIComboBox::render(SDL_Renderer* renderer) {
     const UITheme& theme = getTheme();

@@ -11,6 +11,11 @@ public:
 
     void setFont(TTF_Font* f);
     void setOnSelect(std::function<void(int)> callback);
+    bool isHovered() const override;
+    bool isExpanded() const;
+    int getItemCount() const;
+    int getItemHeight() const;
+    const SDL_Rect& getBounds() const;
 
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
@@ -23,4 +28,5 @@ private:
     TTF_Font* font = nullptr;
     bool expanded = false;
     int hoveredIndex = -1;
+    bool hovered = false;
 };
