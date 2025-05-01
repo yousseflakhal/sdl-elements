@@ -1128,49 +1128,57 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
 }
 
 void UIManager::handleEvent(const SDL_Event& e) {
-    auto popup = activePopup;
+    if (activePopup && activePopup->visible) {
+        activePopup->handleEvent(e);
+        return;
+    }
 
-    if (popup && popup->visible) {
-        popup->handleEvent(e);
-    } else {
-        for (auto& el : elements) {
-            if (el->visible) el->handleEvent(e);
+    for (const auto& el : elements) {
+        if (el->visible) {
+            auto combo = dynamic_cast<UIComboBox*>(el.get());
+            if (combo && combo->isExpanded()) {
+                combo->handleEvent(e);
+                return;
+            }
         }
+    }
+
+    for (const auto& el : elements) {
+        if (el->visible)
+            el->handleEvent(e);
     }
 }
 
 void UIManager::update(float dt) {
-    auto popup = activePopup;
     SDL_Cursor* cursorToUse = arrowCursor;
 
-    if (popup && popup->visible) {
-        popup->update(dt);
-
-        for (const auto& child : popup->children) {
-            if (child->isHovered()) {
-                if (dynamic_cast<UITextField*>(child.get())) {
-                    cursorToUse = ibeamCursor;
-                } else if (
-                    dynamic_cast<UIButton*>(child.get()) ||
-                    dynamic_cast<UICheckbox*>(child.get()) ||
-                    dynamic_cast<UIRadioButton*>(child.get()) ||
-                    dynamic_cast<UISlider*>(child.get())
-                ) {
-                    cursorToUse = handCursor;
-                }
-                break;
-            }
+    if (activePopup && activePopup->visible) {
+        activePopup->update(dt);
+        for (const auto& child : activePopup->children) {
+            checkCursorForElement(child, cursorToUse);
         }
     } else {
-        for (auto& el : elements) {
+        for (const auto& el : elements) {
+            auto combo = dynamic_cast<UIComboBox*>(el.get());
+            if (combo && combo->isExpanded()) {
+                combo->update(dt);
+                checkCursorForElement(el, cursorToUse);
+                if (SDL_GetCursor() != cursorToUse)
+                    SDL_SetCursor(cursorToUse);
+                return;
+            }
+        }
+
+        for (const auto& el : elements) {
+            el->update(dt);
             checkCursorForElement(el, cursorToUse);
         }
     }
 
-    if (SDL_GetCursor() != cursorToUse) {
+    if (SDL_GetCursor() != cursorToUse)
         SDL_SetCursor(cursorToUse);
-    }
 }
+
 
 void UIManager::render(SDL_Renderer* renderer) {
     for (auto& el : elements) {
