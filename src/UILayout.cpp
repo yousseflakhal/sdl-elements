@@ -70,5 +70,11 @@ std::shared_ptr<UIRadioGroup> Layout::addRadioGroup(
     return group;
 }
 
+std::shared_ptr<UIComboBox> Layout::addComboBox(const std::vector<std::string>& options, int& selectedIndex, int width, int height) {
+    auto combo = FormUI::ComboBox(options, currentX, currentY, width, height, selectedIndex, defaultFont);
+    currentY += height + spacing;
+    return combo;
+}
+
 }
 

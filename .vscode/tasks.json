@@ -27,6 +27,7 @@
                 "${workspaceFolder}/src/UIGroupBox.cpp",
                 "${workspaceFolder}/src/UIDialog.cpp",
                 "${workspaceFolder}/src/UIPopup.cpp",
+                "${workspaceFolder}/src/UIComboBox.cpp",
                 "-I${workspaceFolder}/include",
                 "-L${workspaceFolder}/lib",
                 "-lSDL2",

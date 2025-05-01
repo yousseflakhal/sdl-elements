@@ -47,6 +47,13 @@ namespace FormUI {
         return field;
     }
 
+    std::shared_ptr<UIComboBox> ComboBox(const std::vector<std::string>& options, int x, int y, int w, int h, int& selectedIndex, TTF_Font* font) {
+        auto box = std::make_shared<UIComboBox>(x, y, w, h, options, selectedIndex);
+        box->setFont(font ? font : UIConfig::getDefaultFont());
+        uiManager.addElement(box);
+        return box;
+    }    
+
     void AddElement(std::shared_ptr<UIElement> element) {
         uiManager.addElement(element);
     }

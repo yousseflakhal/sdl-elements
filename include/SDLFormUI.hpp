@@ -165,6 +165,28 @@ private:
 };
 
 
+
+class UIComboBox : public UIElement {
+public:
+    UIComboBox(int x, int y, int w, int h, const std::vector<std::string>& options, int& selectedIndex);
+
+    void setFont(TTF_Font* f);
+    void setOnSelect(std::function<void(int)> callback);
+
+    void handleEvent(const SDL_Event& e) override;
+    void update(float dt) override;
+    void render(SDL_Renderer* renderer) override;
+
+private:
+    std::vector<std::string> options;
+    std::reference_wrapper<int> selectedIndex;
+    std::function<void(int)> onSelect;
+    TTF_Font* font = nullptr;
+    bool expanded = false;
+    int hoveredIndex = -1;
+};
+
+
 class UISlider : public UIElement {
 public:
     UISlider(const std::string& label, int x, int y, int w, int h, float& bind, float min, float max);
@@ -238,6 +260,7 @@ public:
         int height = 30,
         int groupSpacing = 10
     );
+    std::shared_ptr<UIComboBox> addComboBox(const std::vector<std::string>& options, int& selectedIndex, int width = 300, int height = 30);
     void setDefaultFont(TTF_Font* font) { defaultFont = font; }
     TTF_Font* getDefaultFont() const { return defaultFont; }
 
@@ -262,6 +285,7 @@ namespace FormUI {
     std::shared_ptr<UILabel> Label(const std::string& text, int x, int y, int w, int h, TTF_Font* font = nullptr);
     std::shared_ptr<UISlider> Slider(const std::string& label, int x, int y, int w, int h, float& bind, float min, float max);
     std::shared_ptr<UITextField> TextField(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen = 32);
+    std::shared_ptr<UIComboBox> ComboBox(const std::vector<std::string>& options, int x, int y, int w, int h, int& selectedIndex, TTF_Font* font = nullptr);
     void AddElement(std::shared_ptr<UIElement> element);
     void ShowPopup(std::shared_ptr<UIPopup> popup);
     void ClosePopup();
@@ -805,6 +829,122 @@ void UITextField::render(SDL_Renderer* renderer) {
 
 
 
+UIComboBox::UIComboBox(int x, int y, int w, int h, const std::vector<std::string>& options, int& selectedIndex)
+    : options(options), selectedIndex(selectedIndex)
+{
+    bounds = { x, y, w, h };
+}
+
+void UIComboBox::setFont(TTF_Font* f) {
+    font = f;
+}
+
+void UIComboBox::setOnSelect(std::function<void(int)> callback) {
+    onSelect = callback;
+}
+
+void UIComboBox::handleEvent(const SDL_Event& e) {
+    int mx = e.button.x;
+    int my = e.button.y;
+
+    if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
+        SDL_Point point = { mx, my };
+
+        if (SDL_PointInRect(&point, &bounds)) {
+            expanded = !expanded;
+        } else if (expanded) {
+            int itemHeight = bounds.h;
+            for (size_t i = 0; i < options.size(); ++i) {
+                SDL_Rect itemRect = { bounds.x, bounds.y + static_cast<int>((i + 1) * itemHeight), bounds.w, itemHeight };
+                if (SDL_PointInRect(&point, &itemRect)) {
+                    selectedIndex.get() = static_cast<int>(i);
+                    if (onSelect) onSelect(static_cast<int>(i));
+                    expanded = false;
+                    break;
+                }
+            }
+        } else {
+            expanded = false;
+        }
+    }
+}
+
+void UIComboBox::update(float) {
+    if (!expanded) {
+        hoveredIndex = -1;
+        return;
+    }
+
+    int mx, my;
+    SDL_GetMouseState(&mx, &my);
+
+    int itemHeight = bounds.h;
+    hoveredIndex = -1;
+
+    for (size_t i = 0; i < options.size(); ++i) {
+        SDL_Rect itemRect = { bounds.x, bounds.y + static_cast<int>((i + 1) * itemHeight), bounds.w, itemHeight };
+        if (mx >= itemRect.x && mx <= itemRect.x + itemRect.w &&
+            my >= itemRect.y && my <= itemRect.y + itemRect.h) {
+            hoveredIndex = static_cast<int>(i);
+            break;
+        }
+    }
+}
+
+void UIComboBox::render(SDL_Renderer* renderer) {
+    const UITheme& theme = getTheme();
+    TTF_Font* activeFont = font ? font : getThemeFont(theme);
+    if (!activeFont) return;
+
+    SDL_SetRenderDrawColor(renderer, theme.backgroundColor.r, theme.backgroundColor.g, theme.backgroundColor.b, theme.backgroundColor.a);
+    SDL_RenderFillRect(renderer, &bounds);
+
+    SDL_SetRenderDrawColor(renderer, theme.borderColor.r, theme.borderColor.g, theme.borderColor.b, theme.borderColor.a);
+    SDL_RenderDrawRect(renderer, &bounds);
+
+    std::string selectedText = options[selectedIndex.get()];
+    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, selectedText.c_str(), theme.textColor);
+    if (textSurface) {
+        SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+        SDL_Rect textRect = {
+            bounds.x + 5,
+            bounds.y + (bounds.h - textSurface->h) / 2,
+            textSurface->w,
+            textSurface->h
+        };
+        SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
+        SDL_FreeSurface(textSurface);
+        SDL_DestroyTexture(textTexture);
+    }
+
+    if (expanded) {
+        for (size_t i = 0; i < options.size(); ++i) {
+            SDL_Rect itemRect = { bounds.x, bounds.y + static_cast<int>((i + 1) * bounds.h), bounds.w, bounds.h };
+            SDL_Color bgColor = (i == hoveredIndex) ? theme.hoverColor : theme.backgroundColor;
+            SDL_SetRenderDrawColor(renderer, bgColor.r, bgColor.g, bgColor.b, bgColor.a);
+            SDL_RenderFillRect(renderer, &itemRect);
+
+            SDL_SetRenderDrawColor(renderer, theme.borderColor.r, theme.borderColor.g, theme.borderColor.b, theme.borderColor.a);
+            SDL_RenderDrawRect(renderer, &itemRect);
+
+            SDL_Surface* itemSurface = TTF_RenderText_Blended(activeFont, options[i].c_str(), theme.textColor);
+            if (itemSurface) {
+                SDL_Texture* itemTexture = SDL_CreateTextureFromSurface(renderer, itemSurface);
+                SDL_Rect itemTextRect = {
+                    itemRect.x + 5,
+                    itemRect.y + (itemRect.h - itemSurface->h) / 2,
+                    itemSurface->w,
+                    itemSurface->h
+                };
+                SDL_RenderCopy(renderer, itemTexture, nullptr, &itemTextRect);
+                SDL_FreeSurface(itemSurface);
+                SDL_DestroyTexture(itemTexture);
+            }
+        }
+    }
+}
+
+
 UISlider::UISlider(const std::string& label, int x, int y, int w, int h, float& bind, float min, float max)
     : label(label), linkedValue(bind), minValue(min), maxValue(max)
 {
@@ -1068,6 +1208,12 @@ std::shared_ptr<UIRadioGroup> Layout::addRadioGroup(
     return group;
 }
 
+std::shared_ptr<UIComboBox> Layout::addComboBox(const std::vector<std::string>& options, int& selectedIndex, int width, int height) {
+    auto combo = FormUI::ComboBox(options, currentX, currentY, width, height, selectedIndex, defaultFont);
+    currentY += height + spacing;
+    return combo;
+}
+
 }
 
 
@@ -1117,6 +1263,13 @@ namespace FormUI {
         auto field = std::make_shared<UITextField>(label, x, y, w, h, bind, maxLen);
         uiManager.addElement(field);
         return field;
+    }
+
+    std::shared_ptr<UIComboBox> ComboBox(const std::vector<std::string>& options, int x, int y, int w, int h, int& selectedIndex, TTF_Font* font) {
+        auto box = std::make_shared<UIComboBox>(x, y, w, h, options, selectedIndex);
+        box->setFont(font ? font : UIConfig::getDefaultFont());
+        uiManager.addElement(box);
+        return box;
     }
 
     void AddElement(std::shared_ptr<UIElement> element) {
