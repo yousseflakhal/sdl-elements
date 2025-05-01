@@ -917,8 +917,17 @@ void UIComboBox::render(SDL_Renderer* renderer) {
         SDL_DestroyTexture(textTexture);
     }
 
+    float cx = static_cast<float>(bounds.x + bounds.w - 15);
+    float cy = static_cast<float>(bounds.y + bounds.h / 2);
+    SDL_Vertex vertices[3] = {
+        { { cx - 5.0f, cy - 3.0f }, { theme.textColor.r, theme.textColor.g, theme.textColor.b, theme.textColor.a }, { 0, 0 } },
+        { { cx, cy + 3.0f },        { theme.textColor.r, theme.textColor.g, theme.textColor.b, theme.textColor.a }, { 0, 0 } },
+        { { cx + 5.0f, cy - 3.0f }, { theme.textColor.r, theme.textColor.g, theme.textColor.b, theme.textColor.a }, { 0, 0 } }
+    };
+    SDL_RenderGeometry(renderer, nullptr, vertices, 3, nullptr, 0);
+
     if (expanded) {
-        for (size_t i = 0; i < options.size(); ++i) {
+        for (int i = 0; i < static_cast<int>(options.size()); ++i) {
             SDL_Rect itemRect = { bounds.x, bounds.y + static_cast<int>((i + 1) * bounds.h), bounds.w, bounds.h };
             SDL_Color bgColor = (i == hoveredIndex) ? theme.hoverColor : theme.backgroundColor;
             SDL_SetRenderDrawColor(renderer, bgColor.r, bgColor.g, bgColor.b, bgColor.a);
