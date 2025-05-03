@@ -8,6 +8,7 @@ class UISpinner : public UIElement {
     
         void setFont(TTF_Font* f);
         void setOnChange(std::function<void(int)> callback);
+        bool isHovered() const;
     
         void handleEvent(const SDL_Event& e) override;
         void update(float dt) override;

@@ -219,6 +219,7 @@ class UISpinner : public UIElement {
 
         void setFont(TTF_Font* f);
         void setOnChange(std::function<void(int)> callback);
+        bool isHovered() const;
 
         void handleEvent(const SDL_Event& e) override;
         void update(float dt) override;
@@ -1110,6 +1111,10 @@ void UISpinner::setOnChange(std::function<void(int)> callback) {
     onChange = callback;
 }
 
+bool UISpinner::isHovered() const {
+    return hoveredMinus || hoveredPlus;
+}
+
 void UISpinner::handleEvent(const SDL_Event& e) {
     int mx = e.button.x;
     int my = e.button.y;
@@ -1254,7 +1259,8 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
             dynamic_cast<UICheckbox*>(el.get()) ||
             dynamic_cast<UIRadioButton*>(el.get()) ||
             dynamic_cast<UISlider*>(el.get()) ||
-            dynamic_cast<UIComboBox*>(el.get())
+            dynamic_cast<UIComboBox*>(el.get()) ||
+            dynamic_cast<UISpinner*>(el.get())
         ) {
             cursorToUse = handCursor;
         }

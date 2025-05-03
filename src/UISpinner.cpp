@@ -19,6 +19,10 @@ void UISpinner::setOnChange(std::function<void(int)> callback) {
     onChange = callback;
 }
 
+bool UISpinner::isHovered() const {
+    return hoveredMinus || hoveredPlus;
+}
+
 void UISpinner::handleEvent(const SDL_Event& e) {
     int mx = e.button.x;
     int my = e.button.y;

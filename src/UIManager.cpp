@@ -1,4 +1,5 @@
 #include "UIManager.hpp"
+#include "UISpinner.hpp"
 
 void UIManager::addElement(std::shared_ptr<UIElement> el) {
     elements.push_back(el);
@@ -25,7 +26,8 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
             dynamic_cast<UICheckbox*>(el.get()) ||
             dynamic_cast<UIRadioButton*>(el.get()) ||
             dynamic_cast<UISlider*>(el.get()) ||
-            dynamic_cast<UIComboBox*>(el.get())
+            dynamic_cast<UIComboBox*>(el.get()) ||
+            dynamic_cast<UISpinner*>(el.get())
         ) {
             cursorToUse = handCursor;
         }
