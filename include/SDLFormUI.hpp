@@ -1177,50 +1177,43 @@ void UISpinner::render(SDL_Renderer* renderer) {
     TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
     if (!activeFont) return;
 
+    SDL_Rect minusRect = { bounds.x, bounds.y, bounds.h, bounds.h };
+    SDL_Rect plusRect  = { bounds.x + bounds.w - bounds.h, bounds.y, bounds.h, bounds.h };
+    SDL_Rect centerRect = {
+        bounds.x + bounds.h,
+        bounds.y,
+        bounds.w - 2 * bounds.h,
+        bounds.h
+    };
+
+    SDL_Color minusColor = hoveredMinus ? theme.hoverColor : theme.borderColor;
+    SDL_Color plusColor  = hoveredPlus  ? theme.hoverColor : theme.borderColor;
+    SDL_Color centerColor = theme.borderColor;
+
     SDL_SetRenderDrawColor(renderer, theme.backgroundColor.r, theme.backgroundColor.g, theme.backgroundColor.b, theme.backgroundColor.a);
     SDL_RenderFillRect(renderer, &bounds);
 
-    SDL_SetRenderDrawColor(renderer, theme.borderColor.r, theme.borderColor.g, theme.borderColor.b, theme.borderColor.a);
-    SDL_RenderDrawRect(renderer, &bounds);
+    SDL_SetRenderDrawColor(renderer, centerColor.r, centerColor.g, centerColor.b, centerColor.a);
+    SDL_RenderDrawRect(renderer, &centerRect);
 
-    std::ostringstream oss;
-    oss << value.get();
-    SDL_Surface* surface = TTF_RenderText_Blended(activeFont, oss.str().c_str(), theme.textColor);
-    if (surface) {
-        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-        SDL_Rect textRect = {
-            bounds.x + (bounds.w - surface->w) / 2,
-            bounds.y + (bounds.h - surface->h) / 2,
-            surface->w,
-            surface->h
-        };
-        SDL_RenderCopy(renderer, texture, nullptr, &textRect);
-        SDL_FreeSurface(surface);
-        SDL_DestroyTexture(texture);
-    }
+    SDL_SetRenderDrawColor(renderer, minusColor.r, minusColor.g, minusColor.b, 255);
+    SDL_RenderDrawLine(renderer, minusRect.x, minusRect.y, minusRect.x + minusRect.w, minusRect.y);
+    SDL_RenderDrawLine(renderer, minusRect.x, minusRect.y, minusRect.x, minusRect.y + minusRect.h);
+    SDL_RenderDrawLine(renderer, minusRect.x, minusRect.y + minusRect.h - 1, minusRect.x + minusRect.w, minusRect.y + minusRect.h - 1);
 
-    SDL_Rect minusRect = { bounds.x, bounds.y, bounds.h, bounds.h };
-    SDL_SetRenderDrawColor(renderer,
-        hoveredMinus ? theme.hoverColor.r : theme.borderColor.r,
-        hoveredMinus ? theme.hoverColor.g : theme.borderColor.g,
-        hoveredMinus ? theme.hoverColor.b : theme.borderColor.b,
-        255);
-    SDL_RenderDrawRect(renderer, &minusRect);
+    SDL_SetRenderDrawColor(renderer, plusColor.r, plusColor.g, plusColor.b, 255);
+    SDL_RenderDrawLine(renderer, plusRect.x, plusRect.y, plusRect.x + plusRect.w, plusRect.y);
+    SDL_RenderDrawLine(renderer, plusRect.x + plusRect.w - 1, plusRect.y, plusRect.x + plusRect.w - 1, plusRect.y + plusRect.h);
+    SDL_RenderDrawLine(renderer, plusRect.x, plusRect.y + plusRect.h - 1, plusRect.x + plusRect.w, plusRect.y + plusRect.h - 1);
 
-    SDL_Rect plusRect = { bounds.x + bounds.w - bounds.h, bounds.y, bounds.h, bounds.h };
-    SDL_SetRenderDrawColor(renderer,
-        hoveredPlus ? theme.hoverColor.r : theme.borderColor.r,
-        hoveredPlus ? theme.hoverColor.g : theme.borderColor.g,
-        hoveredPlus ? theme.hoverColor.b : theme.borderColor.b,
-        255);
-    SDL_RenderDrawRect(renderer, &plusRect);
-
+    SDL_SetRenderDrawColor(renderer, minusColor.r, minusColor.g, minusColor.b, 255);
     SDL_RenderDrawLine(renderer,
         minusRect.x + minusRect.w / 4,
         minusRect.y + minusRect.h / 2,
         minusRect.x + 3 * minusRect.w / 4,
         minusRect.y + minusRect.h / 2);
 
+    SDL_SetRenderDrawColor(renderer, plusColor.r, plusColor.g, plusColor.b, 255);
     SDL_RenderDrawLine(renderer,
         plusRect.x + plusRect.w / 2,
         plusRect.y + plusRect.h / 4,
@@ -1231,6 +1224,22 @@ void UISpinner::render(SDL_Renderer* renderer) {
         plusRect.y + plusRect.h / 2,
         plusRect.x + 3 * plusRect.w / 4,
         plusRect.y + plusRect.h / 2);
+
+    std::ostringstream oss;
+    oss << value.get();
+    SDL_Surface* surface = TTF_RenderText_Blended(activeFont, oss.str().c_str(), theme.textColor);
+    if (surface) {
+        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+        SDL_Rect textRect = {
+            centerRect.x + (centerRect.w - surface->w) / 2,
+            centerRect.y + (centerRect.h - surface->h) / 2,
+            surface->w,
+            surface->h
+        };
+        SDL_RenderCopy(renderer, texture, nullptr, &textRect);
+        SDL_FreeSurface(surface);
+        SDL_DestroyTexture(texture);
+    }
 }
 
 
