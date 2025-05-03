@@ -15,7 +15,8 @@
 enum class InputType {
     TEXT,
     NUMERIC,
-    EMAIL
+    EMAIL,
+    PASSWORD
 };
 
 
@@ -772,6 +773,7 @@ void UITextField::handleEvent(const SDL_Event& e) {
                         return std::isalnum(c) || c == '@' || c == '.' || c == '-' || c == '_';
                     });
                     break;
+                case InputType::PASSWORD:
                 case InputType::TEXT:
                 default:
                     valid = true;
@@ -834,7 +836,7 @@ void UITextField::render(SDL_Renderer* renderer) {
     SDL_SetRenderDrawColor(renderer, borderCol.r, borderCol.g, borderCol.b, borderCol.a);
     SDL_RenderDrawRect(renderer, &bounds);
 
-    std::string toRender = linkedText.get();
+    std::string toRender = (inputType == InputType::PASSWORD) ? std::string(linkedText.get().size(), '*') : linkedText.get();
     SDL_Color textCol = theme.textColor;
     if (toRender.empty() && !focused && !placeholder.empty()) {
         toRender = placeholder;

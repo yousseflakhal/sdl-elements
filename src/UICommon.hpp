@@ -3,5 +3,6 @@
 enum class InputType {
     TEXT,
     NUMERIC,
-    EMAIL
+    EMAIL,
+    PASSWORD
 };
