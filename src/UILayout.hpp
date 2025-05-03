@@ -32,6 +32,7 @@ public:
         int groupSpacing = 10
     );
     std::shared_ptr<UIComboBox> addComboBox(const std::vector<std::string>& options, int& selectedIndex, int width = 300, int height = 30);
+    std::shared_ptr<UISpinner> addSpinner(int& bind, int min = 0, int max = 100, int step = 1, int width = 100, int height = 30);
     void setDefaultFont(TTF_Font* font) { defaultFont = font; }
     TTF_Font* getDefaultFont() const { return defaultFont; }
         

@@ -28,6 +28,7 @@
                 "${workspaceFolder}/src/UIDialog.cpp",
                 "${workspaceFolder}/src/UIPopup.cpp",
                 "${workspaceFolder}/src/UIComboBox.cpp",
+                "${workspaceFolder}/src/UISpinner.cpp",
                 "-I${workspaceFolder}/include",
                 "-L${workspaceFolder}/lib",
                 "-lSDL2",

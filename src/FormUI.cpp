@@ -52,7 +52,14 @@ namespace FormUI {
         box->setFont(font ? font : UIConfig::getDefaultFont());
         uiManager.addElement(box);
         return box;
-    }    
+    }
+
+    std::shared_ptr<UISpinner> Spinner(int x, int y, int w, int h, int& bind, int min, int max, int step, TTF_Font* font) {
+        auto spinner = std::make_shared<UISpinner>(x, y, w, h, bind, min, max, step);
+        if (font) spinner->setFont(font);
+        AddElement(spinner);
+        return spinner;
+    }
 
     void AddElement(std::shared_ptr<UIElement> element) {
         uiManager.addElement(element);

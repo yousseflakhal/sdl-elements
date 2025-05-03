@@ -76,5 +76,11 @@ std::shared_ptr<UIComboBox> Layout::addComboBox(const std::vector<std::string>& 
     return combo;
 }
 
+std::shared_ptr<UISpinner> Layout::addSpinner(int& bind, int min, int max, int step, int width, int height) {
+    auto spinner = FormUI::Spinner(currentX, currentY, width, height, bind, min, max, step, defaultFont);
+    currentY += height + spacing;
+    return spinner;
+}
+
 }
 
