@@ -1371,7 +1371,7 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
     el->update(0.0f);
 
     if (el->isHovered()) {
-        if (dynamic_cast<UITextField*>(el.get())) {
+        if (dynamic_cast<UITextField*>(el.get()) || dynamic_cast<UITextArea*>(el.get())) {
             cursorToUse = ibeamCursor;
         } else if (
             dynamic_cast<UIButton*>(el.get()) ||

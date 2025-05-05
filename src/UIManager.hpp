@@ -10,6 +10,8 @@
 #include "UIPopup.hpp"
 #include "UIGroupBox.hpp"
 #include "UIComboBox.hpp"
+#include "UISpinner.hpp"
+#include "UITextArea.hpp"
 class UIManager {
     public:
         void initCursors();
