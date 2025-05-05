@@ -46,6 +46,17 @@ void UITextArea::update(float) {
     SDL_GetMouseState(&mx, &my);
     SDL_Point point = { mx, my };
     hovered = SDL_PointInRect(&point, &bounds);
+
+    if (focused) {
+        Uint32 now = SDL_GetTicks();
+        if (now - lastBlinkTime >= 500) {
+            cursorVisible = !cursorVisible;
+            lastBlinkTime = now;
+        }
+    } else {
+        cursorVisible = false;
+        lastBlinkTime = SDL_GetTicks();
+    }
 }
 
 bool UITextArea::isHovered() const {
@@ -83,5 +94,26 @@ void UITextArea::render(SDL_Renderer* renderer) {
         SDL_RenderCopy(renderer, texture, nullptr, &textRect);
         SDL_FreeSurface(surface);
         SDL_DestroyTexture(texture);
+    }
+
+    if (focused && cursorVisible) {
+        int textW = 0, textH = 0;
+        std::string lastLine;
+    
+        size_t lastNewline = linkedText.get().rfind('\n');
+        if (lastNewline != std::string::npos)
+            lastLine = linkedText.get().substr(lastNewline + 1);
+        else
+            lastLine = linkedText.get();
+    
+        TTF_SizeText(activeFont, lastLine.c_str(), &textW, &textH);
+        int cursorX = bounds.x + 5 + textW;
+        
+        int lines = std::count(linkedText.get().begin(), linkedText.get().end(), '\n');
+        int cursorY = bounds.y + 5 + lines * textH;
+    
+        SDL_Rect cursorRect = { cursorX, cursorY, 2, textH };
+        SDL_SetRenderDrawColor(renderer, theme.cursorColor.r, theme.cursorColor.g, theme.cursorColor.b, theme.cursorColor.a);
+        SDL_RenderFillRect(renderer, &cursorRect);
     }
 }

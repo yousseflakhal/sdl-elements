@@ -1,6 +1,7 @@
 #pragma once
 #include "UIElement.hpp"
 #include <string>
+#include <algorithm>
 #include <SDL2/SDL_ttf.h>
 
 class UITextArea : public UIElement {
@@ -22,4 +23,6 @@ private:
     bool hovered = false;
     bool focused = false;
     TTF_Font* font = nullptr;
+    Uint32 lastBlinkTime = 0;
+    bool cursorVisible = true;
 };
