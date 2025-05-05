@@ -242,6 +242,28 @@ class UISpinner : public UIElement {
 };
 
 
+
+class UITextArea : public UIElement {
+public:
+    UITextArea(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen = 512);
+
+    void setFont(TTF_Font* f);
+    void setPlaceholder(const std::string& text);
+    void handleEvent(const SDL_Event& e) override;
+    void update(float dt) override;
+    void render(SDL_Renderer* renderer) override;
+    bool isHovered() const override;
+
+private:
+    std::string label;
+    std::reference_wrapper<std::string> linkedText;
+    std::string placeholder;
+    int maxLength;
+    bool hovered = false;
+    bool focused = false;
+    TTF_Font* font = nullptr;
+};
+
 class UIManager {
     public:
         void initCursors();
@@ -298,6 +320,7 @@ public:
     );
     std::shared_ptr<UIComboBox> addComboBox(const std::vector<std::string>& options, int& selectedIndex, int width = 300, int height = 30);
     std::shared_ptr<UISpinner> addSpinner(int& bind, int min = 0, int max = 100, int step = 1, int width = 100, int height = 30);
+    std::shared_ptr<UITextArea> addTextArea(const std::string& label, std::string& bind, int maxLen = 512, int width = 300, int height = 100);
     void setDefaultFont(TTF_Font* font) { defaultFont = font; }
     TTF_Font* getDefaultFont() const { return defaultFont; }
 
@@ -324,6 +347,7 @@ namespace FormUI {
     std::shared_ptr<UITextField> TextField(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen = 32);
     std::shared_ptr<UIComboBox> ComboBox(const std::vector<std::string>& options, int x, int y, int w, int h, int& selectedIndex, TTF_Font* font = nullptr);
     std::shared_ptr<UISpinner> Spinner(int x, int y, int w, int h, int& bind, int min = 0, int max = 100, int step = 1, TTF_Font* font = nullptr);
+    std::shared_ptr<UITextArea> TextArea(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen = 512);
     void AddElement(std::shared_ptr<UIElement> element);
     void ShowPopup(std::shared_ptr<UIPopup> popup);
     void ClosePopup();
@@ -1245,6 +1269,90 @@ void UISpinner::render(SDL_Renderer* renderer) {
 }
 
 
+UITextArea::UITextArea(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen)
+    : label(label), linkedText(bind), maxLength(maxLen)
+{
+    bounds = { x, y, w, h };
+}
+
+void UITextArea::setFont(TTF_Font* f) {
+    font = f;
+}
+
+void UITextArea::setPlaceholder(const std::string& text) {
+    placeholder = text;
+}
+
+void UITextArea::handleEvent(const SDL_Event& e) {
+    if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
+        SDL_Point point = { e.button.x, e.button.y };
+        bool wasFocused = focused;
+        focused = SDL_PointInRect(&point, &bounds);
+        if (!wasFocused && focused) SDL_StartTextInput();
+        else if (wasFocused && !focused) SDL_StopTextInput();
+    }
+
+    if (focused && e.type == SDL_TEXTINPUT) {
+        if (linkedText.get().length() < static_cast<size_t>(maxLength)) {
+            linkedText.get().append(e.text.text);
+        }
+    }
+
+    if (focused && e.type == SDL_KEYDOWN) {
+        if (e.key.keysym.sym == SDLK_BACKSPACE && !linkedText.get().empty()) {
+            linkedText.get().pop_back();
+        } else if (e.key.keysym.sym == SDLK_RETURN) {
+            linkedText.get().append("\n");
+        }
+    }
+}
+
+void UITextArea::update(float) {
+    int mx, my;
+    SDL_GetMouseState(&mx, &my);
+    SDL_Point point = { mx, my };
+    hovered = SDL_PointInRect(&point, &bounds);
+}
+
+bool UITextArea::isHovered() const {
+    return hovered;
+}
+
+void UITextArea::render(SDL_Renderer* renderer) {
+    const UITheme& theme = getTheme();
+    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+    if (!activeFont) return;
+
+    if (!label.empty()) {
+        SDL_Surface* labelSurf = TTF_RenderText_Blended(activeFont, label.c_str(), theme.textColor);
+        if (labelSurf) {
+            SDL_Texture* labelTex = SDL_CreateTextureFromSurface(renderer, labelSurf);
+            SDL_Rect labelRect = { bounds.x, bounds.y - labelSurf->h - 4, labelSurf->w, labelSurf->h };
+            SDL_RenderCopy(renderer, labelTex, nullptr, &labelRect);
+            SDL_FreeSurface(labelSurf);
+            SDL_DestroyTexture(labelTex);
+        }
+    }
+
+    SDL_SetRenderDrawColor(renderer, theme.backgroundColor.r, theme.backgroundColor.g, theme.backgroundColor.b, theme.backgroundColor.a);
+    SDL_RenderFillRect(renderer, &bounds);
+
+    SDL_SetRenderDrawColor(renderer, theme.borderColor.r, theme.borderColor.g, theme.borderColor.b, theme.borderColor.a);
+    SDL_RenderDrawRect(renderer, &bounds);
+
+    const std::string& content = linkedText.get().empty() ? placeholder : linkedText.get();
+    SDL_Color color = linkedText.get().empty() ? theme.placeholderColor : theme.textColor;
+    SDL_Surface* surface = TTF_RenderText_Blended_Wrapped(activeFont, content.c_str(), color, bounds.w - 10);
+    if (surface) {
+        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+        SDL_Rect textRect = { bounds.x + 5, bounds.y + 5, surface->w, surface->h };
+        SDL_RenderCopy(renderer, texture, nullptr, &textRect);
+        SDL_FreeSurface(surface);
+        SDL_DestroyTexture(texture);
+    }
+}
+
+
 void UIManager::addElement(std::shared_ptr<UIElement> el) {
     elements.push_back(el);
 }
@@ -1471,6 +1579,13 @@ std::shared_ptr<UISpinner> Layout::addSpinner(int& bind, int min, int max, int s
     return spinner;
 }
 
+std::shared_ptr<UITextArea> Layout::addTextArea(const std::string& label, std::string& bind, int maxLen, int width, int height) {
+    auto textArea = FormUI::TextArea(label, currentX, currentY, width, height, bind, maxLen);
+    textArea->setFont(defaultFont);
+    currentY += height + spacing;
+    return textArea;
+}
+
 }
 
 
@@ -1535,6 +1650,11 @@ namespace FormUI {
         AddElement(spinner);
         return spinner;
     }
+
+    std::shared_ptr<UITextArea> TextArea(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen) {
+        return std::make_shared<UITextArea>(label, x, y, w, h, bind, maxLen);
+    }
+
 
     void AddElement(std::shared_ptr<UIElement> element) {
         uiManager.addElement(element);

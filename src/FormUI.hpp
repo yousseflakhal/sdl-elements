@@ -13,6 +13,7 @@
 #include "UITextField.hpp"
 #include "UIComboBox.hpp"
 #include "UISpinner.hpp"
+#include "UITextArea.hpp"
 
 
 namespace FormUI {
@@ -27,6 +28,7 @@ namespace FormUI {
     std::shared_ptr<UITextField> TextField(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen = 32);
     std::shared_ptr<UIComboBox> ComboBox(const std::vector<std::string>& options, int x, int y, int w, int h, int& selectedIndex, TTF_Font* font = nullptr);
     std::shared_ptr<UISpinner> Spinner(int x, int y, int w, int h, int& bind, int min = 0, int max = 100, int step = 1, TTF_Font* font = nullptr);
+    std::shared_ptr<UITextArea> TextArea(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen = 512);
     void AddElement(std::shared_ptr<UIElement> element);
     void ShowPopup(std::shared_ptr<UIPopup> popup);
     void ClosePopup();

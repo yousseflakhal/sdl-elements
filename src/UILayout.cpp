@@ -82,5 +82,12 @@ std::shared_ptr<UISpinner> Layout::addSpinner(int& bind, int min, int max, int s
     return spinner;
 }
 
+std::shared_ptr<UITextArea> Layout::addTextArea(const std::string& label, std::string& bind, int maxLen, int width, int height) {
+    auto textArea = FormUI::TextArea(label, currentX, currentY, width, height, bind, maxLen);
+    textArea->setFont(defaultFont);
+    currentY += height + spacing;
+    return textArea;
+}
+
 }
 

@@ -29,6 +29,7 @@
                 "${workspaceFolder}/src/UIPopup.cpp",
                 "${workspaceFolder}/src/UIComboBox.cpp",
                 "${workspaceFolder}/src/UISpinner.cpp",
+                "${workspaceFolder}/src/UITextArea.cpp",
                 "-I${workspaceFolder}/include",
                 "-L${workspaceFolder}/lib",
                 "-lSDL2",

@@ -60,6 +60,11 @@ namespace FormUI {
         AddElement(spinner);
         return spinner;
     }
+    
+    std::shared_ptr<UITextArea> TextArea(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen) {
+        return std::make_shared<UITextArea>(label, x, y, w, h, bind, maxLen);
+    }
+    
 
     void AddElement(std::shared_ptr<UIElement> element) {
         uiManager.addElement(element);
