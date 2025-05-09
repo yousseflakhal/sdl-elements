@@ -2,6 +2,7 @@
 #include "UIElement.hpp"
 #include <string>
 #include <algorithm>
+#include <vector>
 #include <SDL2/SDL_ttf.h>
 
 class UITextArea : public UIElement {
@@ -10,6 +11,8 @@ public:
 
     void setFont(TTF_Font* f);
     void setPlaceholder(const std::string& text);
+    void updateCursorPosition();
+
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
@@ -25,4 +28,6 @@ private:
     TTF_Font* font = nullptr;
     Uint32 lastBlinkTime = 0;
     bool cursorVisible = true;
+    size_t cursorPos = 0;
+    size_t textLength = 0;
 };

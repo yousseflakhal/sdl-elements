@@ -249,6 +249,8 @@ public:
 
     void setFont(TTF_Font* f);
     void setPlaceholder(const std::string& text);
+    void updateCursorPosition();
+
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
@@ -264,6 +266,8 @@ private:
     TTF_Font* font = nullptr;
     Uint32 lastBlinkTime = 0;
     bool cursorVisible = true;
+    size_t cursorPos = 0;
+    size_t textLength = 0;
 };
 
 class UIManager {
@@ -1290,21 +1294,51 @@ void UITextArea::handleEvent(const SDL_Event& e) {
         SDL_Point point = { e.button.x, e.button.y };
         bool wasFocused = focused;
         focused = SDL_PointInRect(&point, &bounds);
-        if (!wasFocused && focused) SDL_StartTextInput();
+        if (!wasFocused && focused) {
+            SDL_StartTextInput();
+            cursorPos = linkedText.get().size();
+            lastBlinkTime = SDL_GetTicks();
+            cursorVisible = true;
+        }
         else if (wasFocused && !focused) SDL_StopTextInput();
     }
 
     if (focused && e.type == SDL_TEXTINPUT) {
-        if (linkedText.get().length() < static_cast<size_t>(maxLength)) {
-            linkedText.get().append(e.text.text);
+        std::string input = e.text.text;
+        std::string& text = linkedText.get();
+        if (text.size() < static_cast<size_t>(maxLength)) {
+            text.insert(cursorPos, input);
+            cursorPos += input.size();
+            lastBlinkTime = SDL_GetTicks();
+            cursorVisible = true;
         }
     }
 
     if (focused && e.type == SDL_KEYDOWN) {
-        if (e.key.keysym.sym == SDLK_BACKSPACE && !linkedText.get().empty()) {
-            linkedText.get().pop_back();
-        } else if (e.key.keysym.sym == SDLK_RETURN) {
-            linkedText.get().append("\n");
+        std::string& text = linkedText.get();
+        if (e.key.keysym.sym == SDLK_BACKSPACE && cursorPos > 0) {
+            text.erase(cursorPos - 1, 1);
+            cursorPos--;
+            lastBlinkTime = SDL_GetTicks();
+            cursorVisible = true;
+        }
+        else if (e.key.keysym.sym == SDLK_RETURN) {
+            if (text.size() < static_cast<size_t>(maxLength)) {
+                text.insert(cursorPos, "\n");
+                cursorPos++;
+                lastBlinkTime = SDL_GetTicks();
+                cursorVisible = true;
+            }
+        }
+        else if (e.key.keysym.sym == SDLK_LEFT && cursorPos > 0) {
+            cursorPos--;
+            lastBlinkTime = SDL_GetTicks();
+            cursorVisible = true;
+        }
+        else if (e.key.keysym.sym == SDLK_RIGHT && cursorPos < text.size()) {
+            cursorPos++;
+            lastBlinkTime = SDL_GetTicks();
+            cursorVisible = true;
         }
     }
 }
@@ -1331,6 +1365,55 @@ bool UITextArea::isHovered() const {
     return hovered;
 }
 
+static std::vector<std::string> wrapTextToLines(const std::string& text, TTF_Font* font, int maxWidth) {
+    std::vector<std::string> lines;
+    std::string currentLine;
+    std::string currentWord;
+
+    for (char c : text) {
+        if (c == '\n') {
+            currentLine += currentWord;
+            lines.push_back(currentLine);
+            currentLine.clear();
+            currentWord.clear();
+            continue;
+        }
+
+        currentWord += c;
+        std::string temp = currentLine + currentWord;
+        int width, height;
+        TTF_SizeText(font, temp.c_str(), &width, &height);
+
+        if (width > maxWidth) {
+            if (currentLine.empty()) {
+                std::string part;
+                for (size_t i = 0; i < currentWord.size(); ++i) {
+                    std::string testPart = currentWord.substr(0, i+1);
+                    TTF_SizeText(font, testPart.c_str(), &width, &height);
+                    if (width > maxWidth) break;
+                    part = testPart;
+                }
+                if (part.empty()) part = currentWord.substr(0, 1);
+                lines.push_back(part);
+                currentWord = currentWord.substr(part.size());
+            } else {
+                lines.push_back(currentLine);
+                currentLine = currentWord;
+                currentWord.clear();
+            }
+        }
+
+        if (c == ' ') {
+            currentLine += currentWord;
+            currentWord.clear();
+        }
+    }
+
+    currentLine += currentWord;
+    if (!currentLine.empty()) lines.push_back(currentLine);
+    return lines;
+}
+
 void UITextArea::render(SDL_Renderer* renderer) {
     const UITheme& theme = getTheme();
     TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
@@ -1349,41 +1432,73 @@ void UITextArea::render(SDL_Renderer* renderer) {
 
     SDL_SetRenderDrawColor(renderer, theme.backgroundColor.r, theme.backgroundColor.g, theme.backgroundColor.b, theme.backgroundColor.a);
     SDL_RenderFillRect(renderer, &bounds);
-
     SDL_SetRenderDrawColor(renderer, theme.borderColor.r, theme.borderColor.g, theme.borderColor.b, theme.borderColor.a);
     SDL_RenderDrawRect(renderer, &bounds);
 
     const std::string& content = linkedText.get().empty() ? placeholder : linkedText.get();
     SDL_Color color = linkedText.get().empty() ? theme.placeholderColor : theme.textColor;
-    SDL_Surface* surface = TTF_RenderText_Blended_Wrapped(activeFont, content.c_str(), color, bounds.w - 10);
-    if (surface) {
-        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-        SDL_Rect textRect = { bounds.x + 5, bounds.y + 5, surface->w, surface->h };
-        SDL_RenderCopy(renderer, texture, nullptr, &textRect);
-        SDL_FreeSurface(surface);
-        SDL_DestroyTexture(texture);
+
+    auto lines = wrapTextToLines(content, activeFont, bounds.w - 10);
+    int lineHeight = TTF_FontHeight(activeFont);
+    int yOffset = bounds.y + 5;
+
+    int cursorX = bounds.x + 5;
+    int cursorY = yOffset;
+    bool cursorDrawn = false;
+    size_t textPosition = 0;
+
+    for (size_t i = 0; i < lines.size(); ++i) {
+        const std::string& line = lines[i];
+        SDL_Surface* surf = TTF_RenderText_Blended(activeFont, line.c_str(), color);
+        if (surf) {
+            SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, surf);
+            SDL_Rect textRect = { bounds.x + 5, yOffset, surf->w, surf->h };
+            SDL_RenderCopy(renderer, tex, nullptr, &textRect);
+
+            if (focused && !cursorDrawn) {
+                size_t lineEnd = textPosition + line.size();
+                bool hasNewline = lineEnd < content.size() && content[lineEnd] == '\n';
+
+                if (cursorPos >= textPosition && cursorPos <= lineEnd + (hasNewline ? 1 : 0)) {
+                    if (hasNewline && cursorPos == lineEnd) {
+                        cursorX = bounds.x + 5;
+                        cursorY = yOffset + lineHeight;
+                        cursorDrawn = true;
+                    }
+                    else if (cursorPos <= lineEnd) {
+                        std::string beforeCursor = line.substr(0, cursorPos - textPosition);
+                        int w, h;
+                        TTF_SizeText(activeFont, beforeCursor.c_str(), &w, &h);
+                        cursorX = bounds.x + 5 + w;
+                        cursorY = yOffset;
+                        cursorDrawn = true;
+                    }
+                }
+            }
+
+            SDL_FreeSurface(surf);
+            SDL_DestroyTexture(tex);
+        }
+        textPosition += line.size() + (textPosition + line.size() < content.size() && content[textPosition + line.size()] == '\n' ? 1 : 0);
+        yOffset += lineHeight;
+    }
+
+    if (focused && cursorVisible && !cursorDrawn) {
+        cursorX = bounds.x + 5;
+        cursorY = yOffset;
     }
 
     if (focused && cursorVisible) {
-        int textW = 0, textH = 0;
-        std::string lastLine;
-
-        size_t lastNewline = linkedText.get().rfind('\n');
-        if (lastNewline != std::string::npos)
-            lastLine = linkedText.get().substr(lastNewline + 1);
-        else
-            lastLine = linkedText.get();
-
-        TTF_SizeText(activeFont, lastLine.c_str(), &textW, &textH);
-        int cursorX = bounds.x + 5 + textW;
-
-        int lines = std::count(linkedText.get().begin(), linkedText.get().end(), '\n');
-        int cursorY = bounds.y + 5 + lines * textH;
-
-        SDL_Rect cursorRect = { cursorX, cursorY, 2, textH };
+        SDL_Rect cursorRect = { cursorX, cursorY, 2, lineHeight };
         SDL_SetRenderDrawColor(renderer, theme.cursorColor.r, theme.cursorColor.g, theme.cursorColor.b, theme.cursorColor.a);
         SDL_RenderFillRect(renderer, &cursorRect);
     }
+}
+
+void UITextArea::updateCursorPosition() {
+    const std::string& content = linkedText.get();
+    textLength = content.size();
+    cursorPos = std::min(cursorPos, textLength);
 }
 
 
