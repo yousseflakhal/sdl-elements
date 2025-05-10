@@ -252,6 +252,8 @@ public:
     void updateCursorPosition();
     SDL_Rect getScrollbarRect() const;
     void renderScrollbar(SDL_Renderer* renderer);
+    bool isScrollbarHovered() const;
+    bool isScrollbarDragging() const;
 
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
@@ -1303,7 +1305,7 @@ void UITextArea::setPlaceholder(const std::string& text) {
 
 void UITextArea::handleEvent(const SDL_Event& e) {
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
-        SDL_Point p{e.button.x, e.button.y};
+        SDL_Point p{ e.button.x, e.button.y };
         bool wasFocused = focused;
         focused = SDL_PointInRect(&p, &bounds);
         if (!wasFocused && focused) {
@@ -1316,33 +1318,44 @@ void UITextArea::handleEvent(const SDL_Event& e) {
         }
         SDL_Rect sb = getScrollbarRect();
         if (contentHeight > bounds.h) {
-            float vr = float(bounds.h)/contentHeight;
-            int th = std::max(int(bounds.h*vr), 20);
-            int maxScroll = bounds.h - th;
-            int ty = sb.y + int(scrollOffsetY/(contentHeight - bounds.h)*maxScroll);
-            SDL_Rect thumb{sb.x, ty, sb.w, th};
+            float vr = float(bounds.h) / contentHeight;
+            int th = std::max(int(bounds.h * vr), 20);
+            int maxThumb = bounds.h - th;
+            int ty = sb.y + int((scrollOffsetY / (contentHeight - bounds.h)) * maxThumb);
+            SDL_Rect thumb{ sb.x, ty, sb.w, th };
             if (SDL_PointInRect(&p, &thumb)) {
                 scrollbarDragging = true;
                 scrollbarDragStartY = e.button.y;
                 scrollbarThumbStartOffset = scrollOffsetY;
             }
         }
-    }
-    if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {
+    } else if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {
         scrollbarDragging = false;
-    }
-    if (scrollbarDragging && e.type == SDL_MOUSEMOTION) {
-        int dy = e.motion.y - scrollbarDragStartY;
-        scrollOffsetY = scrollbarThumbStartOffset + dy*(contentHeight - bounds.h)/bounds.h;
-        scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, contentHeight - float(bounds.h));
-    }
-    if (focused && e.type == SDL_TEXTINPUT) {
+    } else if (e.type == SDL_MOUSEMOTION) {
+        if (scrollbarDragging) {
+            int dy = e.motion.y - scrollbarDragStartY;
+            scrollOffsetY = scrollbarThumbStartOffset + dy * (contentHeight - bounds.h) / bounds.h;
+            scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, contentHeight - float(bounds.h));
+        }
+        if (contentHeight > bounds.h) {
+            SDL_Point p{ e.motion.x, e.motion.y };
+            SDL_Rect sb = getScrollbarRect();
+            float vr = float(bounds.h) / contentHeight;
+            int th = std::max(int(bounds.h * vr), 20);
+            int maxThumb = bounds.h - th;
+            int ty = sb.y + int((scrollOffsetY / (contentHeight - bounds.h)) * maxThumb);
+            SDL_Rect thumb{ sb.x, ty, sb.w, th };
+            scrollbarHovered = SDL_PointInRect(&p, &thumb);
+        } else {
+            scrollbarHovered = false;
+        }
+    } else if (focused && e.type == SDL_TEXTINPUT) {
         if (linkedText.get().length() < size_t(maxLength)) {
             std::string in = e.text.text;
             bool valid = true;
-            switch(inputType) {
+            switch (inputType) {
                 case InputType::NUMERIC: valid = std::all_of(in.begin(), in.end(), ::isdigit); break;
-                case InputType::EMAIL: valid = std::all_of(in.begin(), in.end(), [](char c){return std::isalnum(c)||c=='@'||c=='.'||c=='-'||c=='_';}); break;
+                case InputType::EMAIL: valid = std::all_of(in.begin(), in.end(), [](char c){ return std::isalnum(c) || c=='@' || c=='.' || c=='-' || c=='_'; }); break;
                 default: break;
             }
             if (valid) {
@@ -1351,27 +1364,25 @@ void UITextArea::handleEvent(const SDL_Event& e) {
             }
         }
         updateCursorPosition();
-    }
-    if (focused && e.type == SDL_KEYDOWN) {
-        if (e.key.keysym.sym == SDLK_BACKSPACE && cursorPos>0) {
-            linkedText.get().erase(cursorPos-1,1);
+    } else if (focused && e.type == SDL_KEYDOWN) {
+        if (e.key.keysym.sym == SDLK_BACKSPACE && cursorPos > 0) {
+            linkedText.get().erase(cursorPos - 1, 1);
             cursorPos--;
         } else if (e.key.keysym.sym == SDLK_RETURN) {
-            linkedText.get().insert(cursorPos,"\n");
+            linkedText.get().insert(cursorPos, "\n");
             cursorPos++;
-        } else if (e.key.keysym.sym == SDLK_LEFT && cursorPos>0) {
+        } else if (e.key.keysym.sym == SDLK_LEFT && cursorPos > 0) {
             cursorPos--;
-        } else if (e.key.keysym.sym == SDLK_RIGHT && cursorPos<linkedText.get().size()) {
+        } else if (e.key.keysym.sym == SDLK_RIGHT && cursorPos < linkedText.get().size()) {
             cursorPos++;
         }
         lastBlinkTime = SDL_GetTicks();
         cursorVisible = true;
         updateCursorPosition();
-    }
-    if (e.type == SDL_MOUSEWHEEL) {
-        int mx,my; SDL_GetMouseState(&mx,&my);
-        if (mx>=bounds.x&&mx<=bounds.x+bounds.w&&my>=bounds.y&&my<=bounds.y+bounds.h) {
-            int lh = TTF_FontHeight(font?font:UIConfig::getDefaultFont());
+    } else if (e.type == SDL_MOUSEWHEEL) {
+        int mx, my; SDL_GetMouseState(&mx, &my);
+        if (mx >= bounds.x && mx <= bounds.x + bounds.w && my >= bounds.y && my <= bounds.y + bounds.h) {
+            int lh = TTF_FontHeight(font ? font : UIConfig::getDefaultFont());
             scrollOffsetY -= e.wheel.y * lh;
             scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, contentHeight - float(bounds.h));
         }
@@ -1541,6 +1552,14 @@ void UITextArea::renderScrollbar(SDL_Renderer* renderer) {
     SDL_RenderFillRect(renderer, &thumb);
 }
 
+bool UITextArea::isScrollbarHovered() const {
+    return scrollbarHovered;
+}
+
+bool UITextArea::isScrollbarDragging() const {
+    return scrollbarDragging;
+}
+
 
 void UIManager::addElement(std::shared_ptr<UIElement> el) {
     elements.push_back(el);
@@ -1556,11 +1575,18 @@ void UIManager::closePopup() {
 
 void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_Cursor*& cursorToUse) {
     if (!el->visible) return;
-
     el->update(0.0f);
-
+    if (auto ta = dynamic_cast<UITextArea*>(el.get())) {
+        if (ta->isScrollbarHovered() || ta->isScrollbarDragging()) {
+            return;
+        }
+        if (ta->isHovered()) {
+            cursorToUse = ibeamCursor;
+            return;
+        }
+    }
     if (el->isHovered()) {
-        if (dynamic_cast<UITextField*>(el.get()) || dynamic_cast<UITextArea*>(el.get())) {
+        if (dynamic_cast<UITextField*>(el.get())) {
             cursorToUse = ibeamCursor;
         } else if (
             dynamic_cast<UIButton*>(el.get()) ||
@@ -1573,13 +1599,11 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
             cursorToUse = handCursor;
         }
     }
-
     if (auto group = dynamic_cast<UIGroupBox*>(el.get())) {
         for (auto& child : group->getChildren()) {
             checkCursorForElement(child, cursorToUse);
         }
     }
-
     if (auto combo = dynamic_cast<UIComboBox*>(el.get())) {
         if (combo->isExpanded()) {
             int mx, my;
@@ -1594,7 +1618,7 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
                     combo->getBounds().w,
                     itemHeight
                 };
-                SDL_Point pt = { mx, my };
+                SDL_Point pt{ mx, my };
                 if (SDL_PointInRect(&pt, &itemRect)) {
                     cursorToUse = handCursor;
                     return;
@@ -1603,6 +1627,7 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
         }
     }
 }
+
 
 void UIManager::handleEvent(const SDL_Event& e) {
     if (activePopup && activePopup->visible) {

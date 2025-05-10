@@ -17,6 +17,8 @@ public:
     void updateCursorPosition();
     SDL_Rect getScrollbarRect() const;
     void renderScrollbar(SDL_Renderer* renderer);
+    bool isScrollbarHovered() const;
+    bool isScrollbarDragging() const;
 
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;

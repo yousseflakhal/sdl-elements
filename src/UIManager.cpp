@@ -14,11 +14,18 @@ void UIManager::closePopup() {
 
 void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_Cursor*& cursorToUse) {
     if (!el->visible) return;
-
     el->update(0.0f);
-
+    if (auto ta = dynamic_cast<UITextArea*>(el.get())) {
+        if (ta->isScrollbarHovered() || ta->isScrollbarDragging()) {
+            return;
+        }
+        if (ta->isHovered()) {
+            cursorToUse = ibeamCursor;
+            return;
+        }
+    }
     if (el->isHovered()) {
-        if (dynamic_cast<UITextField*>(el.get()) || dynamic_cast<UITextArea*>(el.get())) {
+        if (dynamic_cast<UITextField*>(el.get())) {
             cursorToUse = ibeamCursor;
         } else if (
             dynamic_cast<UIButton*>(el.get()) ||
@@ -31,13 +38,11 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
             cursorToUse = handCursor;
         }
     }
-
     if (auto group = dynamic_cast<UIGroupBox*>(el.get())) {
         for (auto& child : group->getChildren()) {
             checkCursorForElement(child, cursorToUse);
         }
     }
-
     if (auto combo = dynamic_cast<UIComboBox*>(el.get())) {
         if (combo->isExpanded()) {
             int mx, my;
@@ -52,7 +57,7 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
                     combo->getBounds().w,
                     itemHeight
                 };
-                SDL_Point pt = { mx, my };
+                SDL_Point pt{ mx, my };
                 if (SDL_PointInRect(&pt, &itemRect)) {
                     cursorToUse = handCursor;
                     return;
@@ -61,6 +66,7 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
         }
     }
 }
+
 
 void UIManager::handleEvent(const SDL_Event& e) {
     if (activePopup && activePopup->visible) {
