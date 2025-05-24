@@ -19,6 +19,10 @@ public:
     const UITheme& getTheme() const { return hasCustomTheme ? customTheme : UIConfig::getTheme(); }
     SDL_Point getPosition() const { return { bounds.x, bounds.y }; }
     SDL_Point getSize() const { return { bounds.w, bounds.h }; }
+    virtual bool isInside(int x, int y) const {
+    return x >= bounds.x && x <= bounds.x + bounds.w &&
+           y >= bounds.y && y <= bounds.y + bounds.h;
+    }
 
     virtual ~UIElement() = default;
 
