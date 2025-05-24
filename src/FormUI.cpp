@@ -76,8 +76,7 @@ namespace FormUI {
     }
     
     void ClosePopup() {
-        internalPopup.reset();
-        uiManager.closePopup();
+        if (internalPopup) internalPopup->visible = false;
     }
 
     void HandleEvent(const SDL_Event& e) {

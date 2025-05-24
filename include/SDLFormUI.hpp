@@ -462,6 +462,7 @@ private:
 
     std::shared_ptr<UIButton> okButton;
     std::shared_ptr<UIButton> cancelButton;
+    bool ignoreNextClick = true;
 };
 
 
@@ -1661,6 +1662,10 @@ void UIManager::handleEvent(const SDL_Event& e) {
 }
 
 void UIManager::update(float dt) {
+    if (activePopup && !activePopup->visible) {
+        activePopup = nullptr;
+    }
+
     SDL_Cursor* cursorToUse = arrowCursor;
 
     if (activePopup && activePopup->visible) {
@@ -1679,13 +1684,11 @@ void UIManager::update(float dt) {
                 return;
             }
         }
-
         for (const auto& el : elements) {
             el->update(dt);
             checkCursorForElement(el, cursorToUse);
         }
     }
-
     if (SDL_GetCursor() != cursorToUse)
         SDL_SetCursor(cursorToUse);
 }
@@ -1889,8 +1892,7 @@ namespace FormUI {
     }
 
     void ClosePopup() {
-        internalPopup.reset();
-        uiManager.closePopup();
+        if (internalPopup) internalPopup->visible = false;
     }
 
     void HandleEvent(const SDL_Event& e) {
@@ -2145,6 +2147,10 @@ void UIDialog::render(SDL_Renderer* renderer) {
 }
 
 void UIDialog::handleEvent(const SDL_Event& e) {
+    if (ignoreNextClick) {
+        if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) return;
+        ignoreNextClick = false;
+    }
     if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) {
         close();
         return;
@@ -2154,7 +2160,6 @@ void UIDialog::handleEvent(const SDL_Event& e) {
 
 void UIDialog::close() {
     visible = false;
-    FormUI::ClosePopup();
 }
 
 
@@ -2168,7 +2173,7 @@ void UIPopup::addChild(std::shared_ptr<UIElement> el) {
 
 void UIPopup::handleEvent(const SDL_Event& e) {
     for (auto& child : children) {
-        child->handleEvent(e);
+        if (child)  child->handleEvent(e);
     }
 }
 

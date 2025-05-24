@@ -26,4 +26,5 @@ private:
 
     std::shared_ptr<UIButton> okButton;
     std::shared_ptr<UIButton> cancelButton;
+    bool ignoreNextClick = true;
 };

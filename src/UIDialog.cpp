@@ -86,6 +86,10 @@ void UIDialog::render(SDL_Renderer* renderer) {
 }
 
 void UIDialog::handleEvent(const SDL_Event& e) {
+    if (ignoreNextClick) {
+        if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) return;
+        ignoreNextClick = false;
+    }
     if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) {
         close();
         return;
@@ -95,5 +99,4 @@ void UIDialog::handleEvent(const SDL_Event& e) {
 
 void UIDialog::close() {
     visible = false;
-    FormUI::ClosePopup();
 }

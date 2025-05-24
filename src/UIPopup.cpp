@@ -10,7 +10,7 @@ void UIPopup::addChild(std::shared_ptr<UIElement> el) {
 
 void UIPopup::handleEvent(const SDL_Event& e) {
     for (auto& child : children) {
-        child->handleEvent(e);
+        if (child)  child->handleEvent(e);
     }
 }
 

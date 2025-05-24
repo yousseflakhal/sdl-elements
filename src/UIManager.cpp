@@ -91,6 +91,10 @@ void UIManager::handleEvent(const SDL_Event& e) {
 }
 
 void UIManager::update(float dt) {
+    if (activePopup && !activePopup->visible) {
+        activePopup = nullptr;
+    }
+
     SDL_Cursor* cursorToUse = arrowCursor;
 
     if (activePopup && activePopup->visible) {
@@ -109,13 +113,11 @@ void UIManager::update(float dt) {
                 return;
             }
         }
-
         for (const auto& el : elements) {
             el->update(dt);
             checkCursorForElement(el, cursorToUse);
         }
     }
-
     if (SDL_GetCursor() != cursorToUse)
         SDL_SetCursor(cursorToUse);
 }
