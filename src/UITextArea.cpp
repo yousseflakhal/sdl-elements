@@ -63,18 +63,23 @@ void UITextArea::handleEvent(const SDL_Event& e) {
             scrollbarHovered = false;
         }
     } else if (focused && e.type == SDL_TEXTINPUT) {
-        if (linkedText.get().length() < size_t(maxLength)) {
-            std::string in = e.text.text;
-            bool valid = true;
-            switch (inputType) {
-                case InputType::NUMERIC: valid = std::all_of(in.begin(), in.end(), ::isdigit); break;
-                case InputType::EMAIL: valid = std::all_of(in.begin(), in.end(), [](char c){ return std::isalnum(c) || c=='@' || c=='.' || c=='-' || c=='_'; }); break;
-                default: break;
-            }
-            if (valid) {
-                linkedText.get().insert(cursorPos, in);
-                cursorPos += in.size();
-            }
+        std::string in = e.text.text;
+        bool valid = true;
+        switch (inputType) {
+            case InputType::NUMERIC:
+                valid = std::all_of(in.begin(), in.end(), ::isdigit);
+                break;
+            case InputType::EMAIL:
+                valid = std::all_of(in.begin(), in.end(), [](char c){ return std::isalnum(c) || c=='@' || c=='.' || c=='-' || c=='_'; });
+                break;
+            default:
+                break;
+        }
+        size_t room = maxLength > 0 ? maxLength - linkedText.get().size() : in.size();
+        if (room > 0 && valid) {
+            if (in.size() > room) in.resize(room);
+            linkedText.get().insert(cursorPos, in);
+            cursorPos += in.size();
         }
         updateCursorPosition();
     } else if (focused && e.type == SDL_KEYDOWN) {
@@ -82,8 +87,10 @@ void UITextArea::handleEvent(const SDL_Event& e) {
             linkedText.get().erase(cursorPos - 1, 1);
             cursorPos--;
         } else if (e.key.keysym.sym == SDLK_RETURN) {
-            linkedText.get().insert(cursorPos, "\n");
-            cursorPos++;
+            if (linkedText.get().length() < size_t(maxLength)) {
+                linkedText.get().insert(cursorPos, "\n");
+                cursorPos++;
+            }
         } else if (e.key.keysym.sym == SDLK_LEFT && cursorPos > 0) {
             cursorPos--;
         } else if (e.key.keysym.sym == SDLK_RIGHT && cursorPos < linkedText.get().size()) {
@@ -102,10 +109,15 @@ void UITextArea::handleEvent(const SDL_Event& e) {
     }
 }
 
+
 void UITextArea::update(float) {
-    int mx,my; SDL_GetMouseState(&mx,&my);
+    int mx, my; SDL_GetMouseState(&mx, &my);
     SDL_Point pt{ mx, my };
     hovered = SDL_PointInRect(&pt, &bounds);
+    if (linkedText.get().length() > size_t(maxLength)) {
+        linkedText.get().resize(maxLength);
+        if (cursorPos > maxLength) cursorPos = maxLength;
+    }
     if (focused) {
         Uint32 now = SDL_GetTicks();
         if (now - lastBlinkTime >= 500) {
@@ -121,6 +133,7 @@ void UITextArea::update(float) {
     contentHeight = float(lines.size()*TTF_FontHeight(fnt));
     scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, std::max(0.0f, contentHeight - float(bounds.h)));
 }
+
 
 
 bool UITextArea::isHovered() const {
