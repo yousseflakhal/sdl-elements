@@ -33,8 +33,9 @@ struct UITheme {
     SDL_Color sliderTrackColor    = { 80, 80, 80, 255 };
     SDL_Color sliderThumbColor    = { 180, 180, 255, 255 };
     SDL_Color checkboxTickColor   = { 255, 255, 255, 255 };
+    TTF_Font* font;
 
-    TTF_Font* font = nullptr;
+    UITheme();
 };
 
 TTF_Font* getThemeFont(const UITheme& theme);
@@ -481,6 +482,8 @@ public:
 
 #ifdef SDLFORMUI_IMPLEMENTATION
 
+
+UITheme::UITheme() : font(nullptr) {}
 
 TTF_Font* getThemeFont(const UITheme& theme) {
     return theme.font ? theme.font : UIConfig::getDefaultFont();
