@@ -116,7 +116,7 @@ void UITextArea::update(float) {
     hovered = SDL_PointInRect(&pt, &bounds);
     if (linkedText.get().length() > size_t(maxLength)) {
         linkedText.get().resize(maxLength);
-        if (cursorPos > maxLength) cursorPos = maxLength;
+        if (cursorPos > static_cast<size_t>(maxLength)) cursorPos = static_cast<size_t>(maxLength);
     }
     if (focused) {
         Uint32 now = SDL_GetTicks();
@@ -138,6 +138,15 @@ void UITextArea::update(float) {
 
 bool UITextArea::isHovered() const {
     return hovered;
+}
+
+int UITextArea::getWordCount() const {
+    const std::string& text = linkedText.get();
+    int count = 0;
+    std::istringstream iss(text);
+    std::string word;
+    while (iss >> word) ++count;
+    return count;
 }
 
 std::vector<std::string> UITextArea::wrapTextToLines(const std::string& text, TTF_Font* font, int maxWidth) {
@@ -226,6 +235,24 @@ void UITextArea::render(SDL_Renderer* renderer) {
         SDL_SetRenderDrawColor(renderer, theme.cursorColor.r, theme.cursorColor.g, theme.cursorColor.b, theme.cursorColor.a);
         SDL_Rect cursorRect = {cursorX, onScreenY, 2, lh};
         SDL_RenderFillRect(renderer, &cursorRect);
+    }
+
+    if (focused || !linkedText.get().empty()) {
+        int words = getWordCount();
+        std::string wcLabel = std::to_string(words) + " words";
+        SDL_Surface* wcSurface = TTF_RenderText_Blended(fnt, wcLabel.c_str(), theme.placeholderColor);
+        if (wcSurface) {
+            SDL_Texture* wcTexture = SDL_CreateTextureFromSurface(renderer, wcSurface);
+            SDL_Rect wcRect = {
+                bounds.x,
+                bounds.y + bounds.h + 4,
+                wcSurface->w,
+                wcSurface->h
+            };
+            SDL_RenderCopy(renderer, wcTexture, nullptr, &wcRect);
+            SDL_FreeSurface(wcSurface);
+            SDL_DestroyTexture(wcTexture);
+        }
     }
 
     SDL_RenderSetClipRect(renderer, nullptr);

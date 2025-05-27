@@ -4,6 +4,7 @@
 #include <string>
 #include <algorithm>
 #include <vector>
+#include <sstream>
 #include <SDL2/SDL_ttf.h>
 #include "UIConfig.hpp"
 #include <SDL2/SDL.h>
@@ -24,6 +25,7 @@ public:
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
     bool isHovered() const override;
+    int getWordCount() const;
 
 private:
     std::vector<std::string> wrapTextToLines(const std::string& text, TTF_Font* font, int maxWidth);
