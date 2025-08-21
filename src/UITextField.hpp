@@ -22,7 +22,6 @@ public:
 
 private:
     std::string label;
-    SDL_Rect bounds;
     std::reference_wrapper<std::string> linkedText;
     int maxLength = 32;
     bool hovered = false;

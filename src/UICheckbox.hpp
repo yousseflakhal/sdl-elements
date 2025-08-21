@@ -17,7 +17,6 @@ public:
 
 private:
     std::string label;
-    SDL_Rect bounds;
     bool hovered = false;
     std::reference_wrapper<bool> linkedValue;
     TTF_Font* font = nullptr;

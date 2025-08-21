@@ -16,7 +16,6 @@ public:
 
 private:
     std::string text;
-    SDL_Rect bounds;
     TTF_Font* font = nullptr;
     SDL_Color color = {255, 255, 255, 255};
 };

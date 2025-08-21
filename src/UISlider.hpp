@@ -16,7 +16,6 @@ public:
 
 private:
     std::string label;
-    SDL_Rect bounds;
     std::reference_wrapper<float> linkedValue;
     float minValue = 0.0f;
     float maxValue = 1.0f;
