@@ -10,8 +10,12 @@ UISlider::UISlider(const std::string& label, int x, int y, int w, int h, float& 
 }
 
 void UISlider::handleEvent(const SDL_Event& e) {
-    int mx = e.button.x;
-    int my = e.button.y;
+    int mx = 0, my = 0;
+    if (e.type == SDL_MOUSEMOTION) {
+        mx = e.motion.x; my = e.motion.y;
+    } else {
+        mx = e.button.x; my = e.button.y;
+    }
 
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
         if (mx >= bounds.x && mx <= bounds.x + bounds.w &&

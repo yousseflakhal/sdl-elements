@@ -28,7 +28,7 @@ struct UITheme {
     SDL_Color hoverColor          = { 130, 130, 130, 255 };
     SDL_Color borderColor         = { 200, 200, 200, 255 };
     SDL_Color borderHoverColor    = { 255, 255, 255, 255 };
-    SDL_Color textColor           = { 0, 0, 0, 255 };
+    SDL_Color textColor           = { 255, 255, 255, 255 };
     SDL_Color placeholderColor    = { 160, 160, 160, 255 };
     SDL_Color cursorColor         = { 255, 255, 255, 255 };
     SDL_Color sliderTrackColor    = { 80, 80, 80, 255 };
@@ -1349,8 +1349,12 @@ UISlider::UISlider(const std::string& label, int x, int y, int w, int h, float& 
 }
 
 void UISlider::handleEvent(const SDL_Event& e) {
-    int mx = e.button.x;
-    int my = e.button.y;
+    int mx = 0, my = 0;
+    if (e.type == SDL_MOUSEMOTION) {
+        mx = e.motion.x; my = e.motion.y;
+    } else {
+        mx = e.button.x; my = e.button.y;
+    }
 
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
         if (mx >= bounds.x && mx <= bounds.x + bounds.w &&
