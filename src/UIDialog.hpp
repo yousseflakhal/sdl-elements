@@ -6,6 +6,8 @@
 #include <memory>
 #include "FormUI.hpp"
 
+class UIButton;
+
 class UIDialog : public UIPopup {
 public:
     UIDialog(const std::string& title,

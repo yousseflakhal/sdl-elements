@@ -1,47 +1,57 @@
 {
-    "version": "2.0.0",
-    "tasks": [
-        {
-            "label": "build",
-            "type": "shell",
-            "command": "g++",
-            "args": [
-                "-std=c++17",
-                "-Wall",
-                "-Wextra",
-                "-g",
-                "${workspaceFolder}/src/main.cpp",
-                "${workspaceFolder}/src/UIManager.cpp",
-                "${workspaceFolder}/src/UIButton.cpp",
-                "${workspaceFolder}/src/UIConfig.cpp",
-                "${workspaceFolder}/src/UICheckbox.cpp",
-                "${workspaceFolder}/src/UILabel.cpp",
-                "${workspaceFolder}/src/FormUI.cpp",
-                "${workspaceFolder}/src/UISlider.cpp",
-                "${workspaceFolder}/src/UITextField.cpp",
-                "${workspaceFolder}/src/UILayout.cpp",
-                "${workspaceFolder}/src/UITheme.cpp",
-                "${workspaceFolder}/src/UIRadioGroup.cpp",
-                "${workspaceFolder}/src/UIRadioButton.cpp",
-                "${workspaceFolder}/src/UIHelpers.cpp",
-                "${workspaceFolder}/src/UIGroupBox.cpp",
-                "${workspaceFolder}/src/UIDialog.cpp",
-                "${workspaceFolder}/src/UIPopup.cpp",
-                "${workspaceFolder}/src/UIComboBox.cpp",
-                "${workspaceFolder}/src/UISpinner.cpp",
-                "${workspaceFolder}/src/UITextArea.cpp",
-                "-I${workspaceFolder}/include",
-                "-L${workspaceFolder}/lib",
-                "-lSDL2",
-                "-lSDL2_ttf",
-                "-o",
-                "${workspaceFolder}/output/main.exe"
-            ],
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
-            "problemMatcher": ["$gcc"]
-        }
-    ]
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build",
+      "type": "shell",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "windows": {
+        "command": "powershell",
+        "args": ["-c", "mingw32-make"]
+      },
+      "linux": {
+        "command": "bash",
+        "args": ["-c", "make"]
+      },
+      "osx": {
+        "command": "bash",
+        "args": ["-c", "make"]
+      }
+    },
+    {
+      "label": "build & run",
+      "type": "shell",
+      "windows": {
+        "command": "powershell",
+        "args": ["-c", "'mingw32-make run'"]
+      },
+      "linux": {
+        "command": "bash",
+        "args": ["-c", "'make run'"]
+      },
+      "osx": {
+        "command": "bash",
+        "args": ["-c", "'make run'"]
+      }
+    },
+    {
+      "label": "clean",
+      "type": "shell",
+      "windows": {
+        "command": "powershell",
+        "args": ["-c", "'mingw32-make clean'"]
+      },
+      "linux": {
+        "command": "bash",
+        "args": ["-c", "'make clean'"]
+      },
+      "osx": {
+        "command": "bash",
+        "args": ["-c", "'make clean'"]
+      }
+    }
+  ]
 }

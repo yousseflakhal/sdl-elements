@@ -1,5 +1,5 @@
-#ifndef SDLFORMUI
-#define SDLFORMUI
+#ifndef SDLFORMUI_HPP
+#define SDLFORMUI_HPP
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <sstream>
+#include <cmath>
 
 
 enum class InputType {
@@ -27,7 +28,7 @@ struct UITheme {
     SDL_Color hoverColor          = { 130, 130, 130, 255 };
     SDL_Color borderColor         = { 200, 200, 200, 255 };
     SDL_Color borderHoverColor    = { 255, 255, 255, 255 };
-    SDL_Color textColor           = { 255, 255, 255, 255 };
+    SDL_Color textColor           = { 0, 0, 0, 255 };
     SDL_Color placeholderColor    = { 160, 160, 160, 255 };
     SDL_Color cursorColor         = { 255, 255, 255, 255 };
     SDL_Color sliderTrackColor    = { 80, 80, 80, 255 };
@@ -39,6 +40,23 @@ struct UITheme {
 };
 
 TTF_Font* getThemeFont(const UITheme& theme);
+
+
+struct UITheme;
+class UIConfig {
+public:
+    // NOTE: SDLFormUI does NOT take ownership. Caller must manage the lifetime (TTF_CloseFont).
+    static void setDefaultFont(TTF_Font* font);
+    static TTF_Font* getDefaultFont();
+
+    static void setTheme(const UITheme& theme);
+    static const UITheme& getTheme();
+    static TTF_Font** getDefaultFontPtr();
+
+private:
+    static TTF_Font* defaultFont;
+    static UITheme defaultTheme;
+};
 
 
 class UIElement {
@@ -70,21 +88,86 @@ private:
 };
 
 
-struct UITheme;
-class UIConfig {
+class UIPopup : public UIElement {
 public:
-    // NOTE: SDLFormUI does NOT take ownership. Caller must manage the lifetime (TTF_CloseFont).
-    static void setDefaultFont(TTF_Font* font);
-    static TTF_Font* getDefaultFont();
+    UIPopup(int x, int y, int w, int h);
+    void addChild(std::shared_ptr<UIElement> el);
+    void handleEvent(const SDL_Event& e) override;
+    void update(float dt) override;
+    void render(SDL_Renderer* renderer) override;
 
-    static void setTheme(const UITheme& theme);
-    static const UITheme& getTheme();
-    static TTF_Font** getDefaultFontPtr();
+    std::vector<std::shared_ptr<UIElement>> children;
+
+};
+
+
+class UIButton;
+
+class UIDialog : public UIPopup {
+public:
+    UIDialog(const std::string& title,
+             const std::string& message,
+             std::function<void()> onOk = nullptr,
+             std::function<void()> onCancel = nullptr);
+
+    void render(SDL_Renderer* renderer) override;
+    void handleEvent(const SDL_Event& e) override;
+
+    void close();
 
 private:
-    static TTF_Font* defaultFont;
-    static UITheme defaultTheme;
+    std::string title;
+    std::string message;
+    std::function<void()> onOk;
+    std::function<void()> onCancel;
+
+    std::shared_ptr<UIButton> okButton;
+    std::shared_ptr<UIButton> cancelButton;
+    bool ignoreNextClick = true;
 };
+
+
+namespace UIHelpers {
+    void DrawFilledCircle(SDL_Renderer* renderer, int cx, int cy, int radius, SDL_Color color);
+    void DrawCircleRing(SDL_Renderer* renderer, int cx, int cy, int radius, int thickness, SDL_Color color);
+}
+
+
+
+class UIRadioGroup;
+
+class UIRadioButton : public UIElement {
+    public:
+        UIRadioButton(const std::string& label, int x, int y, int w, int h, UIRadioGroup* group, int id, TTF_Font* font = nullptr);
+
+        void handleEvent(const SDL_Event& e) override;
+        void update(float dt) override;
+        void render(SDL_Renderer* renderer) override;
+        bool isHovered() const override;
+        void setFont(TTF_Font* font);
+        int getID() const;
+
+    private:
+        std::string label;
+        int id;
+        UIRadioGroup* group = nullptr;
+        TTF_Font* font = nullptr;
+        bool hovered = false;
+    };
+
+
+class UIRadioButton;
+
+class UIRadioGroup {
+    public:
+        void addButton(std::shared_ptr<UIRadioButton> btn);
+        void select(int id);
+        int getSelectedID() const;
+
+    private:
+        std::vector<std::shared_ptr<UIRadioButton>> buttons;
+        int selectedID = -1;
+    };
 
 
 class UIButton : public UIElement {
@@ -289,28 +372,23 @@ private:
     int cursorX = 0, cursorY = 0;
 };
 
-class UIManager {
-    public:
-        void initCursors();
-        void cleanupCursors();
-        void addElement(std::shared_ptr<UIElement> el);
-        void showPopup(std::shared_ptr<UIPopup> popup);
-        std::shared_ptr<UIPopup> GetActivePopup();
-        void closePopup();
-        void checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_Cursor*& cursorToUse);
-        void handleEvent(const SDL_Event& e);
-        void update(float dt);
-        void render(SDL_Renderer* renderer);
 
+class UIGroupBox : public UIElement {
+public:
+    UIGroupBox(const std::string& title, int x, int y, int w, int h);
 
-    private:
-        std::vector<std::shared_ptr<UIElement>> elements;
-        SDL_Cursor* arrowCursor = nullptr;
-        SDL_Cursor* handCursor = nullptr;
-        SDL_Cursor* ibeamCursor = nullptr;
-        bool handCursorActive = false;
-        std::shared_ptr<UIPopup> activePopup;
-    };
+    void addChild(std::shared_ptr<UIElement> child);
+    const std::vector<std::shared_ptr<UIElement>>& getChildren() const;
+
+    void handleEvent(const SDL_Event& e) override;
+    void update(float dt) override;
+    void render(SDL_Renderer* renderer) override;
+
+private:
+    std::string title;
+    std::vector<std::shared_ptr<UIElement>> children;
+    TTF_Font* font = nullptr;
+};
 
 
 
@@ -358,6 +436,29 @@ private:
 
 }
 
+class UIManager {
+    public:
+        void initCursors();
+        void cleanupCursors();
+        void addElement(std::shared_ptr<UIElement> el);
+        void showPopup(std::shared_ptr<UIPopup> popup);
+        std::shared_ptr<UIPopup> GetActivePopup();
+        void closePopup();
+        void checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_Cursor*& cursorToUse);
+        void handleEvent(const SDL_Event& e);
+        void update(float dt);
+        void render(SDL_Renderer* renderer);
+
+
+    private:
+        std::vector<std::shared_ptr<UIElement>> elements;
+        SDL_Cursor* arrowCursor = nullptr;
+        SDL_Cursor* handCursor = nullptr;
+        SDL_Cursor* ibeamCursor = nullptr;
+        bool handCursorActive = false;
+        std::shared_ptr<UIPopup> activePopup;
+    };
+
 
 
 namespace FormUI {
@@ -383,98 +484,6 @@ namespace FormUI {
     void Update();
     void Render(SDL_Renderer* renderer);
 }
-
-
-
-class UIRadioGroup;
-
-class UIRadioButton : public UIElement {
-    public:
-        UIRadioButton(const std::string& label, int x, int y, int w, int h, UIRadioGroup* group, int id, TTF_Font* font = nullptr);
-
-        void handleEvent(const SDL_Event& e) override;
-        void update(float dt) override;
-        void render(SDL_Renderer* renderer) override;
-        bool isHovered() const override;
-        void setFont(TTF_Font* font);
-        int getID() const;
-
-    private:
-        std::string label;
-        int id;
-        UIRadioGroup* group = nullptr;
-        TTF_Font* font = nullptr;
-        bool hovered = false;
-    };
-
-
-class UIRadioButton;
-
-class UIRadioGroup {
-    public:
-        void addButton(std::shared_ptr<UIRadioButton> btn);
-        void select(int id);
-        int getSelectedID() const;
-
-    private:
-        std::vector<std::shared_ptr<UIRadioButton>> buttons;
-        int selectedID = -1;
-    };
-
-
-class UIGroupBox : public UIElement {
-public:
-    UIGroupBox(const std::string& title, int x, int y, int w, int h);
-
-    void addChild(std::shared_ptr<UIElement> child);
-    const std::vector<std::shared_ptr<UIElement>>& getChildren() const;
-
-    void handleEvent(const SDL_Event& e) override;
-    void update(float dt) override;
-    void render(SDL_Renderer* renderer) override;
-
-private:
-    std::string title;
-    std::vector<std::shared_ptr<UIElement>> children;
-    TTF_Font* font = nullptr;
-};
-
-
-class UIDialog : public UIPopup {
-public:
-    UIDialog(const std::string& title,
-             const std::string& message,
-             std::function<void()> onOk = nullptr,
-             std::function<void()> onCancel = nullptr);
-
-    void render(SDL_Renderer* renderer) override;
-    void handleEvent(const SDL_Event& e) override;
-
-    void close();
-
-private:
-    std::string title;
-    std::string message;
-    std::function<void()> onOk;
-    std::function<void()> onCancel;
-
-    std::shared_ptr<UIButton> okButton;
-    std::shared_ptr<UIButton> cancelButton;
-    bool ignoreNextClick = true;
-};
-
-
-class UIPopup : public UIElement {
-public:
-    UIPopup(int x, int y, int w, int h);
-    void addChild(std::shared_ptr<UIElement> el);
-    void handleEvent(const SDL_Event& e) override;
-    void update(float dt) override;
-    void render(SDL_Renderer* renderer) override;
-
-    std::vector<std::shared_ptr<UIElement>> children;
-
-};
 
 #ifdef SDLFORMUI_IMPLEMENTATION
 
@@ -507,6 +516,270 @@ const UITheme& UIConfig::getTheme() {
 
 TTF_Font** UIConfig::getDefaultFontPtr() {
     return &defaultFont;
+}
+
+
+UIPopup::UIPopup(int x, int y, int w, int h) {
+    bounds = { x, y, w, h };
+}
+
+void UIPopup::addChild(std::shared_ptr<UIElement> el) {
+    children.push_back(el);
+}
+
+void UIPopup::handleEvent(const SDL_Event& e) {
+    for (auto& child : children) {
+        if (child)  child->handleEvent(e);
+    }
+}
+
+void UIPopup::update(float dt) {
+    for (auto& child : children) {
+        child->update(dt);
+    }
+}
+
+void UIPopup::render(SDL_Renderer* renderer) {
+    for (auto& child : children) {
+        child->render(renderer);
+    }
+}
+
+
+UIDialog::UIDialog(const std::string& title,
+                   const std::string& message,
+                   std::function<void()> onOk,
+                   std::function<void()> onCancel)
+    : UIPopup((800 - 400) / 2, (600 - 200) / 2, 400, 200),
+      title(title), message(message), onOk(onOk), onCancel(onCancel)
+{
+    const int dialogWidth = 400;
+    const int dialogHeight = 200;
+    bounds = {
+        (800 - dialogWidth) / 2,
+        (600 - dialogHeight) / 2,
+        dialogWidth,
+        dialogHeight
+    };
+
+    TTF_Font* font = UIConfig::getDefaultFont();
+    int btnW = 100, btnH = 40, spacing = 20;
+    int btnY = bounds.y + bounds.h - btnH - spacing;
+    int okX = bounds.x + bounds.w / 2 - btnW - spacing / 2;
+    int cancelX = bounds.x + bounds.w / 2 + spacing / 2;
+
+    okButton = std::make_shared<UIButton>("OK", okX, btnY, btnW, btnH, font);
+    cancelButton = std::make_shared<UIButton>("Cancel", cancelX, btnY, btnW, btnH, font);
+
+    okButton->setOnClick([this, onOk]() {
+        if (onOk) onOk();
+        close();
+    });
+
+    cancelButton->setOnClick([this, onCancel]() {
+        if (onCancel) onCancel();
+        close();
+    });
+
+    addChild(okButton);
+    addChild(cancelButton);
+}
+
+void UIDialog::render(SDL_Renderer* renderer) {
+    const UITheme& theme = getTheme();
+    TTF_Font* font = UIConfig::getDefaultFont();
+    if (!font) return;
+
+    SDL_SetRenderDrawColor(renderer, theme.backgroundColor.r, theme.backgroundColor.g, theme.backgroundColor.b, theme.backgroundColor.a);
+    SDL_RenderFillRect(renderer, &bounds);
+
+    SDL_SetRenderDrawColor(renderer, theme.borderColor.r, theme.borderColor.g, theme.borderColor.b, theme.borderColor.a);
+    SDL_RenderDrawRect(renderer, &bounds);
+
+    SDL_Surface* titleSurf = TTF_RenderText_Blended(font, title.c_str(), theme.textColor);
+    SDL_Surface* msgSurf = TTF_RenderText_Blended(font, message.c_str(), theme.textColor);
+
+    if (titleSurf) {
+        SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, titleSurf);
+        SDL_Rect titleRect = {
+            bounds.x + 20,
+            bounds.y + 20,
+            titleSurf->w,
+            titleSurf->h
+        };
+        SDL_RenderCopy(renderer, tex, nullptr, &titleRect);
+        SDL_FreeSurface(titleSurf);
+        SDL_DestroyTexture(tex);
+    }
+
+    if (msgSurf) {
+        SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, msgSurf);
+        SDL_Rect msgRect = {
+            bounds.x + 20,
+            bounds.y + 70,
+            msgSurf->w,
+            msgSurf->h
+        };
+        SDL_RenderCopy(renderer, tex, nullptr, &msgRect);
+        SDL_FreeSurface(msgSurf);
+        SDL_DestroyTexture(tex);
+    }
+
+    UIPopup::render(renderer);
+}
+
+void UIDialog::handleEvent(const SDL_Event& e) {
+    if (ignoreNextClick) {
+        if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) return;
+        ignoreNextClick = false;
+    }
+    if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) {
+        close();
+        return;
+    }
+    UIPopup::handleEvent(e);
+}
+
+void UIDialog::close() {
+    visible = false;
+}
+
+
+namespace UIHelpers {
+
+void DrawFilledCircle(SDL_Renderer* renderer, int cx, int cy, int radius, SDL_Color color) {
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    const float threshold = 0.5f;
+    const float maxDist = radius + threshold;
+
+    for (int y = -radius; y <= radius; y++) {
+        for (int x = -radius; x <= radius; x++) {
+            float distance = std::hypotf(x, y);
+
+            if (distance <= radius - threshold) {
+                SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+                SDL_RenderDrawPoint(renderer, cx + x, cy + y);
+            } else if (distance <= maxDist) {
+                float alpha = color.a * (1.0f - (distance - (radius - threshold)));
+                SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, static_cast<Uint8>(alpha));
+                SDL_RenderDrawPoint(renderer, cx + x, cy + y);
+            }
+        }
+    }
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+}
+
+void DrawCircleRing(SDL_Renderer* renderer, int cx, int cy, int radius, int thickness, SDL_Color color) {
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    const int innerRadius = radius - thickness;
+    const float feather = 0.5f;
+
+    for (int y = -radius; y <= radius; y++) {
+        for (int x = -radius; x <= radius; x++) {
+            float distance = std::hypotf(x, y);
+
+            if (distance >= innerRadius - feather && distance <= radius + feather) {
+                float alpha = color.a;
+                if (distance > radius - feather) {
+                    alpha *= (radius + feather - distance) / (2 * feather);
+                }
+                if (distance < innerRadius + feather) {
+                    alpha *= (distance - (innerRadius - feather)) / (2 * feather);
+                }
+
+                alpha = std::clamp(alpha, 0.0f, 255.0f);
+                SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, static_cast<Uint8>(alpha));
+                SDL_RenderDrawPoint(renderer, cx + x, cy + y);
+            }
+        }
+    }
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+}
+
+}
+
+
+UIRadioButton::UIRadioButton(const std::string& label, int x, int y, int w, int h, UIRadioGroup* group, int id, TTF_Font* font)
+    : label(label), id(id), group(group), font(font)
+{
+    bounds = { x, y, w, h };
+}
+
+void UIRadioButton::setFont(TTF_Font* f) {
+    font = f;
+}
+
+int UIRadioButton::getID() const {
+    return id;
+}
+
+bool UIRadioButton::isHovered() const {
+    return hovered;
+}
+
+void UIRadioButton::handleEvent(const SDL_Event& e) {
+    if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
+        int mx = e.button.x;
+        int my = e.button.y;
+        if (mx >= bounds.x && mx <= bounds.x + bounds.w &&
+            my >= bounds.y && my <= bounds.y + bounds.h) {
+            if (group) group->select(id);
+        }
+    }
+}
+
+void UIRadioButton::update(float) {
+    int mx, my;
+    SDL_GetMouseState(&mx, &my);
+    SDL_Point p = { mx, my };
+    hovered = SDL_PointInRect(&p, &bounds);
+}
+
+void UIRadioButton::render(SDL_Renderer* renderer) {
+    const UITheme& theme = getTheme();
+    TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
+    if (!activeFont) return;
+
+    int cx = bounds.x + 12;
+    int cy = bounds.y + bounds.h / 2;
+    int outerRadius = 10;
+    int thickness = 2;
+
+    SDL_Color ringColor = hovered ? theme.borderHoverColor : theme.borderColor;
+
+    UIHelpers::DrawCircleRing(renderer, cx, cy, outerRadius, thickness, ringColor);
+
+    if (group && group->getSelectedID() == id) {
+        int innerRadius = outerRadius - thickness - 2;
+        UIHelpers::DrawFilledCircle(renderer, cx, cy, innerRadius, ringColor);
+    }
+
+    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), theme.textColor);
+    if (!textSurface) return;
+
+    SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+    SDL_Rect textRect = {
+        bounds.x + 30,
+        bounds.y + (bounds.h - textSurface->h) / 2,
+        textSurface->w,
+        textSurface->h
+    };
+    SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
+    SDL_FreeSurface(textSurface);
+    SDL_DestroyTexture(textTexture);
+}
+
+
+void UIRadioGroup::addButton(std::shared_ptr<UIRadioButton> btn) {
+    buttons.push_back(btn);
+}
+
+void UIRadioGroup::select(int id) {
+    selectedID = id;
+}
+
+int UIRadioGroup::getSelectedID() const {
+    return selectedID;
 }
 
 
@@ -612,6 +885,58 @@ bool UIButton::isHovered() const {
 }
 
 
+UILabel::UILabel(const std::string& text, int x, int y, int w, int h, TTF_Font* font)
+    : text(text), font(font)
+{
+    bounds = { x, y, w, h };
+}
+
+void UILabel::render(SDL_Renderer* renderer) {
+    TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
+    if (!activeFont) {
+        SDL_Log("UILabel: No valid font to render text.");
+        return;
+    }
+
+    const SDL_Color& textColor = color.a == 0 ? UIConfig::getTheme().textColor : color;
+
+    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, text.c_str(), textColor);
+    if (!textSurface) {
+        SDL_Log("UILabel: Failed to render text surface: %s", TTF_GetError());
+        return;
+    }
+
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, textSurface);
+    if (!texture) {
+        SDL_Log("UILabel: Failed to create texture from surface: %s", SDL_GetError());
+        SDL_FreeSurface(textSurface);
+        return;
+    }
+
+    SDL_Rect dstRect = {
+        bounds.x,
+        bounds.y + (bounds.h - textSurface->h) / 2,
+        textSurface->w,
+        textSurface->h
+    };
+
+    SDL_RenderCopy(renderer, texture, nullptr, &dstRect);
+
+    SDL_FreeSurface(textSurface);
+    SDL_DestroyTexture(texture);
+}
+
+
+UILabel* UILabel::setColor(SDL_Color newColor) {
+    color = newColor;
+    return this;
+}
+
+SDL_Color UILabel::getColor() const {
+    return color;
+}
+
+
 UICheckbox::UICheckbox(const std::string& label, int x, int y, int w, int h, bool& bind, TTF_Font* f)
     : label(label), linkedValue(bind), font(f)
 {
@@ -714,58 +1039,6 @@ void UICheckbox::render(SDL_Renderer* renderer) {
 
     SDL_FreeSurface(textSurface);
     SDL_DestroyTexture(textTexture);
-}
-
-
-UILabel::UILabel(const std::string& text, int x, int y, int w, int h, TTF_Font* font)
-    : text(text), font(font)
-{
-    bounds = { x, y, w, h };
-}
-
-void UILabel::render(SDL_Renderer* renderer) {
-    TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
-    if (!activeFont) {
-        SDL_Log("UILabel: No valid font to render text.");
-        return;
-    }
-
-    const SDL_Color& textColor = color.a == 0 ? UIConfig::getTheme().textColor : color;
-
-    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, text.c_str(), textColor);
-    if (!textSurface) {
-        SDL_Log("UILabel: Failed to render text surface: %s", TTF_GetError());
-        return;
-    }
-
-    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, textSurface);
-    if (!texture) {
-        SDL_Log("UILabel: Failed to create texture from surface: %s", SDL_GetError());
-        SDL_FreeSurface(textSurface);
-        return;
-    }
-
-    SDL_Rect dstRect = {
-        bounds.x,
-        bounds.y + (bounds.h - textSurface->h) / 2,
-        textSurface->w,
-        textSurface->h
-    };
-
-    SDL_RenderCopy(renderer, texture, nullptr, &dstRect);
-
-    SDL_FreeSurface(textSurface);
-    SDL_DestroyTexture(texture);
-}
-
-
-UILabel* UILabel::setColor(SDL_Color newColor) {
-    color = newColor;
-    return this;
-}
-
-SDL_Color UILabel::getColor() const {
-    return color;
 }
 
 
@@ -1611,6 +1884,170 @@ bool UITextArea::isScrollbarDragging() const {
 }
 
 
+UIGroupBox::UIGroupBox(const std::string& title, int x, int y, int w, int h)
+    : title(title)
+{
+    bounds = { x, y, w, h };
+    font = getThemeFont(getTheme());
+}
+
+void UIGroupBox::addChild(std::shared_ptr<UIElement> child) {
+    children.push_back(child);
+}
+
+const std::vector<std::shared_ptr<UIElement>>& UIGroupBox::getChildren() const {
+    return children;
+}
+
+void UIGroupBox::handleEvent(const SDL_Event& e) {
+    for (auto& child : children)
+        child->handleEvent(e);
+}
+
+void UIGroupBox::update(float dt) {
+    for (auto& child : children)
+        child->update(dt);
+}
+
+void UIGroupBox::render(SDL_Renderer* renderer) {
+    const UITheme& theme = getTheme();
+    SDL_SetRenderDrawColor(renderer,
+        theme.borderColor.r,
+        theme.borderColor.g,
+        theme.borderColor.b,
+        theme.borderColor.a);
+
+    int titleWidth = 0, titleHeight = 0;
+    if (!title.empty() && font) {
+        TTF_SizeText(font, title.c_str(), &titleWidth, &titleHeight);
+    }
+
+    const int padding = 8;
+    const int gapStart = bounds.x + padding;
+    const int gapEnd = gapStart + titleWidth + padding;
+
+    SDL_RenderDrawLine(renderer, bounds.x, bounds.y, gapStart, bounds.y);
+    SDL_RenderDrawLine(renderer, gapEnd, bounds.y, bounds.x + bounds.w, bounds.y);
+
+    SDL_RenderDrawLine(renderer, bounds.x, bounds.y, bounds.x, bounds.y + bounds.h);
+    SDL_RenderDrawLine(renderer, bounds.x + bounds.w, bounds.y, bounds.x + bounds.w, bounds.y + bounds.h);
+    SDL_RenderDrawLine(renderer, bounds.x, bounds.y + bounds.h, bounds.x + bounds.w, bounds.y + bounds.h);
+
+    if (!title.empty() && font) {
+        SDL_Surface* surf = TTF_RenderText_Blended(font, title.c_str(), theme.textColor);
+        if (surf) {
+            SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, surf);
+            SDL_Rect textRect = {
+                bounds.x + padding + 4,
+                bounds.y - surf->h / 2,
+                surf->w,
+                surf->h
+            };
+            SDL_RenderCopy(renderer, tex, nullptr, &textRect);
+            SDL_FreeSurface(surf);
+            SDL_DestroyTexture(tex);
+        }
+    }
+
+    for (auto& child : children) {
+        child->render(renderer);
+    }
+}
+
+
+namespace FormUI {
+
+std::shared_ptr<UILabel> Layout::addLabel(const std::string& text, int width, int height) {
+    auto labelEl = FormUI::Label(text, currentX, currentY, width, height, defaultFont);
+    currentY += height + spacing;
+    return labelEl;
+}
+
+std::shared_ptr<UICheckbox> Layout::addCheckbox(const std::string& label, bool& value, int width, int height) {
+    auto checkbox = FormUI::Checkbox(label, currentX, currentY, width, height, value, defaultFont);
+    currentY += height + spacing;
+    return checkbox;
+}
+
+std::shared_ptr<UISlider> Layout::addSlider(const std::string& label, float& value, float min, float max, int width, int height) {
+    auto slider = FormUI::Slider(label, currentX, currentY, width, height, value, min, max);
+    currentY += height + spacing;
+    return slider;
+}
+
+std::shared_ptr<UITextField> Layout::addTextField(const std::string& label, std::string& bind, int maxLen, int width, int height) {
+    auto textField = FormUI::TextField(label, currentX, currentY, width, height, bind, maxLen);
+    textField->setFont(defaultFont);
+    currentY += height + spacing;
+    return textField;
+}
+
+std::shared_ptr<UIButton> Layout::addButton(const std::string& label, std::function<void()> onClick, int width, int height, TTF_Font* font)
+{
+    auto button = FormUI::Button(label, currentX, currentY, width, height, onClick, font ? font : defaultFont);
+    currentY += height + spacing;
+    return button;
+}
+
+std::pair<std::shared_ptr<UILabel>, std::shared_ptr<UIButton>> Layout::addLabelButtonRow(
+    const std::string& labelText,
+    const std::string& buttonText,
+    std::function<void()> onClick,
+    int labelWidth,
+    int buttonWidth,
+    int height,
+    TTF_Font* labelFont,
+    TTF_Font* buttonFont
+) {
+    auto label = FormUI::Label(labelText, currentX, currentY, labelWidth, height, labelFont ? labelFont : defaultFont);
+    auto button = FormUI::Button(buttonText, currentX + labelWidth + 10, currentY, buttonWidth, height, onClick, buttonFont ? buttonFont : defaultFont);
+    currentY += height + spacing;
+    return { label, button };
+}
+
+std::shared_ptr<UIRadioGroup> Layout::addRadioGroup(
+    const std::vector<std::pair<std::string, int>>& options,
+    int& selectedID,
+    int width,
+    int height,
+    int groupSpacing
+) {
+    auto group = std::make_shared<UIRadioGroup>();
+    group->select(selectedID);
+
+    for (const auto& [label, id] : options) {
+        auto btn = std::make_shared<UIRadioButton>(label, currentX, currentY, width, height, group.get(), id, defaultFont);
+        group->addButton(btn);
+        FormUI::AddElement(btn);
+        currentY += height + groupSpacing;
+    }
+
+    return group;
+}
+
+std::shared_ptr<UIComboBox> Layout::addComboBox(const std::vector<std::string>& options, int& selectedIndex, int width, int height) {
+    auto combo = FormUI::ComboBox(options, currentX, currentY, width, height, selectedIndex, defaultFont);
+    currentY += height + spacing;
+    return combo;
+}
+
+std::shared_ptr<UISpinner> Layout::addSpinner(int& bind, int min, int max, int step, int width, int height) {
+    auto spinner = FormUI::Spinner(currentX, currentY, width, height, bind, min, max, step, defaultFont);
+    currentY += height + spacing;
+    return spinner;
+}
+
+std::shared_ptr<UITextArea> Layout::addTextArea(const std::string& label, std::string& bind, int maxLen, int width, int height) {
+    auto textArea = FormUI::TextArea(label, currentX, currentY, width, height, bind, maxLen);
+    textArea->setFont(defaultFont);
+    currentY += height + spacing;
+    return textArea;
+}
+
+}
+
+
+
 void UIManager::addElement(std::shared_ptr<UIElement> el) {
     elements.push_back(el);
 }
@@ -1764,99 +2201,6 @@ void UIManager::cleanupCursors() {
 
 
 namespace FormUI {
-
-std::shared_ptr<UILabel> Layout::addLabel(const std::string& text, int width, int height) {
-    auto labelEl = FormUI::Label(text, currentX, currentY, width, height, defaultFont);
-    currentY += height + spacing;
-    return labelEl;
-}
-
-std::shared_ptr<UICheckbox> Layout::addCheckbox(const std::string& label, bool& value, int width, int height) {
-    auto checkbox = FormUI::Checkbox(label, currentX, currentY, width, height, value, defaultFont);
-    currentY += height + spacing;
-    return checkbox;
-}
-
-std::shared_ptr<UISlider> Layout::addSlider(const std::string& label, float& value, float min, float max, int width, int height) {
-    auto slider = FormUI::Slider(label, currentX, currentY, width, height, value, min, max);
-    currentY += height + spacing;
-    return slider;
-}
-
-std::shared_ptr<UITextField> Layout::addTextField(const std::string& label, std::string& bind, int maxLen, int width, int height) {
-    auto textField = FormUI::TextField(label, currentX, currentY, width, height, bind, maxLen);
-    textField->setFont(defaultFont);
-    currentY += height + spacing;
-    return textField;
-}
-
-std::shared_ptr<UIButton> Layout::addButton(const std::string& label, std::function<void()> onClick, int width, int height, TTF_Font* font)
-{
-    auto button = FormUI::Button(label, currentX, currentY, width, height, onClick, font ? font : defaultFont);
-    currentY += height + spacing;
-    return button;
-}
-
-std::pair<std::shared_ptr<UILabel>, std::shared_ptr<UIButton>> Layout::addLabelButtonRow(
-    const std::string& labelText,
-    const std::string& buttonText,
-    std::function<void()> onClick,
-    int labelWidth,
-    int buttonWidth,
-    int height,
-    TTF_Font* labelFont,
-    TTF_Font* buttonFont
-) {
-    auto label = FormUI::Label(labelText, currentX, currentY, labelWidth, height, labelFont ? labelFont : defaultFont);
-    auto button = FormUI::Button(buttonText, currentX + labelWidth + 10, currentY, buttonWidth, height, onClick, buttonFont ? buttonFont : defaultFont);
-    currentY += height + spacing;
-    return { label, button };
-}
-
-std::shared_ptr<UIRadioGroup> Layout::addRadioGroup(
-    const std::vector<std::pair<std::string, int>>& options,
-    int& selectedID,
-    int width,
-    int height,
-    int groupSpacing
-) {
-    auto group = std::make_shared<UIRadioGroup>();
-    group->select(selectedID);
-
-    for (const auto& [label, id] : options) {
-        auto btn = std::make_shared<UIRadioButton>(label, currentX, currentY, width, height, group.get(), id, defaultFont);
-        group->addButton(btn);
-        FormUI::AddElement(btn);
-        currentY += height + groupSpacing;
-    }
-
-    return group;
-}
-
-std::shared_ptr<UIComboBox> Layout::addComboBox(const std::vector<std::string>& options, int& selectedIndex, int width, int height) {
-    auto combo = FormUI::ComboBox(options, currentX, currentY, width, height, selectedIndex, defaultFont);
-    currentY += height + spacing;
-    return combo;
-}
-
-std::shared_ptr<UISpinner> Layout::addSpinner(int& bind, int min, int max, int step, int width, int height) {
-    auto spinner = FormUI::Spinner(currentX, currentY, width, height, bind, min, max, step, defaultFont);
-    currentY += height + spacing;
-    return spinner;
-}
-
-std::shared_ptr<UITextArea> Layout::addTextArea(const std::string& label, std::string& bind, int maxLen, int width, int height) {
-    auto textArea = FormUI::TextArea(label, currentX, currentY, width, height, bind, maxLen);
-    textArea->setFont(defaultFont);
-    currentY += height + spacing;
-    return textArea;
-}
-
-}
-
-
-
-namespace FormUI {
     static UIManager uiManager;
     static std::shared_ptr<UIPopup> internalPopup;
 
@@ -1948,286 +2292,5 @@ namespace FormUI {
     }
 }
 
-
-UIRadioButton::UIRadioButton(const std::string& label, int x, int y, int w, int h, UIRadioGroup* group, int id, TTF_Font* font)
-    : label(label), id(id), group(group), font(font)
-{
-    bounds = { x, y, w, h };
-}
-
-void UIRadioButton::setFont(TTF_Font* f) {
-    font = f;
-}
-
-int UIRadioButton::getID() const {
-    return id;
-}
-
-bool UIRadioButton::isHovered() const {
-    return hovered;
-}
-
-void UIRadioButton::handleEvent(const SDL_Event& e) {
-    if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
-        int mx = e.button.x;
-        int my = e.button.y;
-        if (mx >= bounds.x && mx <= bounds.x + bounds.w &&
-            my >= bounds.y && my <= bounds.y + bounds.h) {
-            if (group) group->select(id);
-        }
-    }
-}
-
-void UIRadioButton::update(float) {
-    int mx, my;
-    SDL_GetMouseState(&mx, &my);
-    SDL_Point p = { mx, my };
-    hovered = SDL_PointInRect(&p, &bounds);
-}
-
-void UIRadioButton::render(SDL_Renderer* renderer) {
-    const UITheme& theme = getTheme();
-    TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
-    if (!activeFont) return;
-
-    int cx = bounds.x + 12;
-    int cy = bounds.y + bounds.h / 2;
-    int outerRadius = 10;
-    int thickness = 2;
-
-    SDL_Color ringColor = hovered ? theme.borderHoverColor : theme.borderColor;
-
-    UIHelpers::DrawCircleRing(renderer, cx, cy, outerRadius, thickness, ringColor);
-
-    if (group && group->getSelectedID() == id) {
-        int innerRadius = outerRadius - thickness - 2;
-        UIHelpers::DrawFilledCircle(renderer, cx, cy, innerRadius, ringColor);
-    }
-
-    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), theme.textColor);
-    if (!textSurface) return;
-
-    SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-    SDL_Rect textRect = {
-        bounds.x + 30,
-        bounds.y + (bounds.h - textSurface->h) / 2,
-        textSurface->w,
-        textSurface->h
-    };
-    SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
-    SDL_FreeSurface(textSurface);
-    SDL_DestroyTexture(textTexture);
-}
-
-
-void UIRadioGroup::addButton(std::shared_ptr<UIRadioButton> btn) {
-    buttons.push_back(btn);
-}
-
-void UIRadioGroup::select(int id) {
-    selectedID = id;
-}
-
-int UIRadioGroup::getSelectedID() const {
-    return selectedID;
-}
-
-
-UIGroupBox::UIGroupBox(const std::string& title, int x, int y, int w, int h)
-    : title(title)
-{
-    bounds = { x, y, w, h };
-    font = getThemeFont(getTheme());
-}
-
-void UIGroupBox::addChild(std::shared_ptr<UIElement> child) {
-    children.push_back(child);
-}
-
-const std::vector<std::shared_ptr<UIElement>>& UIGroupBox::getChildren() const {
-    return children;
-}
-
-void UIGroupBox::handleEvent(const SDL_Event& e) {
-    for (auto& child : children)
-        child->handleEvent(e);
-}
-
-void UIGroupBox::update(float dt) {
-    for (auto& child : children)
-        child->update(dt);
-}
-
-void UIGroupBox::render(SDL_Renderer* renderer) {
-    const UITheme& theme = getTheme();
-    SDL_SetRenderDrawColor(renderer,
-        theme.borderColor.r,
-        theme.borderColor.g,
-        theme.borderColor.b,
-        theme.borderColor.a);
-
-    int titleWidth = 0, titleHeight = 0;
-    if (!title.empty() && font) {
-        TTF_SizeText(font, title.c_str(), &titleWidth, &titleHeight);
-    }
-
-    const int padding = 8;
-    const int gapStart = bounds.x + padding;
-    const int gapEnd = gapStart + titleWidth + padding;
-
-    SDL_RenderDrawLine(renderer, bounds.x, bounds.y, gapStart, bounds.y);
-    SDL_RenderDrawLine(renderer, gapEnd, bounds.y, bounds.x + bounds.w, bounds.y);
-
-    SDL_RenderDrawLine(renderer, bounds.x, bounds.y, bounds.x, bounds.y + bounds.h);
-    SDL_RenderDrawLine(renderer, bounds.x + bounds.w, bounds.y, bounds.x + bounds.w, bounds.y + bounds.h);
-    SDL_RenderDrawLine(renderer, bounds.x, bounds.y + bounds.h, bounds.x + bounds.w, bounds.y + bounds.h);
-
-    if (!title.empty() && font) {
-        SDL_Surface* surf = TTF_RenderText_Blended(font, title.c_str(), theme.textColor);
-        if (surf) {
-            SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, surf);
-            SDL_Rect textRect = {
-                bounds.x + padding + 4,
-                bounds.y - surf->h / 2,
-                surf->w,
-                surf->h
-            };
-            SDL_RenderCopy(renderer, tex, nullptr, &textRect);
-            SDL_FreeSurface(surf);
-            SDL_DestroyTexture(tex);
-        }
-    }
-
-    for (auto& child : children) {
-        child->render(renderer);
-    }
-}
-
-
-UIDialog::UIDialog(const std::string& title,
-                   const std::string& message,
-                   std::function<void()> onOk,
-                   std::function<void()> onCancel)
-    : UIPopup((800 - 400) / 2, (600 - 200) / 2, 400, 200),
-      title(title), message(message), onOk(onOk), onCancel(onCancel)
-{
-    const int dialogWidth = 400;
-    const int dialogHeight = 200;
-    bounds = {
-        (800 - dialogWidth) / 2,
-        (600 - dialogHeight) / 2,
-        dialogWidth,
-        dialogHeight
-    };
-
-    TTF_Font* font = UIConfig::getDefaultFont();
-    int btnW = 100, btnH = 40, spacing = 20;
-    int btnY = bounds.y + bounds.h - btnH - spacing;
-    int okX = bounds.x + bounds.w / 2 - btnW - spacing / 2;
-    int cancelX = bounds.x + bounds.w / 2 + spacing / 2;
-
-    okButton = std::make_shared<UIButton>("OK", okX, btnY, btnW, btnH, font);
-    cancelButton = std::make_shared<UIButton>("Cancel", cancelX, btnY, btnW, btnH, font);
-
-    okButton->setOnClick([this, onOk]() {
-        if (onOk) onOk();
-        close();
-    });
-
-    cancelButton->setOnClick([this, onCancel]() {
-        if (onCancel) onCancel();
-        close();
-    });
-
-    addChild(okButton);
-    addChild(cancelButton);
-}
-
-void UIDialog::render(SDL_Renderer* renderer) {
-    const UITheme& theme = getTheme();
-    TTF_Font* font = UIConfig::getDefaultFont();
-    if (!font) return;
-
-    SDL_SetRenderDrawColor(renderer, theme.backgroundColor.r, theme.backgroundColor.g, theme.backgroundColor.b, theme.backgroundColor.a);
-    SDL_RenderFillRect(renderer, &bounds);
-
-    SDL_SetRenderDrawColor(renderer, theme.borderColor.r, theme.borderColor.g, theme.borderColor.b, theme.borderColor.a);
-    SDL_RenderDrawRect(renderer, &bounds);
-
-    SDL_Surface* titleSurf = TTF_RenderText_Blended(font, title.c_str(), theme.textColor);
-    SDL_Surface* msgSurf = TTF_RenderText_Blended(font, message.c_str(), theme.textColor);
-
-    if (titleSurf) {
-        SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, titleSurf);
-        SDL_Rect titleRect = {
-            bounds.x + 20,
-            bounds.y + 20,
-            titleSurf->w,
-            titleSurf->h
-        };
-        SDL_RenderCopy(renderer, tex, nullptr, &titleRect);
-        SDL_FreeSurface(titleSurf);
-        SDL_DestroyTexture(tex);
-    }
-
-    if (msgSurf) {
-        SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, msgSurf);
-        SDL_Rect msgRect = {
-            bounds.x + 20,
-            bounds.y + 70,
-            msgSurf->w,
-            msgSurf->h
-        };
-        SDL_RenderCopy(renderer, tex, nullptr, &msgRect);
-        SDL_FreeSurface(msgSurf);
-        SDL_DestroyTexture(tex);
-    }
-
-    UIPopup::render(renderer);
-}
-
-void UIDialog::handleEvent(const SDL_Event& e) {
-    if (ignoreNextClick) {
-        if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) return;
-        ignoreNextClick = false;
-    }
-    if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) {
-        close();
-        return;
-    }
-    UIPopup::handleEvent(e);
-}
-
-void UIDialog::close() {
-    visible = false;
-}
-
-
-UIPopup::UIPopup(int x, int y, int w, int h) {
-    bounds = { x, y, w, h };
-}
-
-void UIPopup::addChild(std::shared_ptr<UIElement> el) {
-    children.push_back(el);
-}
-
-void UIPopup::handleEvent(const SDL_Event& e) {
-    for (auto& child : children) {
-        if (child)  child->handleEvent(e);
-    }
-}
-
-void UIPopup::update(float dt) {
-    for (auto& child : children) {
-        child->update(dt);
-    }
-}
-
-void UIPopup::render(SDL_Renderer* renderer) {
-    for (auto& child : children) {
-        child->render(renderer);
-    }
-}
-
-#endif // SDLFORMUI_IMPLEMENTATION
-#endif // SDLFORMUI
+#endif // SDLFORMUI_HPP
+#endif // SDLFORMUI_HPP
