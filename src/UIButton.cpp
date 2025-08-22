@@ -50,42 +50,31 @@ void UIButton::update(float) {
 void UIButton::render(SDL_Renderer* renderer) {
     const UITheme& theme = getTheme();
 
-    SDL_Color bg     = hovered ? theme.hoverColor       : theme.backgroundColor;
-    SDL_Color border = hovered ? theme.borderHoverColor : theme.borderColor;
-    SDL_Color txt    = theme.textColor;
+    SDL_Color bg   = hovered ? theme.hoverColor       : theme.backgroundColor;
+    SDL_Color txt  = theme.textColor;
+    if (customBgColor)   bg  = *customBgColor;
+    if (customTextColor) txt = *customTextColor;
 
-    if (customBgColor)     bg = *customBgColor;
-    if (customBorderColor) border = *customBorderColor;
-    if (customTextColor)   txt = *customTextColor;
+    // exact AA fill
+    UIHelpers::FillRoundedRect(renderer,
+        bounds.x, bounds.y, bounds.w, bounds.h,
+        cornerRadius, bg);
 
-    SDL_SetRenderDrawColor(renderer, bg.r, bg.g, bg.b, bg.a);
-    SDL_RenderFillRect(renderer, &bounds);
-
-    SDL_SetRenderDrawColor(renderer, border.r, border.g, border.b, border.a);
-    SDL_RenderDrawRect(renderer, &bounds);
-
+    // text
     TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
     if (!activeFont) return;
 
-    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), txt);
-    if (!textSurface) return;
+    SDL_Surface* s = TTF_RenderText_Blended(activeFont, label.c_str(), txt);
+    if (!s) return;
+    SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
+    if (!t) { SDL_FreeSurface(s); return; }
 
-    SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-    if (!textTexture) {
-        SDL_FreeSurface(textSurface);
-        return;
-    }
-
-    SDL_Rect textRect = {
-        bounds.x + (bounds.w - textSurface->w) / 2,
-        bounds.y + (bounds.h - textSurface->h) / 2,
-        textSurface->w,
-        textSurface->h
-    };
-    SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
-
-    SDL_FreeSurface(textSurface);
-    SDL_DestroyTexture(textTexture);
+    SDL_Rect r = { bounds.x + (bounds.w - s->w)/2,
+                   bounds.y + (bounds.h - s->h)/2,
+                   s->w, s->h };
+    SDL_RenderCopy(renderer, t, nullptr, &r);
+    SDL_FreeSurface(s);
+    SDL_DestroyTexture(t);
 }
 
 

@@ -131,6 +131,9 @@ private:
 namespace UIHelpers {
     void DrawFilledCircle(SDL_Renderer* renderer, int cx, int cy, int radius, SDL_Color color);
     void DrawCircleRing(SDL_Renderer* renderer, int cx, int cy, int radius, int thickness, SDL_Color color);
+    void FillRoundedRect(SDL_Renderer* renderer,
+                                  int x, int y, int w, int h,
+                                  int radius, SDL_Color color);
 }
 
 
@@ -185,6 +188,8 @@ public:
     UIButton* setTextColor(SDL_Color c);
     UIButton* setBackgroundColor(SDL_Color c);
     UIButton* setBorderColor(SDL_Color c);
+    UIButton* setCornerRadius(int r) { cornerRadius = (r < 0 ? 0 : r); return this; }
+    UIButton* setBorderThickness(int px) { borderPx = (px < 0 ? 0 : px); return this; }
 
 private:
     std::string label;
@@ -195,6 +200,8 @@ private:
     std::optional<SDL_Color> customTextColor;
     std::optional<SDL_Color> customBgColor;
     std::optional<SDL_Color> customBorderColor;
+    int cornerRadius = 0;
+    int borderPx     = 1;
 };
 
 
@@ -705,6 +712,57 @@ void DrawCircleRing(SDL_Renderer* renderer, int cx, int cy, int radius, int thic
 
 }
 
+void UIHelpers::FillRoundedRect(SDL_Renderer* renderer,
+                                         int x, int y, int w, int h,
+                                         int radius, SDL_Color color) {
+    SDL_BlendMode original_mode;
+    SDL_GetRenderDrawBlendMode(renderer, &original_mode);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+
+    SDL_Rect center = { x + radius, y, w - 2*radius, h };
+    SDL_RenderFillRect(renderer, &center);
+    SDL_Rect sides  = { x, y + radius, w, h - 2*radius };
+    SDL_RenderFillRect(renderer, &sides);
+
+    const int centers[4][2] = {
+        { x + radius,     y + radius     },
+        { x + w - radius, y + radius     },
+        { x + radius,     y + h - radius },
+        { x + w - radius, y + h - radius }
+    };
+
+    for (int corner = 0; corner < 4; ++corner) {
+        int cx = centers[corner][0];
+        int cy = centers[corner][1];
+
+        int start_x = (corner % 2 == 0) ? x : x + w - radius;
+        int end_x   = (corner % 2 == 0) ? x + radius : x + w;
+        int start_y = (corner < 2) ? y : y + h - radius;
+        int end_y   = (corner < 2) ? y + radius : y + h;
+
+        for (int py = start_y; py < end_y; ++py) {
+            for (int px = start_x; px < end_x; ++px) {
+                float dx = px - cx + 0.5f;
+                float dy = py - cy + 0.5f;
+                float distance = sqrtf(dx*dx + dy*dy);
+
+                if (distance <= radius - 0.5f) {
+                    SDL_RenderDrawPoint(renderer, px, py);
+                } else if (distance < radius + 0.5f) {
+                    Uint8 alpha = (Uint8)(color.a * (1.0f - (distance - (radius - 0.5f))));
+                    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, alpha);
+                    SDL_RenderDrawPoint(renderer, px, py);
+                    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+                }
+            }
+        }
+    }
+
+    SDL_SetRenderDrawBlendMode(renderer, original_mode);
+}
+
 
 UIRadioButton::UIRadioButton(const std::string& label, int x, int y, int w, int h, UIRadioGroup* group, int id, TTF_Font* font)
     : label(label), id(id), group(group), font(font)
@@ -838,42 +896,31 @@ void UIButton::update(float) {
 void UIButton::render(SDL_Renderer* renderer) {
     const UITheme& theme = getTheme();
 
-    SDL_Color bg     = hovered ? theme.hoverColor       : theme.backgroundColor;
-    SDL_Color border = hovered ? theme.borderHoverColor : theme.borderColor;
-    SDL_Color txt    = theme.textColor;
+    SDL_Color bg   = hovered ? theme.hoverColor       : theme.backgroundColor;
+    SDL_Color txt  = theme.textColor;
+    if (customBgColor)   bg  = *customBgColor;
+    if (customTextColor) txt = *customTextColor;
 
-    if (customBgColor)     bg = *customBgColor;
-    if (customBorderColor) border = *customBorderColor;
-    if (customTextColor)   txt = *customTextColor;
+    // exact AA fill
+    UIHelpers::FillRoundedRect(renderer,
+        bounds.x, bounds.y, bounds.w, bounds.h,
+        cornerRadius, bg);
 
-    SDL_SetRenderDrawColor(renderer, bg.r, bg.g, bg.b, bg.a);
-    SDL_RenderFillRect(renderer, &bounds);
-
-    SDL_SetRenderDrawColor(renderer, border.r, border.g, border.b, border.a);
-    SDL_RenderDrawRect(renderer, &bounds);
-
+    // text
     TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
     if (!activeFont) return;
 
-    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), txt);
-    if (!textSurface) return;
+    SDL_Surface* s = TTF_RenderText_Blended(activeFont, label.c_str(), txt);
+    if (!s) return;
+    SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
+    if (!t) { SDL_FreeSurface(s); return; }
 
-    SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-    if (!textTexture) {
-        SDL_FreeSurface(textSurface);
-        return;
-    }
-
-    SDL_Rect textRect = {
-        bounds.x + (bounds.w - textSurface->w) / 2,
-        bounds.y + (bounds.h - textSurface->h) / 2,
-        textSurface->w,
-        textSurface->h
-    };
-    SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
-
-    SDL_FreeSurface(textSurface);
-    SDL_DestroyTexture(textTexture);
+    SDL_Rect r = { bounds.x + (bounds.w - s->w)/2,
+                   bounds.y + (bounds.h - s->h)/2,
+                   s->w, s->h };
+    SDL_RenderCopy(renderer, t, nullptr, &r);
+    SDL_FreeSurface(s);
+    SDL_DestroyTexture(t);
 }
 
 

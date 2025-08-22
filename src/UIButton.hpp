@@ -1,5 +1,6 @@
 #pragma once
 #include "UIElement.hpp"
+#include "UIHelpers.hpp"
 #include <functional>
 #include <string>
 #include <SDL2/SDL_ttf.h>
@@ -20,6 +21,8 @@ public:
     UIButton* setTextColor(SDL_Color c);
     UIButton* setBackgroundColor(SDL_Color c);
     UIButton* setBorderColor(SDL_Color c);
+    UIButton* setCornerRadius(int r) { cornerRadius = (r < 0 ? 0 : r); return this; }
+    UIButton* setBorderThickness(int px) { borderPx = (px < 0 ? 0 : px); return this; }
 
 private:
     std::string label;
@@ -30,4 +33,6 @@ private:
     std::optional<SDL_Color> customTextColor;
     std::optional<SDL_Color> customBgColor;
     std::optional<SDL_Color> customBorderColor;
+    int cornerRadius = 0;
+    int borderPx     = 1;
 };
