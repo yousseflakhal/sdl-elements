@@ -3,6 +3,7 @@
 #include <functional>
 #include <string>
 #include <SDL2/SDL_ttf.h>
+#include <optional>
 #include "UIConfig.hpp"
 
 class UIButton : public UIElement {
@@ -16,6 +17,9 @@ public:
     void render(SDL_Renderer* renderer) override;
     void setFont(TTF_Font* f);
     bool isHovered() const;
+    UIButton* setTextColor(SDL_Color c);
+    UIButton* setBackgroundColor(SDL_Color c);
+    UIButton* setBorderColor(SDL_Color c);
 
 private:
     std::string label;
@@ -23,4 +27,7 @@ private:
     bool hovered = false;
     bool pressed = false;
     TTF_Font* font = nullptr;
+    std::optional<SDL_Color> customTextColor;
+    std::optional<SDL_Color> customBgColor;
+    std::optional<SDL_Color> customBorderColor;
 };

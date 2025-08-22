@@ -50,35 +50,28 @@ void UIButton::update(float) {
 void UIButton::render(SDL_Renderer* renderer) {
     const UITheme& theme = getTheme();
 
-    SDL_SetRenderDrawColor(renderer,
-                           hovered ? theme.hoverColor.r : theme.backgroundColor.r,
-                           hovered ? theme.hoverColor.g : theme.backgroundColor.g,
-                           hovered ? theme.hoverColor.b : theme.backgroundColor.b,
-                           hovered ? theme.hoverColor.a : theme.backgroundColor.a);
+    SDL_Color bg     = hovered ? theme.hoverColor       : theme.backgroundColor;
+    SDL_Color border = hovered ? theme.borderHoverColor : theme.borderColor;
+    SDL_Color txt    = theme.textColor;
+
+    if (customBgColor)     bg = *customBgColor;
+    if (customBorderColor) border = *customBorderColor;
+    if (customTextColor)   txt = *customTextColor;
+
+    SDL_SetRenderDrawColor(renderer, bg.r, bg.g, bg.b, bg.a);
     SDL_RenderFillRect(renderer, &bounds);
 
-    SDL_SetRenderDrawColor(renderer,
-                           hovered ? theme.borderHoverColor.r : theme.borderColor.r,
-                           hovered ? theme.borderHoverColor.g : theme.borderColor.g,
-                           hovered ? theme.borderHoverColor.b : theme.borderColor.b,
-                           hovered ? theme.borderHoverColor.a : theme.borderColor.a);
+    SDL_SetRenderDrawColor(renderer, border.r, border.g, border.b, border.a);
     SDL_RenderDrawRect(renderer, &bounds);
 
     TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
-    if (!activeFont) {
-        SDL_Log("UIButton: No valid font to render label.");
-        return;
-    }
+    if (!activeFont) return;
 
-    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), theme.textColor);
-    if (!textSurface) {
-        SDL_Log("UIButton: Failed to render text surface: %s", TTF_GetError());
-        return;
-    }
+    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), txt);
+    if (!textSurface) return;
 
     SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
     if (!textTexture) {
-        SDL_Log("UIButton: Failed to create texture from surface: %s", SDL_GetError());
         SDL_FreeSurface(textSurface);
         return;
     }
@@ -95,10 +88,26 @@ void UIButton::render(SDL_Renderer* renderer) {
     SDL_DestroyTexture(textTexture);
 }
 
+
 void UIButton::setFont(TTF_Font* f) {
     font = f;
 }
 
 bool UIButton::isHovered() const {
     return hovered;
+}
+
+UIButton* UIButton::setTextColor(SDL_Color c) {
+    customTextColor = c;
+    return this;
+}
+
+UIButton* UIButton::setBackgroundColor(SDL_Color c) {
+    customBgColor = c;
+    return this;
+}
+
+UIButton* UIButton::setBorderColor(SDL_Color c) {
+    customBorderColor = c;
+    return this;
 }
