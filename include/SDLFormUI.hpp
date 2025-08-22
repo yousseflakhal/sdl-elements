@@ -829,7 +829,7 @@ void UIButton::update(float) {
 
 
 void UIButton::render(SDL_Renderer* renderer) {
-    const UITheme& theme = UIConfig::getTheme();
+    const UITheme& theme = getTheme();
 
     SDL_SetRenderDrawColor(renderer,
                            hovered ? theme.hoverColor.r : theme.backgroundColor.r,
@@ -898,7 +898,7 @@ void UILabel::render(SDL_Renderer* renderer) {
         return;
     }
 
-    const SDL_Color& textColor = color.a == 0 ? UIConfig::getTheme().textColor : color;
+    const SDL_Color& textColor = (color.a == 0) ? getTheme().textColor : color;
 
     SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, text.c_str(), textColor);
     if (!textSurface) {
@@ -970,7 +970,7 @@ void UICheckbox::update(float) {
 }
 
 void UICheckbox::render(SDL_Renderer* renderer) {
-    const UITheme& theme = UIConfig::getTheme();
+    const UITheme& theme = getTheme();
     TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
     if (!activeFont) {
         SDL_Log("UICheckbox: No valid font for rendering.");

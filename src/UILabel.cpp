@@ -14,7 +14,7 @@ void UILabel::render(SDL_Renderer* renderer) {
         return;
     }
 
-    const SDL_Color& textColor = color.a == 0 ? UIConfig::getTheme().textColor : color;
+    const SDL_Color& textColor = (color.a == 0) ? getTheme().textColor : color;
 
     SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, text.c_str(), textColor);
     if (!textSurface) {

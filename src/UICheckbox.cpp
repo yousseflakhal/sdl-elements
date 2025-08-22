@@ -34,7 +34,7 @@ void UICheckbox::update(float) {
 }
 
 void UICheckbox::render(SDL_Renderer* renderer) {
-    const UITheme& theme = UIConfig::getTheme();
+    const UITheme& theme = getTheme();
     TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
     if (!activeFont) {
         SDL_Log("UICheckbox: No valid font for rendering.");

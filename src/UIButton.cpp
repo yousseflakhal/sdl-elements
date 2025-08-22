@@ -48,7 +48,7 @@ void UIButton::update(float) {
 
 
 void UIButton::render(SDL_Renderer* renderer) {
-    const UITheme& theme = UIConfig::getTheme();
+    const UITheme& theme = getTheme();
 
     SDL_SetRenderDrawColor(renderer,
                            hovered ? theme.hoverColor.r : theme.backgroundColor.r,
