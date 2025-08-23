@@ -835,7 +835,7 @@ void UIHelpers::StrokeRoundedRectOutside(SDL_Renderer* renderer,
 }
 
 
-static inline SDL_Color PrimaryBlue() { return SDL_Color{ 0x0D, 0x6E, 0xFD, 255 }; } // Bootstrap #0D6EFD
+static inline SDL_Color PrimaryBlue() { return SDL_Color{ 0x0D, 0x6E, 0xFD, 255 }; }
 static inline SDL_Color Darken(SDL_Color c, int d){ return UIHelpers::Darken(c, d); }
 
 UIRadioButton::UIRadioButton(const std::string& label, int x, int y, int w, int h, UIRadioGroup* group, int id, TTF_Font* font)
@@ -1010,10 +1010,6 @@ void UIButton::render(SDL_Renderer* renderer) {
         else if (hovered) bg = UIHelpers::PickHoverColor(baseBg);
     }
     bg.a = globalAlpha;
-
-    if (drawShadow && !pressed) {
-        UIHelpers::DrawShadowRoundedRect(renderer, bounds, cornerRadius, 2, 64);
-    }
 
     if (focusable && focused) {
         SDL_Color ring = UIHelpers::PickFocusRing(baseBg);

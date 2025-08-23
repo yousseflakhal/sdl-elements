@@ -78,10 +78,6 @@ void UIButton::render(SDL_Renderer* renderer) {
     }
     bg.a = globalAlpha;
 
-    if (drawShadow && !pressed) {
-        UIHelpers::DrawShadowRoundedRect(renderer, bounds, cornerRadius, 2, 64);
-    }
-
     if (focusable && focused) {
         SDL_Color ring = UIHelpers::PickFocusRing(baseBg);
         ring.a = (Uint8)std::min<int>(178, globalAlpha);
