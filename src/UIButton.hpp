@@ -23,6 +23,8 @@ public:
     UIButton* setBorderColor(SDL_Color c);
     UIButton* setCornerRadius(int r) { cornerRadius = (r < 0 ? 0 : r); return this; }
     UIButton* setBorderThickness(int px) { borderPx = (px < 0 ? 0 : px); return this; }
+    UIButton* setFocusable(bool f) { focusable = f; return this; }
+    bool isFocused() const { return focused; }
 
 private:
     std::string label;
@@ -35,4 +37,7 @@ private:
     std::optional<SDL_Color> customBorderColor;
     int cornerRadius = 0;
     int borderPx     = 1;
+    bool focused = false;
+    bool focusable = true;
+    int pressOffset = 1;
 };

@@ -7,6 +7,7 @@ class UIElement {
 public:
     SDL_Rect bounds;
     bool visible = true;
+    bool enabled = true;
 
     virtual void handleEvent(const SDL_Event& e) = 0;
     virtual bool isHovered() const { return false; }
@@ -23,6 +24,8 @@ public:
     return x >= bounds.x && x <= bounds.x + bounds.w &&
            y >= bounds.y && y <= bounds.y + bounds.h;
     }
+    void setEnabled(bool e) { enabled = e; }
+    bool isEnabled() const { return enabled; }
 
     virtual ~UIElement() = default;
 

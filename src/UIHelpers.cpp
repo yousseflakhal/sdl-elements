@@ -105,3 +105,26 @@ void UIHelpers::FillRoundedRect(SDL_Renderer* renderer,
 
     SDL_SetRenderDrawBlendMode(renderer, original_mode);
 }
+
+void UIHelpers::DrawShadowRoundedRect(SDL_Renderer* renderer, const SDL_Rect& rect, int radius, int offset, Uint8 alpha) {
+    SDL_Rect shadow = { rect.x + offset, rect.y + offset, rect.w, rect.h };
+    SDL_Color sc = { 0, 0, 0, alpha };
+    FillRoundedRect(renderer, shadow.x, shadow.y, shadow.w, shadow.h, radius, sc);
+}
+
+void UIHelpers::StrokeRoundedRectOutside(SDL_Renderer* renderer,
+                                         const SDL_Rect& innerRect,
+                                         int radius,
+                                         int thickness,
+                                         SDL_Color ringColor,
+                                         SDL_Color innerBg) {
+    SDL_Rect outer = {
+        innerRect.x - thickness,
+        innerRect.y - thickness,
+        innerRect.w + 2*thickness,
+        innerRect.h + 2*thickness
+    };
+    FillRoundedRect(renderer, outer.x, outer.y, outer.w, outer.h, radius + thickness, ringColor);
+
+    FillRoundedRect(renderer, innerRect.x, innerRect.y, innerRect.w, innerRect.h, radius, innerBg);
+}

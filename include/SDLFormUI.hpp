@@ -64,6 +64,7 @@ class UIElement {
 public:
     SDL_Rect bounds;
     bool visible = true;
+    bool enabled = true;
 
     virtual void handleEvent(const SDL_Event& e) = 0;
     virtual bool isHovered() const { return false; }
@@ -80,6 +81,8 @@ public:
     return x >= bounds.x && x <= bounds.x + bounds.w &&
            y >= bounds.y && y <= bounds.y + bounds.h;
     }
+    void setEnabled(bool e) { enabled = e; }
+    bool isEnabled() const { return enabled; }
 
     virtual ~UIElement() = default;
 
@@ -134,6 +137,41 @@ namespace UIHelpers {
     void FillRoundedRect(SDL_Renderer* renderer,
                                   int x, int y, int w, int h,
                                   int radius, SDL_Color color);
+    inline SDL_Color AdjustBrightness(SDL_Color c, int delta) {
+        auto clamp = [](int v){ return std::max(0, std::min(255, v)); };
+        return SDL_Color{ Uint8(clamp(c.r + delta)), Uint8(clamp(c.g + delta)),
+                          Uint8(clamp(c.b + delta)), c.a };
+    }
+    inline SDL_Color WithAlpha(SDL_Color c, Uint8 a) { c.a = a; return c; }
+    void DrawShadowRoundedRect(SDL_Renderer* r, const SDL_Rect& rect, int radius, int offset, Uint8 alpha);
+    inline float RelativeLuma(SDL_Color c) {
+        auto lin = [](float u){ u/=255.0f; return (u<=0.04045f)? u/12.92f : powf((u+0.055f)/1.055f, 2.4f); };
+        float R = lin(c.r), G = lin(c.g), B = lin(c.b);
+        return 0.2126f*R + 0.7152f*G + 0.0722f*B;
+    }
+    inline SDL_Color Lighten(SDL_Color c, int delta) { return AdjustBrightness(c, +std::abs(delta)); }
+    inline SDL_Color Darken (SDL_Color c, int delta) { return AdjustBrightness(c, -std::abs(delta)); }
+
+    inline SDL_Color PickHoverColor(SDL_Color bg) {
+        float L = RelativeLuma(bg);
+        if (L < 0.10f) {
+            return Lighten(bg, 12);
+        } else {
+            return Darken(bg, 12);
+        }
+    }
+
+    inline SDL_Color PickFocusRing(SDL_Color bg) {
+        float L = RelativeLuma(bg);
+        return (L > 0.85f) ? Darken(bg, 40) : Lighten(bg, 40);
+    }
+
+    void StrokeRoundedRectOutside(SDL_Renderer* r,
+                                  const SDL_Rect& innerRect,
+                                  int radius,
+                                  int thickness,
+                                  SDL_Color ringColor,
+                                  SDL_Color innerBg);
 }
 
 
@@ -190,6 +228,8 @@ public:
     UIButton* setBorderColor(SDL_Color c);
     UIButton* setCornerRadius(int r) { cornerRadius = (r < 0 ? 0 : r); return this; }
     UIButton* setBorderThickness(int px) { borderPx = (px < 0 ? 0 : px); return this; }
+    UIButton* setFocusable(bool f) { focusable = f; return this; }
+    bool isFocused() const { return focused; }
 
 private:
     std::string label;
@@ -202,6 +242,9 @@ private:
     std::optional<SDL_Color> customBorderColor;
     int cornerRadius = 0;
     int borderPx     = 1;
+    bool focused = false;
+    bool focusable = true;
+    int pressOffset = 1;
 };
 
 
@@ -763,6 +806,29 @@ void UIHelpers::FillRoundedRect(SDL_Renderer* renderer,
     SDL_SetRenderDrawBlendMode(renderer, original_mode);
 }
 
+void UIHelpers::DrawShadowRoundedRect(SDL_Renderer* renderer, const SDL_Rect& rect, int radius, int offset, Uint8 alpha) {
+    SDL_Rect shadow = { rect.x + offset, rect.y + offset, rect.w, rect.h };
+    SDL_Color sc = { 0, 0, 0, alpha };
+    FillRoundedRect(renderer, shadow.x, shadow.y, shadow.w, shadow.h, radius, sc);
+}
+
+void UIHelpers::StrokeRoundedRectOutside(SDL_Renderer* renderer,
+                                         const SDL_Rect& innerRect,
+                                         int radius,
+                                         int thickness,
+                                         SDL_Color ringColor,
+                                         SDL_Color innerBg) {
+    SDL_Rect outer = {
+        innerRect.x - thickness,
+        innerRect.y - thickness,
+        innerRect.w + 2*thickness,
+        innerRect.h + 2*thickness
+    };
+    FillRoundedRect(renderer, outer.x, outer.y, outer.w, outer.h, radius + thickness, ringColor);
+
+    FillRoundedRect(renderer, innerRect.x, innerRect.y, innerRect.w, innerRect.h, radius, innerBg);
+}
+
 
 UIRadioButton::UIRadioButton(const std::string& label, int x, int y, int w, int h, UIRadioGroup* group, int id, TTF_Font* font)
     : label(label), id(id), group(group), font(font)
@@ -867,27 +933,41 @@ const std::string& UIButton::getText() const {
 }
 
 void UIButton::handleEvent(const SDL_Event& e) {
-    if (e.type == SDL_MOUSEBUTTONDOWN) {
-        int mx = e.button.x;
-        int my = e.button.y;
+    if (!enabled) return;
+
+    if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
+        int mx = e.button.x, my = e.button.y;
         if (mx >= bounds.x && mx <= bounds.x + bounds.w &&
             my >= bounds.y && my <= bounds.y + bounds.h) {
             pressed = true;
+            if (focusable) focused = true;
+        } else if (focusable) {
+            focused = false;
         }
     } else if (e.type == SDL_MOUSEBUTTONUP && pressed) {
-        int mx = e.button.x;
-        int my = e.button.y;
+        int mx = e.button.x, my = e.button.y;
         if (mx >= bounds.x && mx <= bounds.x + bounds.w &&
             my >= bounds.y && my <= bounds.y + bounds.h) {
             if (onClick) onClick();
         }
         pressed = false;
     }
+
+    if (focusable && focused && e.type == SDL_KEYDOWN && enabled) {
+        if (e.key.keysym.sym == SDLK_RETURN || e.key.keysym.sym == SDLK_SPACE) {
+            pressed = true;
+        }
+    } else if (focusable && focused && e.type == SDL_KEYUP) {
+        if ((e.key.keysym.sym == SDLK_RETURN || e.key.keysym.sym == SDLK_SPACE) && pressed) {
+            if (onClick) onClick();
+            pressed = false;
+        }
+    }
 }
 
 void UIButton::update(float) {
-    int mx, my;
-    SDL_GetMouseState(&mx, &my);
+    if (!enabled) { hovered = false; pressed = false; return; }
+    int mx, my; SDL_GetMouseState(&mx, &my);
     SDL_Point mousePoint = { mx, my };
     hovered = SDL_PointInRect(&mousePoint, &bounds);
 }
@@ -895,33 +975,56 @@ void UIButton::update(float) {
 
 void UIButton::render(SDL_Renderer* renderer) {
     const UITheme& theme = getTheme();
+    SDL_Color baseBg     = customBgColor     ? *customBgColor     : theme.backgroundColor;
+    SDL_Color baseText   = customTextColor   ? *customTextColor   : theme.textColor;
+    SDL_Color baseBorder = customBorderColor ? *customBorderColor : theme.borderColor;
 
-    SDL_Color bg   = hovered ? theme.hoverColor       : theme.backgroundColor;
-    SDL_Color txt  = theme.textColor;
-    if (customBgColor)   bg  = *customBgColor;
-    if (customTextColor) txt = *customTextColor;
+    bool drawShadow = true;
+    Uint8 globalAlpha = 255;
+    if (!enabled) { globalAlpha = 128; drawShadow = false; }
 
-    // exact AA fill
-    UIHelpers::FillRoundedRect(renderer,
-        bounds.x, bounds.y, bounds.w, bounds.h,
-        cornerRadius, bg);
+    SDL_Color bg = baseBg;
+    if (enabled) {
+        if (pressed)      bg = UIHelpers::Darken(baseBg, 10);
+        else if (hovered) bg = UIHelpers::PickHoverColor(baseBg);
+    }
+    bg.a = globalAlpha;
 
-    // text
+    if (drawShadow && !pressed) {
+        UIHelpers::DrawShadowRoundedRect(renderer, bounds, cornerRadius, 2, 64);
+    }
+
+    if (focusable && focused) {
+        SDL_Color ring = UIHelpers::PickFocusRing(baseBg);
+        ring.a = (Uint8)std::min<int>(178, globalAlpha);
+        UIHelpers::StrokeRoundedRectOutside(renderer, bounds, cornerRadius, 2, ring, bg);
+    }
+
+    SDL_Rect dst = bounds;
+    if (pressed) {
+        dst.y += pressOffset;
+        dst.x += 1;
+        dst.w -= 2; dst.h -= 2;
+    }
+
+    UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, cornerRadius, bg);
+
     TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
     if (!activeFont) return;
+
+    SDL_Color txt = baseText;
+    txt.a = globalAlpha;
 
     SDL_Surface* s = TTF_RenderText_Blended(activeFont, label.c_str(), txt);
     if (!s) return;
     SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
     if (!t) { SDL_FreeSurface(s); return; }
-
-    SDL_Rect r = { bounds.x + (bounds.w - s->w)/2,
-                   bounds.y + (bounds.h - s->h)/2,
-                   s->w, s->h };
+    SDL_Rect r = { dst.x + (dst.w - s->w)/2, dst.y + (dst.h - s->h)/2, s->w, s->h };
     SDL_RenderCopy(renderer, t, nullptr, &r);
     SDL_FreeSurface(s);
     SDL_DestroyTexture(t);
 }
+
 
 
 void UIButton::setFont(TTF_Font* f) {
