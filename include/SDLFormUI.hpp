@@ -300,6 +300,11 @@ public:
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
+    std::function<void(const std::string&)> onSubmit;
+    UITextField* setOnSubmit(std::function<void(const std::string&)> cb) {
+        onSubmit = std::move(cb);
+        return this;
+    }
 
 
 
@@ -315,6 +320,10 @@ private:
     SDL_Color placeholderColor = {160, 160, 160, 255};
     TTF_Font* font = nullptr;
     InputType inputType = InputType::TEXT;
+    int cornerRadius = 10;
+    int borderPx     = 1;
+    Uint32 lastInputTicks = 0;
+    Uint32 lastBlinkTicks = 0;
 };
 
 
@@ -1229,6 +1238,7 @@ UITextField::UITextField(const std::string& label, int x, int y, int w, int h, s
     : label(label), linkedText(bind), maxLength(maxLen)
 {
     bounds = { x, y, w, h };
+    lastBlinkTicks = SDL_GetTicks();
 }
 
 UITextField* UITextField::setPlaceholder(const std::string& text) {
@@ -1251,128 +1261,173 @@ bool UITextField::isHovered() const {
 }
 
 void UITextField::handleEvent(const SDL_Event& e) {
+    if (!enabled) return;
+
+    auto inside = [&](int x, int y) {
+        return (x >= bounds.x && x < bounds.x + bounds.w &&
+                y >= bounds.y && y < bounds.y + bounds.h);
+    };
+
+    auto markTyping = [&](){
+        lastInputTicks = SDL_GetTicks();
+        cursorVisible  = true;
+        lastBlinkTicks = lastInputTicks;
+    };
+
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
-        int mx = e.button.x;
-        int my = e.button.y;
-        SDL_Point point = { mx, my };
-
-        bool wasFocused = focused;
-        focused = SDL_PointInRect(&point, &bounds);
-
-        if (!wasFocused && focused) {
-            SDL_StartTextInput();
-        } else if (wasFocused && !focused) {
-            SDL_StopTextInput();
+        const bool wasFocused = focused;
+        focused = inside(e.button.x, e.button.y);
+        if (focused) {
+            if (!wasFocused) SDL_StartTextInput();
+            markTyping();
+        } else {
+            if (wasFocused) SDL_StopTextInput();
+            cursorVisible = false;
         }
+        return;
     }
 
-    if (focused && e.type == SDL_TEXTINPUT) {
-        // SDL_Log("Text input: %s", e.text.text);
-        if (linkedText.get().length() < static_cast<size_t>(maxLength)) {
-            std::string input = e.text.text;
+    if (!focused) return;
 
-            bool valid = true;
-            switch (inputType) {
-                case InputType::NUMERIC:
-                    valid = std::all_of(input.begin(), input.end(), ::isdigit);
-                    break;
-                case InputType::EMAIL:
-                    valid = std::all_of(input.begin(), input.end(), [](char c) {
-                        return std::isalnum(c) || c == '@' || c == '.' || c == '-' || c == '_';
-                    });
-                    break;
-                case InputType::PASSWORD:
-                case InputType::TEXT:
-                default:
-                    valid = true;
-                    break;
-            }
-
-            if (valid) {
-                linkedText.get().append(input);
-            }
+    if (e.type == SDL_TEXTINPUT) {
+        std::string& s = linkedText.get();
+        for (const char* p = e.text.text; *p; ++p) {
+            if ((int)s.size() >= maxLength) break;
+            unsigned char c = static_cast<unsigned char>(*p);
+            if (c >= 32) s.push_back(char(c));
         }
+        markTyping();
+        return;
     }
 
-    if (focused && e.type == SDL_KEYDOWN) {
-        if (e.key.keysym.sym == SDLK_BACKSPACE && !linkedText.get().empty()) {
-            linkedText.get().pop_back();
-        } else if (e.key.keysym.sym == SDLK_RETURN || e.key.keysym.sym == SDLK_KP_ENTER) {
-            focused = false;
-            SDL_StopTextInput();
+    if (e.type == SDL_KEYDOWN) {
+        std::string& s = linkedText.get();
+        switch (e.key.keysym.sym) {
+            case SDLK_BACKSPACE:
+                if (!s.empty()) s.pop_back();
+                markTyping();
+                break;
+
+            case SDLK_DELETE:
+                if (!s.empty()) s.pop_back();
+                markTyping();
+                break;
+
+            case SDLK_RETURN:
+            case SDLK_KP_ENTER:
+                if (onSubmit) onSubmit(s);
+                markTyping();
+                break;
+
+            case SDLK_ESCAPE:
+                focused = false;
+                SDL_StopTextInput();
+                cursorVisible = false;
+                break;
+
+            case SDLK_LEFT:
+            case SDLK_RIGHT:
+            case SDLK_HOME:
+            case SDLK_END:
+                markTyping();
+                break;
         }
     }
 }
 
-void UITextField::update(float) {
-    int mx, my;
-    SDL_GetMouseState(&mx, &my);
-    SDL_Point point = { mx, my };
-    hovered = SDL_PointInRect(&point, &bounds);
 
-    if (focused) {
-        Uint32 now = SDL_GetTicks();
-        if (now - lastBlinkTime >= 500) {
-            cursorVisible = !cursorVisible;
-            lastBlinkTime = now;
-        }
+void UITextField::update(float) {
+    int mx, my; SDL_GetMouseState(&mx, &my);
+    hovered = (mx >= bounds.x && mx < bounds.x + bounds.w &&
+               my >= bounds.y && my < bounds.y + bounds.h);
+
+    if (!enabled) { cursorVisible = false; return; }
+    if (!focused) { cursorVisible = false; return; }
+
+    const Uint32 now          = SDL_GetTicks();
+    const Uint32 typingHoldMs = 300;
+    const Uint32 blinkMs      = 530;
+
+    if (now - lastInputTicks < typingHoldMs) {
+        cursorVisible  = true;
+        lastBlinkTicks = now;
     } else {
-        cursorVisible = false;
-        lastBlinkTime = SDL_GetTicks();
+        if (now - lastBlinkTicks >= blinkMs) {
+            cursorVisible  = !cursorVisible;
+            lastBlinkTicks = now;
+        }
     }
 }
 
 
 void UITextField::render(SDL_Renderer* renderer) {
-    const UITheme& theme = getTheme();
-    TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
+    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
     if (!activeFont) return;
 
-    SDL_Surface* labelSurface = TTF_RenderText_Blended(activeFont, label.c_str(), theme.textColor);
-    if (!labelSurface) return;
+    SDL_Color baseBg      = {255,255,255,255};
+    SDL_Color baseBorder  = {180,180,180,255};
+    SDL_Color baseText    = {73, 80, 87,255};
+    SDL_Color baseCursor  = {73, 80, 87,255};
+    SDL_Color placeholderCol = {160,160,160,255};
+    SDL_Color focusBlue   = {13,110,253,178};
 
-    SDL_Texture* labelTexture = SDL_CreateTextureFromSurface(renderer, labelSurface);
-    SDL_Rect labelRect = { bounds.x, bounds.y - labelSurface->h - 4, labelSurface->w, labelSurface->h };
-    SDL_RenderCopy(renderer, labelTexture, nullptr, &labelRect);
-    SDL_FreeSurface(labelSurface);
-    SDL_DestroyTexture(labelTexture);
-
-    SDL_SetRenderDrawColor(renderer, theme.backgroundColor.r, theme.backgroundColor.g, theme.backgroundColor.b, theme.backgroundColor.a);
-    SDL_RenderFillRect(renderer, &bounds);
-
-    SDL_Color borderCol = hovered ? theme.borderHoverColor : theme.borderColor;
-    SDL_SetRenderDrawColor(renderer, borderCol.r, borderCol.g, borderCol.b, borderCol.a);
-    SDL_RenderDrawRect(renderer, &bounds);
-
-    std::string toRender = (inputType == InputType::PASSWORD) ? std::string(linkedText.get().size(), '*') : linkedText.get();
-    SDL_Color textCol = theme.textColor;
-    if (toRender.empty() && !focused && !placeholder.empty()) {
-        toRender = placeholder;
-        textCol = theme.placeholderColor;
+    if (focused) {
+        UIHelpers::StrokeRoundedRectOutside(renderer, bounds, cornerRadius, 2, focusBlue, baseBg);
     }
 
+    SDL_Rect dst = bounds;
+
+    if (borderPx > 0) {
+        UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, cornerRadius, baseBorder);
+        SDL_Rect inner = { dst.x + borderPx, dst.y + borderPx, dst.w - 2*borderPx, dst.h - 2*borderPx };
+        UIHelpers::FillRoundedRect(renderer, inner.x, inner.y, inner.w, inner.h, std::max(0, cornerRadius - borderPx), baseBg);
+        dst = inner;
+    } else {
+        UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, cornerRadius, baseBg);
+    }
+
+    std::string toRender = (inputType == InputType::PASSWORD)
+        ? std::string(linkedText.get().size(), '*')
+        : linkedText.get();
+
+    SDL_Color drawCol = baseText;
+    if (toRender.empty() && !focused && !placeholder.empty()) {
+        toRender = placeholder;
+        drawCol = placeholderCol;
+    }
+
+    int cursorX = dst.x + 8;
+    int cursorH = TTF_FontHeight(activeFont);
+    int cursorY = dst.y + (dst.h - cursorH) / 2;
+
     if (!toRender.empty()) {
-        SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, toRender.c_str(), textCol);
+        SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, toRender.c_str(), drawCol);
         if (textSurface) {
             SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
             SDL_Rect textRect = {
-                bounds.x + 5,
-                bounds.y + (bounds.h - textSurface->h) / 2,
+                dst.x + 8,
+                dst.y + (dst.h - textSurface->h) / 2,
                 textSurface->w,
                 textSurface->h
             };
             SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
-            SDL_FreeSurface(textSurface);
             SDL_DestroyTexture(textTexture);
 
-            if (focused && cursorVisible) {
-                SDL_SetRenderDrawColor(renderer, theme.cursorColor.r, theme.cursorColor.g, theme.cursorColor.b, theme.cursorColor.a);
-                SDL_Rect cursorRect = { textRect.x + textRect.w + 2, textRect.y, 2, textRect.h };
-                SDL_RenderFillRect(renderer, &cursorRect);
-            }
+            cursorX = textRect.x + textRect.w;
+            cursorH = textSurface->h;
+            cursorY = textRect.y;
+
+            SDL_FreeSurface(textSurface);
         }
     }
+
+    if (focused && cursorVisible) {
+        SDL_SetRenderDrawColor(renderer, baseCursor.r, baseCursor.g, baseCursor.b, baseCursor.a);
+        SDL_Rect cursorRect = { cursorX, cursorY, 1, cursorH };
+        SDL_RenderFillRect(renderer, &cursorRect);
+    }
 }
+
 
 
 
@@ -2249,39 +2304,38 @@ void UIManager::closePopup() {
 
 void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_Cursor*& cursorToUse) {
     if (!el->visible) return;
-    el->update(0.0f);
+
     if (auto ta = dynamic_cast<UITextArea*>(el.get())) {
-        if (ta->isScrollbarHovered() || ta->isScrollbarDragging()) {
-            return;
-        }
-        if (ta->isHovered()) {
-            cursorToUse = ibeamCursor;
-            return;
-        }
+        if (ta->isScrollbarHovered() || ta->isScrollbarDragging()) return;
+        if (ta->isHovered()) { cursorToUse = ibeamCursor; return; }
     }
+
     if (el->isHovered()) {
         if (dynamic_cast<UITextField*>(el.get())) {
             cursorToUse = ibeamCursor;
-        } else if (
-            dynamic_cast<UIButton*>(el.get()) ||
-            dynamic_cast<UICheckbox*>(el.get()) ||
-            dynamic_cast<UIRadioButton*>(el.get()) ||
-            dynamic_cast<UISlider*>(el.get()) ||
-            dynamic_cast<UIComboBox*>(el.get()) ||
-            dynamic_cast<UISpinner*>(el.get())
-        ) {
+            return;
+        }
+
+        if (cursorToUse != ibeamCursor &&
+            (dynamic_cast<UIButton*>(el.get()) ||
+             dynamic_cast<UICheckbox*>(el.get()) ||
+             dynamic_cast<UISlider*>(el.get()) ||
+             dynamic_cast<UIComboBox*>(el.get()) ||
+             dynamic_cast<UISpinner*>(el.get()))) {
             cursorToUse = handCursor;
         }
     }
+
     if (auto group = dynamic_cast<UIGroupBox*>(el.get())) {
         for (auto& child : group->getChildren()) {
             checkCursorForElement(child, cursorToUse);
+            if (cursorToUse == ibeamCursor) return;
         }
     }
+
     if (auto combo = dynamic_cast<UIComboBox*>(el.get())) {
         if (combo->isExpanded()) {
-            int mx, my;
-            SDL_GetMouseState(&mx, &my);
+            int mx, my; SDL_GetMouseState(&mx, &my);
             int itemHeight = combo->getItemHeight();
             int baseY = combo->getBounds().y;
             int itemCount = combo->getItemCount();
@@ -2294,13 +2348,14 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
                 };
                 SDL_Point pt{ mx, my };
                 if (SDL_PointInRect(&pt, &itemRect)) {
-                    cursorToUse = handCursor;
+                    if (cursorToUse != ibeamCursor) cursorToUse = handCursor;
                     return;
                 }
             }
         }
     }
 }
+
 
 
 void UIManager::handleEvent(const SDL_Event& e) {

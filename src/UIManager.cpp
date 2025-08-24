@@ -14,39 +14,38 @@ void UIManager::closePopup() {
 
 void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_Cursor*& cursorToUse) {
     if (!el->visible) return;
-    el->update(0.0f);
+
     if (auto ta = dynamic_cast<UITextArea*>(el.get())) {
-        if (ta->isScrollbarHovered() || ta->isScrollbarDragging()) {
-            return;
-        }
-        if (ta->isHovered()) {
-            cursorToUse = ibeamCursor;
-            return;
-        }
+        if (ta->isScrollbarHovered() || ta->isScrollbarDragging()) return;
+        if (ta->isHovered()) { cursorToUse = ibeamCursor; return; }
     }
+
     if (el->isHovered()) {
         if (dynamic_cast<UITextField*>(el.get())) {
             cursorToUse = ibeamCursor;
-        } else if (
-            dynamic_cast<UIButton*>(el.get()) ||
-            dynamic_cast<UICheckbox*>(el.get()) ||
-            dynamic_cast<UIRadioButton*>(el.get()) ||
-            dynamic_cast<UISlider*>(el.get()) ||
-            dynamic_cast<UIComboBox*>(el.get()) ||
-            dynamic_cast<UISpinner*>(el.get())
-        ) {
+            return;
+        }
+
+        if (cursorToUse != ibeamCursor &&
+            (dynamic_cast<UIButton*>(el.get()) ||
+             dynamic_cast<UICheckbox*>(el.get()) ||
+             dynamic_cast<UISlider*>(el.get()) ||
+             dynamic_cast<UIComboBox*>(el.get()) ||
+             dynamic_cast<UISpinner*>(el.get()))) {
             cursorToUse = handCursor;
         }
     }
+
     if (auto group = dynamic_cast<UIGroupBox*>(el.get())) {
         for (auto& child : group->getChildren()) {
             checkCursorForElement(child, cursorToUse);
+            if (cursorToUse == ibeamCursor) return;
         }
     }
+
     if (auto combo = dynamic_cast<UIComboBox*>(el.get())) {
         if (combo->isExpanded()) {
-            int mx, my;
-            SDL_GetMouseState(&mx, &my);
+            int mx, my; SDL_GetMouseState(&mx, &my);
             int itemHeight = combo->getItemHeight();
             int baseY = combo->getBounds().y;
             int itemCount = combo->getItemCount();
@@ -59,13 +58,14 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
                 };
                 SDL_Point pt{ mx, my };
                 if (SDL_PointInRect(&pt, &itemRect)) {
-                    cursorToUse = handCursor;
+                    if (cursorToUse != ibeamCursor) cursorToUse = handCursor;
                     return;
                 }
             }
         }
     }
 }
+
 
 
 void UIManager::handleEvent(const SDL_Event& e) {
