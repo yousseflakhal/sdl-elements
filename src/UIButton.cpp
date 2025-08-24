@@ -63,13 +63,10 @@ void UIButton::update(float) {
 
 void UIButton::render(SDL_Renderer* renderer) {
     const UITheme& theme = getTheme();
-    SDL_Color baseBg     = customBgColor     ? *customBgColor     : theme.backgroundColor;
-    SDL_Color baseText   = customTextColor   ? *customTextColor   : theme.textColor;
-    SDL_Color baseBorder = customBorderColor ? *customBorderColor : theme.borderColor;
+    SDL_Color baseBg   = customBgColor   ? *customBgColor   : theme.backgroundColor;
+    SDL_Color baseText = customTextColor ? *customTextColor : theme.textColor;
 
-    bool drawShadow = true;
-    Uint8 globalAlpha = 255;
-    if (!enabled) { globalAlpha = 128; drawShadow = false; }
+    Uint8 globalAlpha = enabled ? 255 : 128;
 
     SDL_Color bg = baseBg;
     if (enabled) {
@@ -85,20 +82,14 @@ void UIButton::render(SDL_Renderer* renderer) {
     }
 
     SDL_Rect dst = bounds;
-    if (pressed) {
-        dst.y += pressOffset;
-        dst.x += 1;
-        dst.w -= 2; dst.h -= 2;
-    }
+    if (pressed) { dst.y += pressOffset; dst.x += 1; dst.w -= 2; dst.h -= 2; }
 
     UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, cornerRadius, bg);
 
     TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
     if (!activeFont) return;
 
-    SDL_Color txt = baseText;
-    txt.a = globalAlpha;
-
+    SDL_Color txt = baseText; txt.a = globalAlpha;
     SDL_Surface* s = TTF_RenderText_Blended(activeFont, label.c_str(), txt);
     if (!s) return;
     SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
@@ -108,7 +99,6 @@ void UIButton::render(SDL_Renderer* renderer) {
     SDL_FreeSurface(s);
     SDL_DestroyTexture(t);
 }
-
 
 
 void UIButton::setFont(TTF_Font* f) {

@@ -49,7 +49,6 @@ void UIRadioButton::update(float) {
 }
 
 void UIRadioButton::render(SDL_Renderer* renderer) {
-    const UITheme& theme = getTheme();
     TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
     if (!activeFont) return;
 
