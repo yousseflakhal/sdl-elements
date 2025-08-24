@@ -128,3 +128,44 @@ void UIHelpers::StrokeRoundedRectOutside(SDL_Renderer* renderer,
 
     FillRoundedRect(renderer, innerRect.x, innerRect.y, innerRect.w, innerRect.h, radius, innerBg);
 }
+
+void UIHelpers::DrawRoundStrokeLine(SDL_Renderer* r, float x1, float y1, float x2, float y2, float thickness, SDL_Color color) {
+    float dx = x2 - x1, dy = y2 - y1;
+    float len = std::sqrt(dx*dx + dy*dy);
+    if (len <= 0.0001f) {
+        UIHelpers::DrawFilledCircle(r, (int)std::round(x1), (int)std::round(y1), (int)std::round(thickness * 0.45f), color);
+        return;
+    }
+    float ux = dx / len, uy = dy / len;
+    const float radius = thickness * 0.5f;
+    const float step   = std::max(0.25f, std::min(0.35f, radius * 0.35f));
+    const int   n      = (int)std::ceil(len / step);
+
+    for (int i = 0; i <= n; ++i) {
+        float t = (i * step);
+        float px = x1 + ux * t;
+        float py = y1 + uy * t;
+        UIHelpers::DrawFilledCircle(r, (int)std::round(px), (int)std::round(py), (int)std::round(radius), color);
+    }
+}
+
+void UIHelpers::DrawCheckmark(SDL_Renderer* r, const SDL_Rect& box, float thickness, SDL_Color color, float pad) {
+    const float scaleX = 0.84f;
+    const float scaleY = 0.84f;
+
+    float x1 = box.x + pad;                float y1 = box.y + box.h * 0.56f;
+    float xm = box.x + box.w * 0.45f;      float ym = box.y + box.h - pad;
+    float x2 = box.x + box.w - pad;        float y2 = box.y + pad + 1.0f;
+
+    const float cx = box.x + box.w * 0.5f;
+    const float cy = box.y + box.h * 0.5f;
+    auto S = [&](float& x, float& y){ x = cx + (x - cx) * scaleX; y = cy + (y - cy) * scaleY; };
+
+    S(x1,y1); S(xm,ym); S(x2,y2);
+
+    float t = thickness * std::min(scaleX, scaleY);
+    UIHelpers::DrawRoundStrokeLine(r, x1, y1, xm, ym, t, color);
+    UIHelpers::DrawRoundStrokeLine(r, xm, ym, x2, y2, t, color);
+    UIHelpers::DrawFilledCircle(r, (int)std::round(xm), (int)std::round(ym),
+                                (int)std::round(t * 0.50f), color);
+}

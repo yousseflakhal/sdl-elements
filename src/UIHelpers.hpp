@@ -44,4 +44,10 @@ namespace UIHelpers {
                                   int thickness,
                                   SDL_Color ringColor,
                                   SDL_Color innerBg);
+    void DrawRoundStrokeLine(SDL_Renderer* r, float x1, float y1, float x2, float y2, float thickness, SDL_Color color);
+    void DrawCheckmark(SDL_Renderer* r, const SDL_Rect& box, float thickness, SDL_Color color, float pad);
+    inline SDL_Color RGBA(int r, int g, int b, int a = 255) {
+        auto clip = [](int v){ return static_cast<Uint8>(std::clamp(v, 0, 255)); };
+        return SDL_Color{ clip(r), clip(g), clip(b), clip(a) };
+    }
 }

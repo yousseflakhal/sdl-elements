@@ -172,6 +172,12 @@ namespace UIHelpers {
                                   int thickness,
                                   SDL_Color ringColor,
                                   SDL_Color innerBg);
+    void DrawRoundStrokeLine(SDL_Renderer* r, float x1, float y1, float x2, float y2, float thickness, SDL_Color color);
+    void DrawCheckmark(SDL_Renderer* r, const SDL_Rect& box, float thickness, SDL_Color color, float pad);
+    inline SDL_Color RGBA(int r, int g, int b, int a = 255) {
+        auto clip = [](int v){ return static_cast<Uint8>(std::clamp(v, 0, 255)); };
+        return SDL_Color{ clip(r), clip(g), clip(b), clip(a) };
+    }
 }
 
 
@@ -284,6 +290,8 @@ public:
 private:
     std::string label;
     bool hovered = false;
+    bool focused = false;
+    bool focusable = true;
     std::reference_wrapper<bool> linkedValue;
     TTF_Font* font = nullptr;
 };
@@ -843,6 +851,47 @@ void UIHelpers::StrokeRoundedRectOutside(SDL_Renderer* renderer,
     FillRoundedRect(renderer, innerRect.x, innerRect.y, innerRect.w, innerRect.h, radius, innerBg);
 }
 
+void UIHelpers::DrawRoundStrokeLine(SDL_Renderer* r, float x1, float y1, float x2, float y2, float thickness, SDL_Color color) {
+    float dx = x2 - x1, dy = y2 - y1;
+    float len = std::sqrt(dx*dx + dy*dy);
+    if (len <= 0.0001f) {
+        UIHelpers::DrawFilledCircle(r, (int)std::round(x1), (int)std::round(y1), (int)std::round(thickness * 0.45f), color);
+        return;
+    }
+    float ux = dx / len, uy = dy / len;
+    const float radius = thickness * 0.5f;
+    const float step   = std::max(0.25f, std::min(0.35f, radius * 0.35f));
+    const int   n      = (int)std::ceil(len / step);
+
+    for (int i = 0; i <= n; ++i) {
+        float t = (i * step);
+        float px = x1 + ux * t;
+        float py = y1 + uy * t;
+        UIHelpers::DrawFilledCircle(r, (int)std::round(px), (int)std::round(py), (int)std::round(radius), color);
+    }
+}
+
+void UIHelpers::DrawCheckmark(SDL_Renderer* r, const SDL_Rect& box, float thickness, SDL_Color color, float pad) {
+    const float scaleX = 0.84f;
+    const float scaleY = 0.84f;
+
+    float x1 = box.x + pad;                float y1 = box.y + box.h * 0.56f;
+    float xm = box.x + box.w * 0.45f;      float ym = box.y + box.h - pad;
+    float x2 = box.x + box.w - pad;        float y2 = box.y + pad + 1.0f;
+
+    const float cx = box.x + box.w * 0.5f;
+    const float cy = box.y + box.h * 0.5f;
+    auto S = [&](float& x, float& y){ x = cx + (x - cx) * scaleX; y = cy + (y - cy) * scaleY; };
+
+    S(x1,y1); S(xm,ym); S(x2,y2);
+
+    float t = thickness * std::min(scaleX, scaleY);
+    UIHelpers::DrawRoundStrokeLine(r, x1, y1, xm, ym, t, color);
+    UIHelpers::DrawRoundStrokeLine(r, xm, ym, x2, y2, t, color);
+    UIHelpers::DrawFilledCircle(r, (int)std::round(xm), (int)std::round(ym),
+                                (int)std::round(t * 0.50f), color);
+}
+
 
 static inline SDL_Color PrimaryBlue() { return SDL_Color{ 0x0D, 0x6E, 0xFD, 255 }; }
 static inline SDL_Color Darken(SDL_Color c, int d){ return UIHelpers::Darken(c, d); }
@@ -893,7 +942,6 @@ void UIRadioButton::update(float) {
 }
 
 void UIRadioButton::render(SDL_Renderer* renderer) {
-    const UITheme& theme = getTheme();
     TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
     if (!activeFont) return;
 
@@ -1005,13 +1053,10 @@ void UIButton::update(float) {
 
 void UIButton::render(SDL_Renderer* renderer) {
     const UITheme& theme = getTheme();
-    SDL_Color baseBg     = customBgColor     ? *customBgColor     : theme.backgroundColor;
-    SDL_Color baseText   = customTextColor   ? *customTextColor   : theme.textColor;
-    SDL_Color baseBorder = customBorderColor ? *customBorderColor : theme.borderColor;
+    SDL_Color baseBg   = customBgColor   ? *customBgColor   : theme.backgroundColor;
+    SDL_Color baseText = customTextColor ? *customTextColor : theme.textColor;
 
-    bool drawShadow = true;
-    Uint8 globalAlpha = 255;
-    if (!enabled) { globalAlpha = 128; drawShadow = false; }
+    Uint8 globalAlpha = enabled ? 255 : 128;
 
     SDL_Color bg = baseBg;
     if (enabled) {
@@ -1027,20 +1072,14 @@ void UIButton::render(SDL_Renderer* renderer) {
     }
 
     SDL_Rect dst = bounds;
-    if (pressed) {
-        dst.y += pressOffset;
-        dst.x += 1;
-        dst.w -= 2; dst.h -= 2;
-    }
+    if (pressed) { dst.y += pressOffset; dst.x += 1; dst.w -= 2; dst.h -= 2; }
 
     UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, cornerRadius, bg);
 
     TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
     if (!activeFont) return;
 
-    SDL_Color txt = baseText;
-    txt.a = globalAlpha;
-
+    SDL_Color txt = baseText; txt.a = globalAlpha;
     SDL_Surface* s = TTF_RenderText_Blended(activeFont, label.c_str(), txt);
     if (!s) return;
     SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
@@ -1050,7 +1089,6 @@ void UIButton::render(SDL_Renderer* renderer) {
     SDL_FreeSurface(s);
     SDL_DestroyTexture(t);
 }
-
 
 
 void UIButton::setFont(TTF_Font* f) {
@@ -1140,12 +1178,32 @@ void UICheckbox::setFont(TTF_Font* f) {
 }
 
 void UICheckbox::handleEvent(const SDL_Event& e) {
+    if (!enabled) return;
+
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
-        int mx = e.button.x;
-        int my = e.button.y;
+        int mx = e.button.x, my = e.button.y;
         if (mx >= bounds.x && mx <= bounds.x + bounds.w &&
             my >= bounds.y && my <= bounds.y + bounds.h) {
             linkedValue.get() = !linkedValue.get();
+            if (focusable) focused = true;
+        } else if (focusable) {
+            focused = false;
+        }
+    }
+
+    if (!focused || !enabled) return;
+
+    if (e.type == SDL_KEYDOWN) {
+        switch (e.key.keysym.sym) {
+            case SDLK_SPACE:
+            case SDLK_RETURN:
+            case SDLK_KP_ENTER:
+                linkedValue.get() = !linkedValue.get();
+                break;
+            case SDLK_ESCAPE:
+                focused = false;
+                break;
+            default: break;
         }
     }
 }
@@ -1162,75 +1220,47 @@ void UICheckbox::update(float) {
 }
 
 void UICheckbox::render(SDL_Renderer* renderer) {
-    const UITheme& theme = getTheme();
-    TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
-    if (!activeFont) {
-        SDL_Log("UICheckbox: No valid font for rendering.");
-        return;
+    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+    if (!activeFont) return;
+
+    const bool isChecked = linkedValue.get();
+    const int  boxSize   = 18;
+    const int  radius    = 4;
+    const int  borderPx  = 1;
+
+    SDL_Color textCol   = UIHelpers::RGBA(33, 37, 41, enabled ? 255 : 160);
+    SDL_Color borderCol = hovered ? UIHelpers::RGBA(120,120,120) : UIHelpers::RGBA(160,160,160);
+    SDL_Color fillCol   = UIHelpers::RGBA(255,255,255);
+    SDL_Color primary   = UIHelpers::RGBA(0,123,255);
+
+    SDL_Rect box = { bounds.x, bounds.y + (bounds.h - boxSize)/2, boxSize, boxSize };
+
+    if (focusable && focused) {
+        SDL_Color ring = UIHelpers::RGBA(13,110,253,178);
+        UIHelpers::StrokeRoundedRectOutside(renderer, box, radius, 2, ring, UIHelpers::RGBA(0,0,0,0));
     }
 
-    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, label.c_str(), theme.textColor);
-    if (!textSurface) {
-        SDL_Log("UICheckbox: Failed to render text surface: %s", TTF_GetError());
-        return;
+    if (!isChecked) {
+        UIHelpers::FillRoundedRect(renderer, box.x, box.y, box.w, box.h, radius, borderCol);
+        SDL_Rect inner = { box.x + borderPx, box.y + borderPx, box.w - 2*borderPx, box.h - 2*borderPx };
+        UIHelpers::FillRoundedRect(renderer, inner.x, inner.y, inner.w, inner.h, std::max(0, radius - borderPx), fillCol);
+    } else {
+        UIHelpers::FillRoundedRect(renderer, box.x, box.y, box.w, box.h, radius, primary);
+        float pad   = 3.5f;
+        float thick = std::clamp(box.w * 0.16f, 1.5f, 3.0f);
+        SDL_Color white = UIHelpers::RGBA(255,255,255);
+        SDL_Rect markBox = box; markBox.y -= 1;
+        UIHelpers::DrawCheckmark(renderer, markBox, thick, white, pad);
     }
 
-    SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-    if (!textTexture) {
-        SDL_Log("UICheckbox: Failed to create texture from surface: %s", SDL_GetError());
-        SDL_FreeSurface(textSurface);
-        return;
-    }
-
-    int textW = textSurface->w;
-    int textH = textSurface->h;
-    int margin = 10;
-    int boxSize = 20;
-
-    int totalWidth = textW + margin + boxSize;
-    int totalHeight = std::max(textH, boxSize);
-    bounds.w = totalWidth;
-    bounds.h = totalHeight;
-
-    SDL_Rect textRect = {
-        bounds.x,
-        bounds.y + (bounds.h - textH) / 2,
-        textW,
-        textH
-    };
-    SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
-
-    SDL_Rect box = {
-        bounds.x + textW + margin,
-        bounds.y + (bounds.h - boxSize) / 2,
-        boxSize,
-        boxSize
-    };
-
-    SDL_SetRenderDrawColor(renderer,
-        hovered ? theme.borderHoverColor.r : theme.borderColor.r,
-        hovered ? theme.borderHoverColor.g : theme.borderColor.g,
-        hovered ? theme.borderHoverColor.b : theme.borderColor.b,
-        hovered ? theme.borderHoverColor.a : theme.borderColor.a);
-    SDL_RenderDrawRect(renderer, &box);
-
-    if (linkedValue.get()) {
-        SDL_SetRenderDrawColor(renderer,
-            theme.checkboxTickColor.r,
-            theme.checkboxTickColor.g,
-            theme.checkboxTickColor.b,
-            theme.checkboxTickColor.a);
-        SDL_Rect inner = {
-            box.x + 4,
-            box.y + 4,
-            boxSize - 8,
-            boxSize - 8
-        };
-        SDL_RenderFillRect(renderer, &inner);
-    }
-
-    SDL_FreeSurface(textSurface);
-    SDL_DestroyTexture(textTexture);
+    const int textLeft = box.x + box.w + 8;
+    SDL_Surface* s = TTF_RenderText_Blended(activeFont, label.c_str(), textCol);
+    if (!s) return;
+    SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
+    SDL_Rect tr = { textLeft, bounds.y + (bounds.h - s->h)/2, s->w, s->h };
+    SDL_RenderCopy(renderer, t, nullptr, &tr);
+    SDL_DestroyTexture(t);
+    SDL_FreeSurface(s);
 }
 
 
