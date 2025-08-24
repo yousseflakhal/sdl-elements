@@ -1,9 +1,13 @@
 #pragma once
 #include "UIElement.hpp"
+#include "UIHelpers.hpp"
+#include "UIConfig.hpp"
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_ttf.h>
 #include <string>
 #include <iomanip>
+#include <algorithm>
+#include <sstream>
 
 class UISlider : public UIElement {
 public:
@@ -17,8 +21,12 @@ public:
 private:
     std::string label;
     std::reference_wrapper<float> linkedValue;
-    float minValue = 0.0f;
-    float maxValue = 1.0f;
+    float minVal = 0.0f, maxVal = 100.0f;
+
     bool hovered = false;
+    bool focused = false;
+    bool focusable = true;
     bool dragging = false;
+
+    int thumbRadius = 9;
 };
