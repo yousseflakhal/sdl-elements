@@ -35,7 +35,7 @@ private:
     std::optional<SDL_Color> customTextColor;
     std::optional<SDL_Color> customBgColor;
     std::optional<SDL_Color> customBorderColor;
-    int cornerRadius = 0;
+    int cornerRadius = 4;
     int borderPx     = 1;
     bool focused = false;
     bool focusable = true;
