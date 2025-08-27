@@ -5,12 +5,20 @@
 #include "UIElement.hpp"
 #include "UIConfig.hpp"
 #include "UIHelpers.hpp"
+#include <optional>
 
 class UICheckbox : public UIElement {
 public:
     UICheckbox(const std::string& label, int x, int y, int w, int h, bool& bind, TTF_Font* f);
 
     void setFont(TTF_Font* f);
+     UICheckbox* setTextColor(SDL_Color c)    { customTextColor   = c; hasCustomTextColor   = true; return this; }
+    UICheckbox* setCheckedColor(SDL_Color c) { customCheckedColor= c; hasCustomCheckedColor= true; return this; }
+    UICheckbox* setBoxBackground(SDL_Color c){ customBoxBgColor   = c; hasCustomBoxBgColor   = true; return this; }
+    UICheckbox* setBorderColor(SDL_Color c)   { customBorderColor = c; hasCustomBorderColor = true; return this; }
+    UICheckbox* setBorderThickness(int px) { borderPx = std::max(0, px); return this; }
+
+
 
     void handleEvent(const SDL_Event& e) override;
     bool isHovered() const override;
@@ -24,4 +32,9 @@ private:
     bool focusable = true;
     std::reference_wrapper<bool> linkedValue;
     TTF_Font* font = nullptr;
+    SDL_Color customTextColor{};    bool hasCustomTextColor    = false;
+    SDL_Color customCheckedColor{}; bool hasCustomCheckedColor = false;
+    SDL_Color customBoxBgColor{};   bool hasCustomBoxBgColor   = false;
+    SDL_Color customBorderColor{};  bool hasCustomBorderColor  = false;
+    int borderPx = 1;
 };

@@ -59,31 +59,43 @@ void UICheckbox::render(SDL_Renderer* renderer) {
     const bool isChecked = linkedValue.get();
     const int  boxSize   = 18;
     const int  radius    = 4;
-    const int  borderPx  = 1;
 
-    SDL_Color textCol   = UIHelpers::RGBA(33, 37, 41, enabled ? 255 : 160);
-    SDL_Color borderCol = hovered ? UIHelpers::RGBA(120,120,120) : UIHelpers::RGBA(160,160,160);
-    SDL_Color fillCol   = UIHelpers::RGBA(255,255,255);
-    SDL_Color primary   = UIHelpers::RGBA(0,123,255);
+    SDL_Color textCol   = hasCustomTextColor ? customTextColor
+                                             : UIHelpers::RGBA(33,37,41, enabled ? 255 : 160);
+    SDL_Color borderCol = hasCustomBorderColor ? customBorderColor
+                                               : (hovered ? UIHelpers::RGBA(120,120,120)
+                                                          : UIHelpers::RGBA(160,160,160));
+    SDL_Color fillCol   = hasCustomBoxBgColor ? customBoxBgColor
+                                              : UIHelpers::RGBA(255,255,255);
+    SDL_Color tickCol   = hasCustomCheckedColor ? customCheckedColor
+                                                : UIHelpers::RGBA(13,110,253);
+
+    const UITheme& theme = getTheme();
+    SDL_Color parentBg   = theme.backgroundColor;
 
     SDL_Rect box = { bounds.x, bounds.y + (bounds.h - boxSize)/2, boxSize, boxSize };
 
-    if (focusable && focused) {
-        SDL_Color ring = UIHelpers::RGBA(13,110,253,178);
-        UIHelpers::StrokeRoundedRectOutside(renderer, box, radius, 2, ring, UIHelpers::RGBA(0,0,0,0));
+    int stroke = std::max(0, borderPx);
+    int innerRadius = std::max(0, radius - stroke);
+    SDL_Rect inner = { box.x + stroke, box.y + stroke, box.w - 2*stroke, box.h - 2*stroke };
+
+    if (stroke > 0) {
+        if (fillCol.a == 0) {
+            UIHelpers::StrokeRoundedRectOutside(renderer, inner, innerRadius, stroke, borderCol, parentBg);
+        } else {
+            UIHelpers::FillRoundedRect(renderer, inner.x, inner.y, inner.w, inner.h, innerRadius, fillCol);
+            UIHelpers::StrokeRoundedRectOutside(renderer, inner, innerRadius, stroke, borderCol, fillCol);
+        }
+    } else {
+        if (fillCol.a > 0)
+            UIHelpers::FillRoundedRect(renderer, inner.x, inner.y, inner.w, inner.h, innerRadius, fillCol);
     }
 
-    if (!isChecked) {
-        UIHelpers::FillRoundedRect(renderer, box.x, box.y, box.w, box.h, radius, borderCol);
-        SDL_Rect inner = { box.x + borderPx, box.y + borderPx, box.w - 2*borderPx, box.h - 2*borderPx };
-        UIHelpers::FillRoundedRect(renderer, inner.x, inner.y, inner.w, inner.h, std::max(0, radius - borderPx), fillCol);
-    } else {
-        UIHelpers::FillRoundedRect(renderer, box.x, box.y, box.w, box.h, radius, primary);
+    if (isChecked) {
         float pad   = 3.5f;
         float thick = std::clamp(box.w * 0.16f, 1.5f, 3.0f);
-        SDL_Color white = UIHelpers::RGBA(255,255,255);
         SDL_Rect markBox = box; markBox.y -= 1;
-        UIHelpers::DrawCheckmark(renderer, markBox, thick, white, pad);
+        UIHelpers::DrawCheckmark(renderer, markBox, thick, tickCol, pad);
     }
 
     const int textLeft = box.x + box.w + 8;

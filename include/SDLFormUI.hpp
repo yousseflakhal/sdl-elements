@@ -251,7 +251,7 @@ private:
     std::optional<SDL_Color> customTextColor;
     std::optional<SDL_Color> customBgColor;
     std::optional<SDL_Color> customBorderColor;
-    int cornerRadius = 0;
+    int cornerRadius = 4;
     int borderPx     = 1;
     bool focused = false;
     bool focusable = true;
@@ -281,6 +281,13 @@ public:
     UICheckbox(const std::string& label, int x, int y, int w, int h, bool& bind, TTF_Font* f);
 
     void setFont(TTF_Font* f);
+     UICheckbox* setTextColor(SDL_Color c)    { customTextColor   = c; hasCustomTextColor   = true; return this; }
+    UICheckbox* setCheckedColor(SDL_Color c) { customCheckedColor= c; hasCustomCheckedColor= true; return this; }
+    UICheckbox* setBoxBackground(SDL_Color c){ customBoxBgColor   = c; hasCustomBoxBgColor   = true; return this; }
+    UICheckbox* setBorderColor(SDL_Color c)   { customBorderColor = c; hasCustomBorderColor = true; return this; }
+    UICheckbox* setBorderThickness(int px) { borderPx = std::max(0, px); return this; }
+
+
 
     void handleEvent(const SDL_Event& e) override;
     bool isHovered() const override;
@@ -294,6 +301,11 @@ private:
     bool focusable = true;
     std::reference_wrapper<bool> linkedValue;
     TTF_Font* font = nullptr;
+    SDL_Color customTextColor{};    bool hasCustomTextColor    = false;
+    SDL_Color customCheckedColor{}; bool hasCustomCheckedColor = false;
+    SDL_Color customBoxBgColor{};   bool hasCustomBoxBgColor   = false;
+    SDL_Color customBorderColor{};  bool hasCustomBorderColor  = false;
+    int borderPx = 1;
 };
 
 
@@ -344,22 +356,32 @@ public:
     void setOnSelect(std::function<void(int)> callback);
     bool isHovered() const override;
     bool isExpanded() const;
-    int getItemCount() const;
-    int getItemHeight() const;
+    int  getItemCount() const;
+    int  getItemHeight() const;
     const SDL_Rect& getBounds() const;
 
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
+    UIComboBox* setTextColor(SDL_Color c);
+
+    UIComboBox* setFocusable(bool f) { focusable = f; return this; }
+    bool isFocused() const { return focused; }
 
 private:
     std::vector<std::string> options;
     std::reference_wrapper<int> selectedIndex;
     std::function<void(int)> onSelect;
     TTF_Font* font = nullptr;
+    std::optional<SDL_Color> customTextColor;
+
     bool expanded = false;
-    int hoveredIndex = -1;
+    int  hoveredIndex = -1;
     bool hovered = false;
+
+    bool focused = false;
+    bool focusable = true;
+    int  cornerRadius = 8;
 };
 
 
@@ -1230,31 +1252,43 @@ void UICheckbox::render(SDL_Renderer* renderer) {
     const bool isChecked = linkedValue.get();
     const int  boxSize   = 18;
     const int  radius    = 4;
-    const int  borderPx  = 1;
 
-    SDL_Color textCol   = UIHelpers::RGBA(33, 37, 41, enabled ? 255 : 160);
-    SDL_Color borderCol = hovered ? UIHelpers::RGBA(120,120,120) : UIHelpers::RGBA(160,160,160);
-    SDL_Color fillCol   = UIHelpers::RGBA(255,255,255);
-    SDL_Color primary   = UIHelpers::RGBA(0,123,255);
+    SDL_Color textCol   = hasCustomTextColor ? customTextColor
+                                             : UIHelpers::RGBA(33,37,41, enabled ? 255 : 160);
+    SDL_Color borderCol = hasCustomBorderColor ? customBorderColor
+                                               : (hovered ? UIHelpers::RGBA(120,120,120)
+                                                          : UIHelpers::RGBA(160,160,160));
+    SDL_Color fillCol   = hasCustomBoxBgColor ? customBoxBgColor
+                                              : UIHelpers::RGBA(255,255,255);
+    SDL_Color tickCol   = hasCustomCheckedColor ? customCheckedColor
+                                                : UIHelpers::RGBA(13,110,253);
+
+    const UITheme& theme = getTheme();
+    SDL_Color parentBg   = theme.backgroundColor;
 
     SDL_Rect box = { bounds.x, bounds.y + (bounds.h - boxSize)/2, boxSize, boxSize };
 
-    if (focusable && focused) {
-        SDL_Color ring = UIHelpers::RGBA(13,110,253,178);
-        UIHelpers::StrokeRoundedRectOutside(renderer, box, radius, 2, ring, UIHelpers::RGBA(0,0,0,0));
+    int stroke = std::max(0, borderPx);
+    int innerRadius = std::max(0, radius - stroke);
+    SDL_Rect inner = { box.x + stroke, box.y + stroke, box.w - 2*stroke, box.h - 2*stroke };
+
+    if (stroke > 0) {
+        if (fillCol.a == 0) {
+            UIHelpers::StrokeRoundedRectOutside(renderer, inner, innerRadius, stroke, borderCol, parentBg);
+        } else {
+            UIHelpers::FillRoundedRect(renderer, inner.x, inner.y, inner.w, inner.h, innerRadius, fillCol);
+            UIHelpers::StrokeRoundedRectOutside(renderer, inner, innerRadius, stroke, borderCol, fillCol);
+        }
+    } else {
+        if (fillCol.a > 0)
+            UIHelpers::FillRoundedRect(renderer, inner.x, inner.y, inner.w, inner.h, innerRadius, fillCol);
     }
 
-    if (!isChecked) {
-        UIHelpers::FillRoundedRect(renderer, box.x, box.y, box.w, box.h, radius, borderCol);
-        SDL_Rect inner = { box.x + borderPx, box.y + borderPx, box.w - 2*borderPx, box.h - 2*borderPx };
-        UIHelpers::FillRoundedRect(renderer, inner.x, inner.y, inner.w, inner.h, std::max(0, radius - borderPx), fillCol);
-    } else {
-        UIHelpers::FillRoundedRect(renderer, box.x, box.y, box.w, box.h, radius, primary);
+    if (isChecked) {
         float pad   = 3.5f;
         float thick = std::clamp(box.w * 0.16f, 1.5f, 3.0f);
-        SDL_Color white = UIHelpers::RGBA(255,255,255);
         SDL_Rect markBox = box; markBox.y -= 1;
-        UIHelpers::DrawCheckmark(renderer, markBox, thick, white, pad);
+        UIHelpers::DrawCheckmark(renderer, markBox, thick, tickCol, pad);
     }
 
     const int textLeft = box.x + box.w + 8;
@@ -1465,6 +1499,7 @@ void UITextField::render(SDL_Renderer* renderer) {
 
 
 
+
 UIComboBox::UIComboBox(int x, int y, int w, int h, const std::vector<std::string>& options, int& selectedIndex)
     : options(options), selectedIndex(selectedIndex)
 {
@@ -1501,54 +1536,85 @@ const SDL_Rect& UIComboBox::getBounds() const {
 }
 
 void UIComboBox::handleEvent(const SDL_Event& e) {
-    int mx = e.button.x;
-    int my = e.button.y;
+    if (!enabled) return;
 
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
-        SDL_Point point = { mx, my };
+        SDL_Point p{ e.button.x, e.button.y };
 
-        if (SDL_PointInRect(&point, &bounds)) {
+        // Click on field → toggle, focus
+        if (SDL_PointInRect(&p, &bounds)) {
             expanded = !expanded;
-        } else if (expanded) {
-            int itemHeight = bounds.h;
-            for (size_t i = 0; i < options.size(); ++i) {
-                SDL_Rect itemRect = { bounds.x, bounds.y + static_cast<int>((i + 1) * itemHeight), bounds.w, itemHeight };
-                if (SDL_PointInRect(&point, &itemRect)) {
-                    selectedIndex.get() = static_cast<int>(i);
-                    if (onSelect) onSelect(static_cast<int>(i));
+            if (focusable) focused = true;
+            if (expanded) hoveredIndex = 0;          // first item active by default
+            return;
+        }
+
+        // Click on list items
+        if (expanded) {
+            const int ih = bounds.h;
+            for (int i = 0; i < (int)options.size(); ++i) {
+                SDL_Rect itemRect{ bounds.x, bounds.y + (i + 1) * ih, bounds.w, ih };
+                if (SDL_PointInRect(&p, &itemRect)) {
+                    selectedIndex.get() = i;
+                    if (onSelect) onSelect(i);
                     expanded = false;
-                    break;
+                    return;
                 }
             }
-        } else {
-            expanded = false;
+        }
+
+        // Click outside → close and blur
+        expanded = false;
+        if (focusable) focused = false;
+    }
+
+    if (!focused || !enabled) return;
+
+    if (e.type == SDL_KEYDOWN) {
+        if (!expanded && (e.key.keysym.sym == SDLK_SPACE || e.key.keysym.sym == SDLK_RETURN || e.key.keysym.sym == SDLK_DOWN)) {
+            expanded = true;
+            hoveredIndex = 0;
+        } else if (expanded) {
+            if (e.key.keysym.sym == SDLK_DOWN) {
+                hoveredIndex = std::min((int)options.size()-1, (hoveredIndex < 0 ? 0 : hoveredIndex + 1));
+            } else if (e.key.keysym.sym == SDLK_UP) {
+                hoveredIndex = std::max(0, hoveredIndex - 1);
+            } else if (e.key.keysym.sym == SDLK_RETURN || e.key.keysym.sym == SDLK_SPACE) {
+                if (hoveredIndex >= 0) {
+                    selectedIndex.get() = hoveredIndex;
+                    if (onSelect) onSelect(hoveredIndex);
+                }
+                expanded = false;
+            } else if (e.key.keysym.sym == SDLK_ESCAPE) {
+                expanded = false;
+            }
+        } else if (e.key.keysym.sym == SDLK_ESCAPE) {
+            focused = false;
         }
     }
 }
 
-void UIComboBox::update(float) {
-    int mx, my;
-    SDL_GetMouseState(&mx, &my);
-    SDL_Point p = { mx, my };
 
+void UIComboBox::update(float) {
+    int mx, my; SDL_GetMouseState(&mx, &my);
+    SDL_Point p{ mx, my };
     hovered = SDL_PointInRect(&p, &bounds);
 
-    if (!expanded) {
-        hoveredIndex = -1;
-        return;
-    }
+    if (!expanded) { return; }
 
-    int itemHeight = bounds.h;
+    // Track hover in list; if mouse not over any item, keep current or default to first.
     hoveredIndex = -1;
-
-    for (size_t i = 0; i < options.size(); ++i) {
-        SDL_Rect itemRect = { bounds.x, bounds.y + static_cast<int>((i + 1) * itemHeight), bounds.w, itemHeight };
+    const int ih = bounds.h;
+    for (int i = 0; i < (int)options.size(); ++i) {
+        SDL_Rect itemRect{ bounds.x, bounds.y + (i + 1) * ih, bounds.w, ih };
         if (SDL_PointInRect(&p, &itemRect)) {
-            hoveredIndex = static_cast<int>(i);
+            hoveredIndex = i;
             break;
         }
     }
+    if (hoveredIndex == -1) hoveredIndex = 0; // first stays active by default
 }
+
 
 
 void UIComboBox::render(SDL_Renderer* renderer) {
@@ -1556,61 +1622,88 @@ void UIComboBox::render(SDL_Renderer* renderer) {
     TTF_Font* activeFont = font ? font : getThemeFont(theme);
     if (!activeFont) return;
 
-    SDL_SetRenderDrawColor(renderer, theme.backgroundColor.r, theme.backgroundColor.g, theme.backgroundColor.b, theme.backgroundColor.a);
-    SDL_RenderFillRect(renderer, &bounds);
+    // Field colors (defaults)
+    SDL_Color textCol    = UIHelpers::RGBA(33, 37, 41);   // #212529
+    SDL_Color bgCol      = UIHelpers::RGBA(255,255,255);  // white
+    SDL_Color borderCol  = UIHelpers::RGBA(180,180,180);  // default border
+    SDL_Color arrowCol   = UIHelpers::RGBA(108,117,125);  // #6c757d
+    SDL_Color focusRing  = UIHelpers::RGBA(13,110,253,178); // #0D6EFD @ ~70%
+    const int r = cornerRadius;
 
-    SDL_SetRenderDrawColor(renderer, theme.borderColor.r, theme.borderColor.g, theme.borderColor.b, theme.borderColor.a);
-    SDL_RenderDrawRect(renderer, &bounds);
-
-    std::string selectedText = options[selectedIndex.get()];
-    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, selectedText.c_str(), theme.textColor);
-    if (textSurface) {
-        SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-        SDL_Rect textRect = {
-            bounds.x + 5,
-            bounds.y + (bounds.h - textSurface->h) / 2,
-            textSurface->w,
-            textSurface->h
-        };
-        SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
-        SDL_FreeSurface(textSurface);
-        SDL_DestroyTexture(textTexture);
+    // Focus ring ONLY on the field
+    if (focusable && focused) {
+        UIHelpers::StrokeRoundedRectOutside(renderer, bounds, r, 2, focusRing, bgCol);
     }
 
-    float cx = static_cast<float>(bounds.x + bounds.w - 15);
-    float cy = static_cast<float>(bounds.y + bounds.h / 2);
-    SDL_Vertex vertices[3] = {
-        { { cx - 5.0f, cy - 3.0f }, { theme.textColor.r, theme.textColor.g, theme.textColor.b, theme.textColor.a }, { 0, 0 } },
-        { { cx, cy + 3.0f },        { theme.textColor.r, theme.textColor.g, theme.textColor.b, theme.textColor.a }, { 0, 0 } },
-        { { cx + 5.0f, cy - 3.0f }, { theme.textColor.r, theme.textColor.g, theme.textColor.b, theme.textColor.a }, { 0, 0 } }
-    };
-    SDL_RenderGeometry(renderer, nullptr, vertices, 3, nullptr, 0);
+    // Field: rounded, white, gray border
+    if (true) { // draw border then inset fill to get a crisp 1px border
+        UIHelpers::FillRoundedRect(renderer, bounds.x, bounds.y, bounds.w, bounds.h, r, borderCol);
+        SDL_Rect inner{ bounds.x + 1, bounds.y + 1, bounds.w - 2, bounds.h - 2 };
+        UIHelpers::FillRoundedRect(renderer, inner.x, inner.y, inner.w, inner.h, std::max(0, r - 1), bgCol);
 
-    if (expanded) {
-        for (int i = 0; i < static_cast<int>(options.size()); ++i) {
-            SDL_Rect itemRect = { bounds.x, bounds.y + static_cast<int>((i + 1) * bounds.h), bounds.w, bounds.h };
-            SDL_Color bgColor = (i == hoveredIndex) ? theme.hoverColor : theme.backgroundColor;
-            SDL_SetRenderDrawColor(renderer, bgColor.r, bgColor.g, bgColor.b, bgColor.a);
-            SDL_RenderFillRect(renderer, &itemRect);
+        // Text
+        const std::string selectedText = options.empty() ? "" : options[selectedIndex.get()];
+        if (!selectedText.empty()) {
+            SDL_Surface* s = TTF_RenderText_Blended(activeFont, selectedText.c_str(), textCol);
+            if (s) {
+                SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
+                SDL_Rect tr{ inner.x + 10, inner.y + (inner.h - s->h)/2, s->w, s->h };
+                SDL_RenderCopy(renderer, t, nullptr, &tr);
+                SDL_DestroyTexture(t);
+                SDL_FreeSurface(s);
+            }
+        }
 
-            SDL_SetRenderDrawColor(renderer, theme.borderColor.r, theme.borderColor.g, theme.borderColor.b, theme.borderColor.a);
-            SDL_RenderDrawRect(renderer, &itemRect);
+        // Chevron (smooth V) at right using rounded strokes
+        float cx = float(inner.x + inner.w - 16);
+        float cy = float(inner.y + inner.h/2);
+        float half = 5.0f;
+        float thick = 2.2f;
+        UIHelpers::DrawRoundStrokeLine(renderer, cx - half, cy - 2.5f, cx, cy + 2.5f, thick, arrowCol);
+        UIHelpers::DrawRoundStrokeLine(renderer, cx, cy + 2.5f, cx + half, cy - 2.5f, thick, arrowCol);
+    }
 
-            SDL_Surface* itemSurface = TTF_RenderText_Blended(activeFont, options[i].c_str(), theme.textColor);
-            if (itemSurface) {
-                SDL_Texture* itemTexture = SDL_CreateTextureFromSurface(renderer, itemSurface);
-                SDL_Rect itemTextRect = {
-                    itemRect.x + 5,
-                    itemRect.y + (itemRect.h - itemSurface->h) / 2,
-                    itemSurface->w,
-                    itemSurface->h
-                };
-                SDL_RenderCopy(renderer, itemTexture, nullptr, &itemTextRect);
-                SDL_FreeSurface(itemSurface);
-                SDL_DestroyTexture(itemTexture);
+    // Dropdown list
+    if (expanded && !options.empty()) {
+        const int ih = bounds.h;
+        SDL_Rect listRect{ bounds.x, bounds.y + bounds.h, bounds.w, ih * (int)options.size() };
+
+        // Outer black border, no rounded corners, white fill, no internal borders
+        SDL_Color listBorder = UIHelpers::RGBA(0,0,0);
+        SDL_Color listBg     = UIHelpers::RGBA(255,255,255);
+
+        SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(renderer, listBg.r, listBg.g, listBg.b, listBg.a);
+        SDL_RenderFillRect(renderer, &listRect);
+        SDL_SetRenderDrawColor(renderer, listBorder.r, listBorder.g, listBorder.b, listBorder.a);
+        SDL_RenderDrawRect(renderer, &listRect);
+
+        // Items
+        for (int i = 0; i < (int)options.size(); ++i) {
+            SDL_Rect itemRect{ listRect.x, listRect.y + i*ih, listRect.w, ih };
+            bool active = (i == hoveredIndex);
+            SDL_Color bg = active ? UIHelpers::RGBA(13,110,253) : listBg; // #0D6EFD
+            SDL_Color fg = active ? UIHelpers::RGBA(255,255,255) : textCol;
+
+            if (active) {
+                SDL_SetRenderDrawColor(renderer, bg.r, bg.g, bg.b, bg.a);
+                SDL_RenderFillRect(renderer, &itemRect);
+            }
+            SDL_Surface* s = TTF_RenderText_Blended(activeFont, options[i].c_str(), fg);
+            if (s) {
+                SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
+                SDL_Rect tr{ itemRect.x + 10, itemRect.y + (itemRect.h - s->h)/2, s->w, s->h };
+                SDL_RenderCopy(renderer, t, nullptr, &tr);
+                SDL_DestroyTexture(t);
+                SDL_FreeSurface(s);
             }
         }
     }
+}
+
+UIComboBox* UIComboBox::setTextColor(SDL_Color c) {
+    customTextColor = c;
+    return this;
 }
 
 
