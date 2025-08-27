@@ -27,6 +27,16 @@ bool UITextField::isHovered() const {
 }
 
 void UITextField::handleEvent(const SDL_Event& e) {
+    if (e.type == SDL_USEREVENT) {
+    if (e.user.code == 0xF001) {
+        if (!focused) { focused = true; SDL_StartTextInput(); }
+        return;
+    }
+    if (e.user.code == 0xF002) {
+        if (focused) { focused = false; SDL_StopTextInput(); cursorVisible = false; }
+        return;
+    }
+}
     if (!enabled) return;
 
     auto inside = [&](int x, int y) {

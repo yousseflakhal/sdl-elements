@@ -73,6 +73,7 @@ public:
     virtual void setPosition(int x, int y) { bounds.x = x; bounds.y = y; }
     virtual void setSize(int w, int h) { bounds.w = w; bounds.h = h; }
     virtual void setBounds(int x, int y, int w, int h) { bounds = {x, y, w, h}; }
+    virtual bool isFocusable() const { return false; }
     void setTheme(const UITheme& theme) { customTheme = theme; hasCustomTheme = true; }
     const UITheme& getTheme() const { return hasCustomTheme ? customTheme : UIConfig::getTheme(); }
     SDL_Point getPosition() const { return { bounds.x, bounds.y }; }
@@ -232,6 +233,7 @@ public:
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
+    bool isFocusable() const override { return focusable; }
     void setFont(TTF_Font* f);
     bool isHovered() const;
     UIButton* setTextColor(SDL_Color c);
@@ -287,7 +289,7 @@ public:
     UICheckbox* setBorderColor(SDL_Color c)   { customBorderColor = c; hasCustomBorderColor = true; return this; }
     UICheckbox* setBorderThickness(int px) { borderPx = std::max(0, px); return this; }
 
-
+    bool isFocusable() const override { return focusable; }
 
     void handleEvent(const SDL_Event& e) override;
     bool isHovered() const override;
@@ -316,6 +318,8 @@ public:
     UITextField* setFont(TTF_Font* f);
     UITextField* setInputType(InputType type);
 
+    bool isFocusable() const override { return focusable; }
+
     bool isHovered() const override;
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
@@ -334,6 +338,7 @@ private:
     int maxLength = 32;
     bool hovered = false;
     bool focused = false;
+    bool focusable = true;
     Uint32 lastBlinkTime = 0;
     bool cursorVisible = true;
     std::string placeholder;
@@ -359,6 +364,8 @@ public:
     int  getItemCount() const;
     int  getItemHeight() const;
     const SDL_Rect& getBounds() const;
+
+    bool isFocusable() const override { return focusable; }
 
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
@@ -388,6 +395,8 @@ private:
 class UISlider : public UIElement {
 public:
     UISlider(const std::string& label, int x, int y, int w, int h, float& bind, float min, float max);
+
+    bool isFocusable() const override { return focusable; }
 
     void handleEvent(const SDL_Event& e) override;
     bool isHovered() const override;
@@ -541,28 +550,58 @@ private:
 
 }
 
+
 class UIManager {
-    public:
-        void initCursors();
-        void cleanupCursors();
-        void addElement(std::shared_ptr<UIElement> el);
-        void showPopup(std::shared_ptr<UIPopup> popup);
-        std::shared_ptr<UIPopup> GetActivePopup();
-        void closePopup();
-        void checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_Cursor*& cursorToUse);
-        void handleEvent(const SDL_Event& e);
-        void update(float dt);
-        void render(SDL_Renderer* renderer);
+public:
+    enum ShortcutScope { Global=0, WhenNoTextEditing=1, ModalOnly=2 };
 
+    void initCursors();
+    void cleanupCursors();
+    void addElement(std::shared_ptr<UIElement> el);
+    void showPopup(std::shared_ptr<UIPopup> popup);
+    std::shared_ptr<UIPopup> GetActivePopup();
+    void closePopup();
+    void checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_Cursor*& cursorToUse);
+    void handleEvent(const SDL_Event& e);
+    void update(float dt);
+    void render(SDL_Renderer* renderer);
 
-    private:
-        std::vector<std::shared_ptr<UIElement>> elements;
-        SDL_Cursor* arrowCursor = nullptr;
-        SDL_Cursor* handCursor = nullptr;
-        SDL_Cursor* ibeamCursor = nullptr;
-        bool handCursorActive = false;
-        std::shared_ptr<UIPopup> activePopup;
+    void registerElement(UIElement* e, bool focusable);
+    void setFocusOrder(const std::vector<UIElement*>& order);
+    void focusNext();
+    void focusPrev();
+    void clearFocus();
+    void captureMouse(UIElement* e);
+    void releaseMouse();
+    void setActiveModal(UIElement* m);
+    UIElement* activeModal() const;
+    void registerShortcut(SDL_Keycode key, Uint16 mods, ShortcutScope scope, std::function<void()> cb);
+
+private:
+    bool tryShortcuts_(const SDL_Event& e);
+    UIElement* hitTestTopMost_(int x, int y);
+    int  findFocusIndex_(UIElement* e);
+    void setFocusedIndex_(int idx);
+    std::vector<std::shared_ptr<UIElement>> elements;
+    SDL_Cursor* arrowCursor = nullptr;
+    SDL_Cursor* handCursor = nullptr;
+    SDL_Cursor* ibeamCursor = nullptr;
+    bool handCursorActive = false;
+    std::shared_ptr<UIPopup> activePopup;
+
+    std::vector<UIElement*> focusOrder_;
+    int focusedIndex_ = -1;
+    UIElement* mouseCaptured_ = nullptr;
+    UIElement* activeModal_ = nullptr;
+
+    struct Shortcut {
+        SDL_Keycode key;
+        Uint16 mods;
+        int scope;
+        std::function<void()> cb;
     };
+    std::vector<Shortcut> shortcuts_;
+};
 
 
 
@@ -1037,6 +1076,11 @@ const std::string& UIButton::getText() const {
 }
 
 void UIButton::handleEvent(const SDL_Event& e) {
+
+    if (e.type == SDL_USEREVENT) {
+        if (e.user.code == 0xF001) { focused = true;  return; }
+        if (e.user.code == 0xF002) { focused = false; return; }
+    }
     if (!enabled) return;
 
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
@@ -1329,6 +1373,16 @@ bool UITextField::isHovered() const {
 }
 
 void UITextField::handleEvent(const SDL_Event& e) {
+    if (e.type == SDL_USEREVENT) {
+    if (e.user.code == 0xF001) {
+        if (!focused) { focused = true; SDL_StartTextInput(); }
+        return;
+    }
+    if (e.user.code == 0xF002) {
+        if (focused) { focused = false; SDL_StopTextInput(); cursorVisible = false; }
+        return;
+    }
+}
     if (!enabled) return;
 
     auto inside = [&](int x, int y) {
@@ -1541,15 +1595,13 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
         SDL_Point p{ e.button.x, e.button.y };
 
-        // Click on field → toggle, focus
         if (SDL_PointInRect(&p, &bounds)) {
             expanded = !expanded;
             if (focusable) focused = true;
-            if (expanded) hoveredIndex = 0;          // first item active by default
+            if (expanded) hoveredIndex = 0;
             return;
         }
 
-        // Click on list items
         if (expanded) {
             const int ih = bounds.h;
             for (int i = 0; i < (int)options.size(); ++i) {
@@ -1563,7 +1615,6 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
             }
         }
 
-        // Click outside → close and blur
         expanded = false;
         if (focusable) focused = false;
     }
@@ -1602,7 +1653,6 @@ void UIComboBox::update(float) {
 
     if (!expanded) { return; }
 
-    // Track hover in list; if mouse not over any item, keep current or default to first.
     hoveredIndex = -1;
     const int ih = bounds.h;
     for (int i = 0; i < (int)options.size(); ++i) {
@@ -1612,7 +1662,7 @@ void UIComboBox::update(float) {
             break;
         }
     }
-    if (hoveredIndex == -1) hoveredIndex = 0; // first stays active by default
+    if (hoveredIndex == -1) hoveredIndex = 0;
 }
 
 
@@ -1622,26 +1672,22 @@ void UIComboBox::render(SDL_Renderer* renderer) {
     TTF_Font* activeFont = font ? font : getThemeFont(theme);
     if (!activeFont) return;
 
-    // Field colors (defaults)
-    SDL_Color textCol    = UIHelpers::RGBA(33, 37, 41);   // #212529
-    SDL_Color bgCol      = UIHelpers::RGBA(255,255,255);  // white
-    SDL_Color borderCol  = UIHelpers::RGBA(180,180,180);  // default border
-    SDL_Color arrowCol   = UIHelpers::RGBA(108,117,125);  // #6c757d
-    SDL_Color focusRing  = UIHelpers::RGBA(13,110,253,178); // #0D6EFD @ ~70%
+    SDL_Color textCol    = UIHelpers::RGBA(33, 37, 41);
+    SDL_Color bgCol      = UIHelpers::RGBA(255,255,255);
+    SDL_Color borderCol  = UIHelpers::RGBA(180,180,180);
+    SDL_Color arrowCol   = UIHelpers::RGBA(108,117,125);
+    SDL_Color focusRing  = UIHelpers::RGBA(13,110,253,178);
     const int r = cornerRadius;
 
-    // Focus ring ONLY on the field
     if (focusable && focused) {
         UIHelpers::StrokeRoundedRectOutside(renderer, bounds, r, 2, focusRing, bgCol);
     }
 
-    // Field: rounded, white, gray border
-    if (true) { // draw border then inset fill to get a crisp 1px border
+    if (true) {
         UIHelpers::FillRoundedRect(renderer, bounds.x, bounds.y, bounds.w, bounds.h, r, borderCol);
         SDL_Rect inner{ bounds.x + 1, bounds.y + 1, bounds.w - 2, bounds.h - 2 };
         UIHelpers::FillRoundedRect(renderer, inner.x, inner.y, inner.w, inner.h, std::max(0, r - 1), bgCol);
 
-        // Text
         const std::string selectedText = options.empty() ? "" : options[selectedIndex.get()];
         if (!selectedText.empty()) {
             SDL_Surface* s = TTF_RenderText_Blended(activeFont, selectedText.c_str(), textCol);
@@ -1654,7 +1700,6 @@ void UIComboBox::render(SDL_Renderer* renderer) {
             }
         }
 
-        // Chevron (smooth V) at right using rounded strokes
         float cx = float(inner.x + inner.w - 16);
         float cy = float(inner.y + inner.h/2);
         float half = 5.0f;
@@ -1663,12 +1708,10 @@ void UIComboBox::render(SDL_Renderer* renderer) {
         UIHelpers::DrawRoundStrokeLine(renderer, cx, cy + 2.5f, cx + half, cy - 2.5f, thick, arrowCol);
     }
 
-    // Dropdown list
     if (expanded && !options.empty()) {
         const int ih = bounds.h;
         SDL_Rect listRect{ bounds.x, bounds.y + bounds.h, bounds.w, ih * (int)options.size() };
 
-        // Outer black border, no rounded corners, white fill, no internal borders
         SDL_Color listBorder = UIHelpers::RGBA(0,0,0);
         SDL_Color listBg     = UIHelpers::RGBA(255,255,255);
 
@@ -1678,11 +1721,10 @@ void UIComboBox::render(SDL_Renderer* renderer) {
         SDL_SetRenderDrawColor(renderer, listBorder.r, listBorder.g, listBorder.b, listBorder.a);
         SDL_RenderDrawRect(renderer, &listRect);
 
-        // Items
         for (int i = 0; i < (int)options.size(); ++i) {
             SDL_Rect itemRect{ listRect.x, listRect.y + i*ih, listRect.w, ih };
             bool active = (i == hoveredIndex);
-            SDL_Color bg = active ? UIHelpers::RGBA(13,110,253) : listBg; // #0D6EFD
+            SDL_Color bg = active ? UIHelpers::RGBA(13,110,253) : listBg;
             SDL_Color fg = active ? UIHelpers::RGBA(255,255,255) : textCol;
 
             if (active) {
@@ -2435,16 +2477,57 @@ std::shared_ptr<UITextArea> Layout::addTextArea(const std::string& label, std::s
 
 
 
+namespace {
+constexpr int FOCUS_GAIN = 0xF001;
+constexpr int FOCUS_LOST = 0xF002;
+
+inline bool isMouseEvent(const SDL_Event& e) {
+    switch (e.type) {
+        case SDL_MOUSEMOTION:
+        case SDL_MOUSEBUTTONDOWN:
+        case SDL_MOUSEBUTTONUP:
+        case SDL_MOUSEWHEEL:
+            return true;
+        default: return false;
+    }
+}
+inline bool isKey(const SDL_Event& e, SDL_Keycode k) {
+    return e.type == SDL_KEYDOWN && e.key.keysym.sym == k;
+}
+inline bool modsEqual(Uint16 desired) {
+    const Uint16 mask = (KMOD_CTRL | KMOD_ALT | KMOD_SHIFT | KMOD_GUI);
+    return (SDL_GetModState() & mask) == desired;
+}
+}
+
+static void sendFocusEvent(UIElement* el, int code) {
+    if (!el) return;
+    SDL_Event ev{};
+    ev.type = SDL_USEREVENT;
+    ev.user.code = code;
+    ev.user.data1 = el;
+    el->handleEvent(ev);
+}
+
+
 void UIManager::addElement(std::shared_ptr<UIElement> el) {
     elements.push_back(el);
+    if (el && el->isFocusable()) registerElement(el.get(), true);
 }
+void UIManager::showPopup(std::shared_ptr<UIPopup> popup) { activePopup = popup; }
+std::shared_ptr<UIPopup> UIManager::GetActivePopup() { return activePopup; }
+void UIManager::closePopup() { activePopup = nullptr; }
 
-void UIManager::showPopup(std::shared_ptr<UIPopup> popup) {
-    activePopup = popup;
+void UIManager::initCursors() {
+    arrowCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
+    handCursor  = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND);
+    ibeamCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_IBEAM);
+    SDL_SetCursor(arrowCursor);
 }
-
-void UIManager::closePopup() {
-    activePopup = nullptr;
+void UIManager::cleanupCursors() {
+    SDL_FreeCursor(arrowCursor);
+    SDL_FreeCursor(handCursor);
+    SDL_FreeCursor(ibeamCursor);
 }
 
 void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_Cursor*& cursorToUse) {
@@ -2454,30 +2537,23 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
         if (ta->isScrollbarHovered() || ta->isScrollbarDragging()) return;
         if (ta->isHovered()) { cursorToUse = ibeamCursor; return; }
     }
-
     if (el->isHovered()) {
-        if (dynamic_cast<UITextField*>(el.get())) {
-            cursorToUse = ibeamCursor;
-            return;
-        }
-
+        if (dynamic_cast<UITextField*>(el.get())) { cursorToUse = ibeamCursor; return; }
         if (cursorToUse != ibeamCursor &&
-            (dynamic_cast<UIButton*>(el.get()) ||
+            (dynamic_cast<UIButton*>(el.get())   ||
              dynamic_cast<UICheckbox*>(el.get()) ||
-             dynamic_cast<UISlider*>(el.get()) ||
+             dynamic_cast<UISlider*>(el.get())   ||
              dynamic_cast<UIComboBox*>(el.get()) ||
              dynamic_cast<UISpinner*>(el.get()))) {
             cursorToUse = handCursor;
         }
     }
-
     if (auto group = dynamic_cast<UIGroupBox*>(el.get())) {
         for (auto& child : group->getChildren()) {
             checkCursorForElement(child, cursorToUse);
             if (cursorToUse == ibeamCursor) return;
         }
     }
-
     if (auto combo = dynamic_cast<UIComboBox*>(el.get())) {
         if (combo->isExpanded()) {
             int mx, my; SDL_GetMouseState(&mx, &my);
@@ -2485,12 +2561,7 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
             int baseY = combo->getBounds().y;
             int itemCount = combo->getItemCount();
             for (int i = 0; i < itemCount; ++i) {
-                SDL_Rect itemRect = {
-                    combo->getBounds().x,
-                    baseY + (i + 1) * itemHeight,
-                    combo->getBounds().w,
-                    itemHeight
-                };
+                SDL_Rect itemRect = { combo->getBounds().x, baseY + (i + 1) * itemHeight, combo->getBounds().w, itemHeight };
                 SDL_Point pt{ mx, my };
                 if (SDL_PointInRect(&pt, &itemRect)) {
                     if (cursorToUse != ibeamCursor) cursorToUse = handCursor;
@@ -2501,34 +2572,114 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
     }
 }
 
+/* ==== New focus/capture/shortcut API ==== */
 
+void UIManager::registerElement(UIElement* e, bool focusable) {
+    if (e && focusable) focusOrder_.push_back(e);
+}
+void UIManager::setFocusOrder(const std::vector<UIElement*>& order) {
+    focusOrder_ = order;
+    if (focusedIndex_ >= (int)focusOrder_.size()) focusedIndex_ = -1;
+}
+void UIManager::focusNext() {
+    if (focusOrder_.empty()) return;
+    int n = (int)focusOrder_.size();
+    int next = ((focusedIndex_ < 0 ? -1 : focusedIndex_) + 1) % n;
+    setFocusedIndex_(next);
+}
+void UIManager::focusPrev() {
+    if (focusOrder_.empty()) return;
+    int n = (int)focusOrder_.size();
+    int prev = ((focusedIndex_ < 0 ? 0 : focusedIndex_) - 1 + n) % n;
+    setFocusedIndex_(prev);
+}
+void UIManager::clearFocus() { setFocusedIndex_(-1); }
+
+void UIManager::captureMouse(UIElement* e) {
+    mouseCaptured_ = e;
+    SDL_CaptureMouse(SDL_TRUE);
+}
+void UIManager::releaseMouse() {
+    mouseCaptured_ = nullptr;
+    SDL_CaptureMouse(SDL_FALSE);
+}
+void UIManager::setActiveModal(UIElement* m) { activeModal_ = m; }
+UIElement* UIManager::activeModal() const { return activeModal_; }
+void UIManager::registerShortcut(SDL_Keycode key, Uint16 mods, ShortcutScope scope, std::function<void()> cb) {
+    shortcuts_.push_back({key, mods, (int)scope, std::move(cb)});
+}
+
+/* ==== Private helpers now as member functions (fixes “inaccessible” errors) ==== */
+
+bool UIManager::tryShortcuts_(const SDL_Event& e) {
+    if (e.type != SDL_KEYDOWN) return false;
+    const auto sym = e.key.keysym.sym;
+    for (auto& s : shortcuts_) {
+        if (s.key == sym && modsEqual(s.mods)) {
+            if (s.scope == ModalOnly && !activeModal_) continue;
+            if (s.cb) s.cb();
+            return true;
+        }
+    }
+    return false;
+}
+
+UIElement* UIManager::hitTestTopMost_(int x, int y) {
+    for (int i = (int)elements.size() - 1; i >= 0; --i) {
+        const auto& el = elements[i];
+        if (!el || !el->visible) continue;
+        if (el->isInside(x, y)) return el.get();
+    }
+    return nullptr;
+}
+
+/* ==== Event routing ==== */
 
 void UIManager::handleEvent(const SDL_Event& e) {
-    if (activePopup && activePopup->visible) {
-        activePopup->handleEvent(e);
-        return;
-    }
+    if (activePopup) { activePopup->handleEvent(e); return; }
+    if (activeModal_) { activeModal_->handleEvent(e); return; }
 
-    for (const auto& el : elements) {
-        if (el->visible) {
-            auto combo = dynamic_cast<UIComboBox*>(el.get());
-            if (combo && combo->isExpanded()) {
-                combo->handleEvent(e);
-                return;
-            }
+    if (isMouseEvent(e) && mouseCaptured_) { mouseCaptured_->handleEvent(e); return; }
+
+    if (e.type == SDL_KEYDOWN) {
+        const bool shift = (SDL_GetModState() & KMOD_SHIFT) != 0;
+        if (isKey(e, SDLK_TAB)) { if (shift) focusPrev(); else focusNext(); return; }
+        if (isKey(e, SDLK_ESCAPE)) {
+            if (activePopup) { activePopup->handleEvent(e); return; }
+            if (activeModal_) { activeModal_->handleEvent(e); return; }
+            if (focusedIndex_ >= 0 && focusedIndex_ < (int)focusOrder_.size()) { focusOrder_[focusedIndex_]->handleEvent(e); return; }
+            clearFocus(); return;
         }
     }
 
-    for (const auto& el : elements) {
-        if (el->visible)
-            el->handleEvent(e);
+    if (e.type == SDL_TEXTINPUT || e.type == SDL_TEXTEDITING || e.type == SDL_KEYDOWN || e.type == SDL_KEYUP) {
+        if (focusedIndex_ >= 0 && focusedIndex_ < (int)focusOrder_.size()) { focusOrder_[focusedIndex_]->handleEvent(e); return; }
+        if (tryShortcuts_(e)) return;
+    }
+
+    if (isMouseEvent(e)) {
+        int mx = 0, my = 0;
+        if (e.type == SDL_MOUSEMOTION) { mx = e.motion.x; my = e.motion.y; }
+        else if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) { mx = e.button.x; my = e.button.y; }
+        else if (e.type == SDL_MOUSEWHEEL) { SDL_GetMouseState(&mx, &my); }
+
+        if (UIElement* hit = hitTestTopMost_(mx, my)) {
+            if (e.type == SDL_MOUSEBUTTONDOWN) {
+                int idx = findFocusIndex_(hit);
+                setFocusedIndex_(idx);
+            }
+            hit->handleEvent(e);
+            return;
+        }
+        if (e.type == SDL_MOUSEBUTTONDOWN) {
+            clearFocus();
+        }
     }
 }
 
+
 void UIManager::update(float dt) {
-    if (activePopup && !activePopup->visible) {
-        activePopup = nullptr;
-    }
+    if (activePopup && !activePopup->visible) activePopup = nullptr;
 
     SDL_Cursor* cursorToUse = arrowCursor;
 
@@ -2543,8 +2694,7 @@ void UIManager::update(float dt) {
             if (combo && combo->isExpanded()) {
                 combo->update(dt);
                 checkCursorForElement(el, cursorToUse);
-                if (SDL_GetCursor() != cursorToUse)
-                    SDL_SetCursor(cursorToUse);
+                if (SDL_GetCursor() != cursorToUse) SDL_SetCursor(cursorToUse);
                 return;
             }
         }
@@ -2553,37 +2703,37 @@ void UIManager::update(float dt) {
             checkCursorForElement(el, cursorToUse);
         }
     }
-    if (SDL_GetCursor() != cursorToUse)
-        SDL_SetCursor(cursorToUse);
+    if (SDL_GetCursor() != cursorToUse) SDL_SetCursor(cursorToUse);
 }
 
-
 void UIManager::render(SDL_Renderer* renderer) {
-    for (auto& el : elements) {
-        if (el->visible)
-            el->render(renderer);
-    }
+    for (auto& el : elements) if (el->visible) el->render(renderer);
     if (activePopup && activePopup->visible) {
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);
         SDL_Rect fullscreen = { 0, 0, 800, 600 };
         SDL_RenderFillRect(renderer, &fullscreen);
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-
         activePopup->render(renderer);
     }
 }
-void UIManager::initCursors() {
-    arrowCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
-    handCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND);
-    ibeamCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_IBEAM);
-    SDL_SetCursor(arrowCursor);
-}
 
-void UIManager::cleanupCursors() {
-    SDL_FreeCursor(arrowCursor);
-    SDL_FreeCursor(handCursor);
-    SDL_FreeCursor(ibeamCursor);
+int UIManager::findFocusIndex_(UIElement* e) {
+    for (int i = 0; i < (int)focusOrder_.size(); ++i)
+        if (focusOrder_[i] == e) return i;
+    return -1;
+}
+static void sendFocusEvent(UIElement* el, int code);
+
+void UIManager::setFocusedIndex_(int idx) {
+    if (idx == focusedIndex_) return;
+    if (focusedIndex_ >= 0 && focusedIndex_ < (int)focusOrder_.size())
+        sendFocusEvent(focusOrder_[focusedIndex_], 0xF002);
+    focusedIndex_ = -1;
+    if (idx >= 0 && idx < (int)focusOrder_.size()) {
+        focusedIndex_ = idx;
+        sendFocusEvent(focusOrder_[focusedIndex_], 0xF001);
+    }
 }
 
 

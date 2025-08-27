@@ -21,6 +21,11 @@ const std::string& UIButton::getText() const {
 }
 
 void UIButton::handleEvent(const SDL_Event& e) {
+    
+    if (e.type == SDL_USEREVENT) {
+        if (e.user.code == 0xF001) { focused = true;  return; }
+        if (e.user.code == 0xF002) { focused = false; return; }
+    }
     if (!enabled) return;
 
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {

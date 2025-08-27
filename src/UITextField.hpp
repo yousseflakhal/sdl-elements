@@ -16,6 +16,8 @@ public:
     UITextField* setFont(TTF_Font* f);
     UITextField* setInputType(InputType type);
 
+    bool isFocusable() const override { return focusable; }
+
     bool isHovered() const override;
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
@@ -34,6 +36,7 @@ private:
     int maxLength = 32;
     bool hovered = false;
     bool focused = false;
+    bool focusable = true;
     Uint32 lastBlinkTime = 0;
     bool cursorVisible = true;
     std::string placeholder;

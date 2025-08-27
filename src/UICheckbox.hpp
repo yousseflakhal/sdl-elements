@@ -18,7 +18,7 @@ public:
     UICheckbox* setBorderColor(SDL_Color c)   { customBorderColor = c; hasCustomBorderColor = true; return this; }
     UICheckbox* setBorderThickness(int px) { borderPx = std::max(0, px); return this; }
 
-
+    bool isFocusable() const override { return focusable; }
 
     void handleEvent(const SDL_Event& e) override;
     bool isHovered() const override;

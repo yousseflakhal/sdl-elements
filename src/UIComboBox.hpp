@@ -22,6 +22,8 @@ public:
     int  getItemHeight() const;
     const SDL_Rect& getBounds() const;
 
+    bool isFocusable() const override { return focusable; }
+
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;

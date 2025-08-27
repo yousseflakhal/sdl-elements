@@ -13,6 +13,8 @@ class UISlider : public UIElement {
 public:
     UISlider(const std::string& label, int x, int y, int w, int h, float& bind, float min, float max);
 
+    bool isFocusable() const override { return focusable; }
+
     void handleEvent(const SDL_Event& e) override;
     bool isHovered() const override;
     void update(float dt) override;

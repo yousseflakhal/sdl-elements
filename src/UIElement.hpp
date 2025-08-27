@@ -16,6 +16,7 @@ public:
     virtual void setPosition(int x, int y) { bounds.x = x; bounds.y = y; }
     virtual void setSize(int w, int h) { bounds.w = w; bounds.h = h; }
     virtual void setBounds(int x, int y, int w, int h) { bounds = {x, y, w, h}; }
+    virtual bool isFocusable() const { return false; }
     void setTheme(const UITheme& theme) { customTheme = theme; hasCustomTheme = true; }
     const UITheme& getTheme() const { return hasCustomTheme ? customTheme : UIConfig::getTheme(); }
     SDL_Point getPosition() const { return { bounds.x, bounds.y }; }

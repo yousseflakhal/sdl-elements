@@ -16,6 +16,7 @@ public:
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
+    bool isFocusable() const override { return focusable; }
     void setFont(TTF_Font* f);
     bool isHovered() const;
     UIButton* setTextColor(SDL_Color c);
