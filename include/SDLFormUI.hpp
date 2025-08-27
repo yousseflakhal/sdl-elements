@@ -192,8 +192,10 @@ public:
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
     bool isHovered() const override;
+    bool isFocusable() const override { return true; }
     void setFont(TTF_Font* font);
     int getID() const;
+
 
     UIRadioButton* setFocusable(bool f) { focusable = f; return this; }
     bool isFocused() const { return focused; }
@@ -972,15 +974,23 @@ int  UIRadioButton::getID() const { return id; }
 bool UIRadioButton::isHovered() const { return hovered; }
 
 void UIRadioButton::handleEvent(const SDL_Event& e) {
+    if (e.type == SDL_USEREVENT) {
+        if (e.user.code == 0xF001) {
+            focused = true;
+            return;
+        }
+        if (e.user.code == 0xF002) {
+            focused = false;
+            return;
+        }
+    }
+
     if (!enabled) return;
 
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
         SDL_Point p{ e.button.x, e.button.y };
         if (SDL_PointInRect(&p, &bounds)) {
             pressed = true;
-            if (focusable) focused = true;
-        } else if (focusable) {
-            focused = false;
         }
     } else if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {
         SDL_Point p{ e.button.x, e.button.y };
@@ -990,11 +1000,9 @@ void UIRadioButton::handleEvent(const SDL_Event& e) {
         pressed = false;
     }
 
-    if (focusable && focused && e.type == SDL_KEYDOWN && enabled) {
+    if (focused && e.type == SDL_KEYDOWN && enabled) {
         if (e.key.keysym.sym == SDLK_SPACE || e.key.keysym.sym == SDLK_RETURN) {
             if (group) group->select(id);
-        } else if (e.key.keysym.sym == SDLK_ESCAPE) {
-            focused = false;
         }
     }
 }

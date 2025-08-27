@@ -15,8 +15,10 @@ public:
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
     bool isHovered() const override;
+    bool isFocusable() const override { return true; }
     void setFont(TTF_Font* font);
     int getID() const;
+
 
     UIRadioButton* setFocusable(bool f) { focusable = f; return this; }
     bool isFocused() const { return focused; }
