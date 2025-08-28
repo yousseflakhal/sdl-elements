@@ -351,6 +351,7 @@ private:
     int borderPx     = 1;
     Uint32 lastInputTicks = 0;
     Uint32 lastBlinkTicks = 0;
+    int caret = 0;
 };
 
 
@@ -1354,6 +1355,14 @@ void UICheckbox::render(SDL_Renderer* renderer) {
 }
 
 
+static int clampi(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+static int textWidth(TTF_Font* font, const std::string& s) {
+    int w = 0, h = 0;
+    if (font && !s.empty()) TTF_SizeUTF8(font, s.c_str(), &w, &h);
+    return w;
+}
+
 UITextField::UITextField(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen)
     : label(label), linkedText(bind), maxLength(maxLen)
 {
@@ -1384,6 +1393,7 @@ void UITextField::handleEvent(const SDL_Event& e) {
     if (e.type == SDL_USEREVENT) {
     if (e.user.code == 0xF001) {
         if (!focused) { focused = true; SDL_StartTextInput(); }
+        caret = (int)linkedText.get().size();
         return;
     }
     if (e.user.code == 0xF002) {
@@ -1405,11 +1415,43 @@ void UITextField::handleEvent(const SDL_Event& e) {
     };
 
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
+        auto inside = [&](int x, int y) {
+            return (x >= bounds.x && x < bounds.x + bounds.w &&
+                    y >= bounds.y && y < bounds.y + bounds.h);
+        };
+
         const bool wasFocused = focused;
         focused = inside(e.button.x, e.button.y);
+
         if (focused) {
             if (!wasFocused) SDL_StartTextInput();
-            markTyping();
+
+            TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+            int innerX = bounds.x + (borderPx > 0 ? borderPx : 0);
+            int innerY = bounds.y + (borderPx > 0 ? borderPx : 0);
+            int innerW = bounds.w - (borderPx > 0 ? 2*borderPx : 0);
+            int innerH = bounds.h - (borderPx > 0 ? 2*borderPx : 0);
+
+            int clickX = e.button.x - (innerX + 8);
+            if (clickX <= 0) {
+                caret = 0;
+            } else {
+                const std::string& s = linkedText.get();
+                int best = 0, bestDiff = 1e9;
+                for (int i = 0; i <= (int)s.size(); ++i) {
+                    std::string prefix;
+                    if (inputType == InputType::PASSWORD) prefix.assign(i, '*');
+                    else prefix = s.substr(0, i);
+                    int w = textWidth(activeFont, prefix);
+                    int diff = std::abs(w - clickX);
+                    if (diff < bestDiff) { bestDiff = diff; best = i; }
+                }
+                caret = best;
+            }
+
+            lastInputTicks = SDL_GetTicks();
+            cursorVisible  = true;
+            lastBlinkTicks = lastInputTicks;
         } else {
             if (wasFocused) SDL_StopTextInput();
             cursorVisible = false;
@@ -1421,12 +1463,18 @@ void UITextField::handleEvent(const SDL_Event& e) {
 
     if (e.type == SDL_TEXTINPUT) {
         std::string& s = linkedText.get();
-        for (const char* p = e.text.text; *p; ++p) {
-            if ((int)s.size() >= maxLength) break;
-            unsigned char c = static_cast<unsigned char>(*p);
-            if (c >= 32) s.push_back(char(c));
-        }
-        markTyping();
+        int capacity = maxLength - (int)s.size();
+        if (capacity <= 0) return;
+
+        std::string incoming = e.text.text;
+        if ((int)incoming.size() > capacity) incoming.resize(capacity);
+
+        s.insert(s.begin() + clampi(caret, 0, (int)s.size()), incoming.begin(), incoming.end());
+        caret = clampi(caret + (int)incoming.size(), 0, (int)s.size());
+
+        lastInputTicks = SDL_GetTicks();
+        cursorVisible  = true;
+        lastBlinkTicks = lastInputTicks;
         return;
     }
 
@@ -1434,19 +1482,37 @@ void UITextField::handleEvent(const SDL_Event& e) {
         std::string& s = linkedText.get();
         switch (e.key.keysym.sym) {
             case SDLK_BACKSPACE:
-                if (!s.empty()) s.pop_back();
-                markTyping();
+                if (caret > 0 && !s.empty()) {
+                    s.erase(s.begin() + (caret - 1));
+                    caret--;
+                }
                 break;
 
             case SDLK_DELETE:
-                if (!s.empty()) s.pop_back();
-                markTyping();
+                if (caret < (int)s.size() && !s.empty()) {
+                    s.erase(s.begin() + caret);
+                }
+                break;
+
+            case SDLK_LEFT:
+                caret = clampi(caret - 1, 0, (int)s.size());
+                break;
+
+            case SDLK_RIGHT:
+                caret = clampi(caret + 1, 0, (int)s.size());
+                break;
+
+            case SDLK_HOME:
+                caret = 0;
+                break;
+
+            case SDLK_END:
+                caret = (int)s.size();
                 break;
 
             case SDLK_RETURN:
             case SDLK_KP_ENTER:
                 if (onSubmit) onSubmit(s);
-                markTyping();
                 break;
 
             case SDLK_ESCAPE:
@@ -1454,15 +1520,14 @@ void UITextField::handleEvent(const SDL_Event& e) {
                 SDL_StopTextInput();
                 cursorVisible = false;
                 break;
-
-            case SDLK_LEFT:
-            case SDLK_RIGHT:
-            case SDLK_HOME:
-            case SDLK_END:
-                markTyping();
-                break;
         }
-    }
+
+        lastInputTicks = SDL_GetTicks();
+        cursorVisible  = true;
+        lastBlinkTicks = lastInputTicks;
+        return;
+}
+
 }
 
 
@@ -1543,13 +1608,26 @@ void UITextField::render(SDL_Renderer* renderer) {
             SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
             SDL_DestroyTexture(textTexture);
 
-            cursorX = textRect.x + textRect.w;
             cursorH = textSurface->h;
             cursorY = textRect.y;
 
             SDL_FreeSurface(textSurface);
         }
     }
+
+    {
+        const std::string& full = linkedText.get();
+
+        std::string prefixMeasure;
+        if (inputType == InputType::PASSWORD)
+            prefixMeasure.assign(caret, '*');
+        else
+            prefixMeasure = full.substr(0, clampi(caret, 0, (int)full.size()));
+
+        int wPrefix = textWidth(activeFont, prefixMeasure);
+        cursorX = dst.x + 8 + wPrefix;
+    }
+
 
     if (focused && cursorVisible) {
         SDL_SetRenderDrawColor(renderer, baseCursor.r, baseCursor.g, baseCursor.b, baseCursor.a);

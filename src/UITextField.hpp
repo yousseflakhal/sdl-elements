@@ -47,4 +47,5 @@ private:
     int borderPx     = 1;
     Uint32 lastInputTicks = 0;
     Uint32 lastBlinkTicks = 0;
+    int caret = 0; 
 };
