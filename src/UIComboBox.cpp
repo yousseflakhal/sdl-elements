@@ -39,13 +39,8 @@ const SDL_Rect& UIComboBox::getBounds() const {
 void UIComboBox::handleEvent(const SDL_Event& e) {
     if (e.type == SDL_USEREVENT) {
         if (e.user.code == 0xF001) { focused = true; return; }
-        if (e.user.code == 0xF002) {
-            focused = false;
-            expanded = false;
-            return;
-        }
+        if (e.user.code == 0xF002) { focused = false; expanded = false; return; }
     }
-
     if (!enabled) return;
 
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
@@ -53,7 +48,10 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
 
         if (SDL_PointInRect(&p, &bounds)) {
             expanded = !expanded;
-            if (expanded) hoveredIndex = 0;
+            if (expanded) {
+                const int hi = (int)options.size() - 1;
+                if (hi >= 0) hoveredIndex = std::clamp((int)selectedIndex.get(), 0, hi);
+            }
             return;
         }
 
@@ -78,51 +76,70 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
             case SDLK_ESCAPE:
                 if (expanded) { expanded = false; return; }
                 break;
+
             case SDLK_SPACE:
             case SDLK_RETURN:
                 if (expanded) {
-                    if (hoveredIndex >= 0 && hoveredIndex < (int)options.size()) {
+                    if (!options.empty() && hoveredIndex >= 0 && hoveredIndex < (int)options.size()) {
                         selectedIndex = hoveredIndex;
                         if (onSelect) onSelect(hoveredIndex);
                     }
                     expanded = false;
                 } else {
                     expanded = true;
-                    hoveredIndex = std::clamp((int)selectedIndex, 0, (int)options.size()-1);
+                    const int hi = (int)options.size() - 1;
+                    if (hi >= 0) hoveredIndex = std::clamp((int)selectedIndex.get(), 0, hi);
                 }
                 return;
+
             case SDLK_UP:
-                if (expanded) { hoveredIndex = std::max(0, hoveredIndex - 1); return; }
-                break;
+                if (!expanded) {
+                    if (!options.empty()) {
+                        expanded = true;
+                        const int hi = (int)options.size() - 1;
+                        hoveredIndex = std::clamp((int)selectedIndex.get(), 0, hi);
+                    }
+                    return;
+                }
+                if (!options.empty()) {
+                    hoveredIndex = std::max(0, hoveredIndex - 1);
+                }
+                return;
+
             case SDLK_DOWN:
-                if (expanded) { hoveredIndex = std::min((int)options.size()-1, hoveredIndex + 1); return; }
-                break;
+                if (!expanded) {
+                    if (!options.empty()) {
+                        expanded = true;
+                        const int hi = (int)options.size() - 1;
+                        hoveredIndex = std::clamp((int)selectedIndex.get(), 0, hi);
+                    }
+                    return;
+                }
+                if (!options.empty()) {
+                    hoveredIndex = std::min((int)options.size() - 1, hoveredIndex + 1);
+                }
+                return;
         }
     }
 }
-
-
 
 void UIComboBox::update(float) {
     int mx, my; SDL_GetMouseState(&mx, &my);
     SDL_Point p{ mx, my };
     hovered = SDL_PointInRect(&p, &bounds);
 
-    if (!expanded) { return; }
+    if (!expanded || options.empty()) return;
 
-    hoveredIndex = -1;
     const int ih = bounds.h;
-    for (int i = 0; i < (int)options.size(); ++i) {
-        SDL_Rect itemRect{ bounds.x, bounds.y + (i + 1) * ih, bounds.w, ih };
-        if (SDL_PointInRect(&p, &itemRect)) {
-            hoveredIndex = i;
-            break;
-        }
+    SDL_Rect listRect{ bounds.x, bounds.y + bounds.h, bounds.w, ih * (int)options.size() };
+
+    if (SDL_PointInRect(&p, &listRect)) {
+        int relY = my - listRect.y;
+        int idx = relY / ih;
+        idx = std::clamp(idx, 0, (int)options.size() - 1);
+        hoveredIndex = idx;
     }
-    if (hoveredIndex == -1) hoveredIndex = 0;
 }
-
-
 
 void UIComboBox::render(SDL_Renderer* renderer) {
     const UITheme& theme = getTheme();
