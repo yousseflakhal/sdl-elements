@@ -27,6 +27,19 @@ public:
         onSubmit = std::move(cb);
         return this;
     }
+    inline bool hasSelection() const { return selAnchor >= 0 && selAnchor != caret; }
+
+    inline std::pair<int,int> selRange() const {
+        if (!hasSelection()) return {0, 0};
+        return { std::min(caret, selAnchor), std::max(caret, selAnchor) };
+    }
+
+    inline void clearSelection() { selAnchor = -1; }
+
+    inline void selectAll() {
+        selAnchor = 0;
+        caret = (int)linkedText.get().size();
+    }
 
     
 
@@ -47,5 +60,7 @@ private:
     int borderPx     = 1;
     Uint32 lastInputTicks = 0;
     Uint32 lastBlinkTicks = 0;
-    int caret = 0; 
+    int caret = 0;
+    int selAnchor = -1;
+    bool selectingDrag = false;
 };

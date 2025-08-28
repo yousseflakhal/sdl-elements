@@ -91,7 +91,17 @@ void UITextField::handleEvent(const SDL_Event& e) {
                     int diff = std::abs(w - clickX);
                     if (diff < bestDiff) { bestDiff = diff; best = i; }
                 }
+                int oldCaret = caret;
                 caret = best;
+                const bool shiftHeld = (SDL_GetModState() & KMOD_SHIFT) != 0;
+
+                if (shiftHeld) {
+                    if (selAnchor < 0) selAnchor = oldCaret;
+                } else {
+                    selAnchor = caret;
+                }
+
+                selectingDrag = true;
             }
 
             lastInputTicks = SDL_GetTicks();
@@ -104,10 +114,43 @@ void UITextField::handleEvent(const SDL_Event& e) {
         return;
     }
 
+    if (e.type == SDL_MOUSEMOTION && selectingDrag && focused) {
+        TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+        int innerX = bounds.x + (borderPx > 0 ? borderPx : 0);
+        int clickX = e.motion.x - (innerX + 8);
+
+        const std::string& s = linkedText.get();
+        int best = 0, bestDiff = 1e9;
+        for (int i = 0; i <= (int)s.size(); ++i) {
+            std::string prefix = (inputType == InputType::PASSWORD) ? std::string(i, '*') : s.substr(0, i);
+            int w = textWidth(activeFont, prefix);
+            int diff = std::abs(w - clickX);
+            if (diff < bestDiff) { bestDiff = diff; best = i; }
+        }
+        caret = best;
+        lastInputTicks = SDL_GetTicks();
+        cursorVisible  = true;
+        lastBlinkTicks = lastInputTicks;
+        return;
+    }
+
+    if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {
+        selectingDrag = false;
+        return;
+    }
+
     if (!focused) return;
 
     if (e.type == SDL_TEXTINPUT) {
         std::string& s = linkedText.get();
+
+        if (hasSelection()) {
+            auto [a,b] = selRange();
+            s.erase(a, b - a);
+            caret = a;
+            clearSelection();
+        }
+
         int capacity = maxLength - (int)s.size();
         if (capacity <= 0) return;
 
@@ -125,35 +168,68 @@ void UITextField::handleEvent(const SDL_Event& e) {
 
     if (e.type == SDL_KEYDOWN) {
         std::string& s = linkedText.get();
+        const bool shiftHeld = (SDL_GetModState() & KMOD_SHIFT) != 0;
+        const bool ctrlHeld  = (SDL_GetModState() & KMOD_CTRL)  != 0;
+
         switch (e.key.keysym.sym) {
             case SDLK_BACKSPACE:
-                if (caret > 0 && !s.empty()) {
+                if (hasSelection()) {
+                    auto [a,b] = selRange();
+                    s.erase(a, b - a);
+                    caret = a;
+                    clearSelection();
+                } else if (caret > 0 && !s.empty()) {
                     s.erase(s.begin() + (caret - 1));
                     caret--;
                 }
                 break;
 
             case SDLK_DELETE:
-                if (caret < (int)s.size() && !s.empty()) {
+                if (hasSelection()) {
+                    auto [a,b] = selRange();
+                    s.erase(a, b - a);
+                    caret = a;
+                    clearSelection();
+                } else if (caret < (int)s.size() && !s.empty()) {
                     s.erase(s.begin() + caret);
                 }
                 break;
 
-            case SDLK_LEFT:
+            case SDLK_LEFT: {
+                int before = caret;
                 caret = clampi(caret - 1, 0, (int)s.size());
-                break;
+                if (shiftHeld) { if (selAnchor < 0) selAnchor = before; }
+                else { clearSelection(); }
+            } break;
 
-            case SDLK_RIGHT:
+            case SDLK_RIGHT: {
+                int before = caret;
                 caret = clampi(caret + 1, 0, (int)s.size());
-                break;
+                if (shiftHeld) { if (selAnchor < 0) selAnchor = before; }
+                else { clearSelection(); }
+            } break;
 
-            case SDLK_HOME:
+            case SDLK_HOME: {
+                int before = caret;
                 caret = 0;
-                break;
+                if (shiftHeld) { if (selAnchor < 0) selAnchor = before; }
+                else { clearSelection(); }
+            } break;
 
-            case SDLK_END:
+            case SDLK_END: {
+                int before = caret;
                 caret = (int)s.size();
-                break;
+                if (shiftHeld) { if (selAnchor < 0) selAnchor = before; }
+                else { clearSelection(); }
+            } break;
+
+            case SDLK_a:
+                if (ctrlHeld) {
+                    selAnchor = 0;
+                    caret    = (int)s.size();
+                    break;
+                }
+                [[fallthrough]];
 
             case SDLK_RETURN:
             case SDLK_KP_ENTER:
@@ -164,6 +240,7 @@ void UITextField::handleEvent(const SDL_Event& e) {
                 focused = false;
                 SDL_StopTextInput();
                 cursorVisible = false;
+                clearSelection();
                 break;
         }
 
@@ -171,7 +248,8 @@ void UITextField::handleEvent(const SDL_Event& e) {
         cursorVisible  = true;
         lastBlinkTicks = lastInputTicks;
         return;
-}
+    }
+
 
 }
 
@@ -250,6 +328,34 @@ void UITextField::render(SDL_Renderer* renderer) {
                 textSurface->w,
                 textSurface->h
             };
+
+            if (focused && hasSelection()) {
+                auto [a, b] = selRange();
+                if (b > a) {
+                    const std::string& full = linkedText.get();
+
+                    std::string left = (inputType == InputType::PASSWORD)
+                        ? std::string(a, '*')
+                        : full.substr(0, a);
+
+                    std::string mid = (inputType == InputType::PASSWORD)
+                        ? std::string(b - a, '*')
+                        : full.substr(a, b - a);
+
+                    int leftW = textWidth(activeFont, left);
+                    int midW  = textWidth(activeFont, mid);
+
+                    int selX = textRect.x + leftW;
+                    int selY = textRect.y;
+                    int selW = midW;
+                    int selH = textSurface->h;
+
+                    SDL_SetRenderDrawColor(renderer, 0, 120, 215, 120);
+                    SDL_Rect selRect{ selX, selY, selW, selH };
+                    SDL_RenderFillRect(renderer, &selRect);
+                }
+            }
+
             SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
             SDL_DestroyTexture(textTexture);
 
@@ -259,6 +365,7 @@ void UITextField::render(SDL_Renderer* renderer) {
             SDL_FreeSurface(textSurface);
         }
     }
+
 
     {
         const std::string& full = linkedText.get();
