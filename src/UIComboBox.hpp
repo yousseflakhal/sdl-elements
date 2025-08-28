@@ -9,6 +9,7 @@
 #include <string>
 #include <functional>
 #include <optional>
+#include <algorithm>
 
 class UIComboBox : public UIElement {
 public:

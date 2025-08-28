@@ -37,6 +37,15 @@ const SDL_Rect& UIComboBox::getBounds() const {
 }
 
 void UIComboBox::handleEvent(const SDL_Event& e) {
+    if (e.type == SDL_USEREVENT) {
+        if (e.user.code == 0xF001) { focused = true; return; }
+        if (e.user.code == 0xF002) {
+            focused = false;
+            expanded = false;
+            return;
+        }
+    }
+
     if (!enabled) return;
 
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
@@ -44,7 +53,6 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
 
         if (SDL_PointInRect(&p, &bounds)) {
             expanded = !expanded;
-            if (focusable) focused = true;
             if (expanded) hoveredIndex = 0;
             return;
         }
@@ -54,43 +62,45 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
             for (int i = 0; i < (int)options.size(); ++i) {
                 SDL_Rect itemRect{ bounds.x, bounds.y + (i + 1) * ih, bounds.w, ih };
                 if (SDL_PointInRect(&p, &itemRect)) {
-                    selectedIndex.get() = i;
+                    selectedIndex = i;
                     if (onSelect) onSelect(i);
                     expanded = false;
                     return;
                 }
             }
         }
-
-        expanded = false;
-        if (focusable) focused = false;
     }
 
-    if (!focused || !enabled) return;
+    if (!focused) return;
 
     if (e.type == SDL_KEYDOWN) {
-        if (!expanded && (e.key.keysym.sym == SDLK_SPACE || e.key.keysym.sym == SDLK_RETURN || e.key.keysym.sym == SDLK_DOWN)) {
-            expanded = true;
-            hoveredIndex = 0;
-        } else if (expanded) {
-            if (e.key.keysym.sym == SDLK_DOWN) {
-                hoveredIndex = std::min((int)options.size()-1, (hoveredIndex < 0 ? 0 : hoveredIndex + 1));
-            } else if (e.key.keysym.sym == SDLK_UP) {
-                hoveredIndex = std::max(0, hoveredIndex - 1);
-            } else if (e.key.keysym.sym == SDLK_RETURN || e.key.keysym.sym == SDLK_SPACE) {
-                if (hoveredIndex >= 0) {
-                    selectedIndex.get() = hoveredIndex;
-                    if (onSelect) onSelect(hoveredIndex);
+        switch (e.key.keysym.sym) {
+            case SDLK_ESCAPE:
+                if (expanded) { expanded = false; return; }
+                break;
+            case SDLK_SPACE:
+            case SDLK_RETURN:
+                if (expanded) {
+                    if (hoveredIndex >= 0 && hoveredIndex < (int)options.size()) {
+                        selectedIndex = hoveredIndex;
+                        if (onSelect) onSelect(hoveredIndex);
+                    }
+                    expanded = false;
+                } else {
+                    expanded = true;
+                    hoveredIndex = std::clamp((int)selectedIndex, 0, (int)options.size()-1);
                 }
-                expanded = false;
-            } else if (e.key.keysym.sym == SDLK_ESCAPE) {
-                expanded = false;
-            }
-        } else if (e.key.keysym.sym == SDLK_ESCAPE) {
-            focused = false;
+                return;
+            case SDLK_UP:
+                if (expanded) { hoveredIndex = std::max(0, hoveredIndex - 1); return; }
+                break;
+            case SDLK_DOWN:
+                if (expanded) { hoveredIndex = std::min((int)options.size()-1, hoveredIndex + 1); return; }
+                break;
         }
     }
 }
+
 
 
 void UIComboBox::update(float) {
