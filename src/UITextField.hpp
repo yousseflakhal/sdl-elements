@@ -63,4 +63,5 @@ private:
     int caret = 0;
     int selAnchor = -1;
     bool selectingDrag = false;
+    int scrollX = 0;
 };

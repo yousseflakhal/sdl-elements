@@ -367,6 +367,7 @@ private:
     int caret = 0;
     int selAnchor = -1;
     bool selectingDrag = false;
+    int scrollX = 0;
 };
 
 
@@ -1378,6 +1379,34 @@ static int textWidth(TTF_Font* font, const std::string& s) {
     return w;
 }
 
+static SDL_Rect innerRect(const SDL_Rect& r, int borderPx) {
+    if (borderPx <= 0) return r;
+    SDL_Rect out{ r.x + borderPx, r.y + borderPx,
+                  r.w - 2*borderPx, r.h - 2*borderPx };
+    if (out.w < 0) out.w = 0;
+    if (out.h < 0) out.h = 0;
+    return out;
+}
+
+static void ensureCaretVisible(TTF_Font* font, const std::string& full, bool passwordMode,
+                               int caret, const SDL_Rect& inner, int paddingLeft,
+                               int& scrollX) {
+    std::string prefix = passwordMode ? std::string(caret, '*')
+                                      : full.substr(0, clampi(caret, 0, (int)full.size()));
+    int caretPx = 0, dummy = 0;
+    if (font && !prefix.empty()) TTF_SizeUTF8(font, prefix.c_str(), &caretPx, &dummy);
+
+    const int viewLeft  = scrollX;
+    const int viewRight = scrollX + (inner.w - paddingLeft * 2);
+
+    if (caretPx < viewLeft) {
+        scrollX = caretPx;
+    } else if (caretPx > viewRight) {
+        scrollX = caretPx - (inner.w - paddingLeft * 2);
+    }
+    if (scrollX < 0) scrollX = 0;
+}
+
 UITextField::UITextField(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen)
     : label(label), linkedText(bind), maxLength(maxLen)
 {
@@ -1409,6 +1438,10 @@ void UITextField::handleEvent(const SDL_Event& e) {
     if (e.user.code == 0xF001) {
         if (!focused) { focused = true; SDL_StartTextInput(); }
         caret = (int)linkedText.get().size();
+        TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+        SDL_Rect inner = innerRect(bounds, borderPx);
+        ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
+                        caret, inner, 8, scrollX);
         return;
     }
     if (e.user.code == 0xF002) {
@@ -1417,17 +1450,6 @@ void UITextField::handleEvent(const SDL_Event& e) {
     }
 }
     if (!enabled) return;
-
-    auto inside = [&](int x, int y) {
-        return (x >= bounds.x && x < bounds.x + bounds.w &&
-                y >= bounds.y && y < bounds.y + bounds.h);
-    };
-
-    auto markTyping = [&](){
-        lastInputTicks = SDL_GetTicks();
-        cursorVisible  = true;
-        lastBlinkTicks = lastInputTicks;
-    };
 
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
         auto inside = [&](int x, int y) {
@@ -1443,11 +1465,8 @@ void UITextField::handleEvent(const SDL_Event& e) {
 
             TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
             int innerX = bounds.x + (borderPx > 0 ? borderPx : 0);
-            int innerY = bounds.y + (borderPx > 0 ? borderPx : 0);
-            int innerW = bounds.w - (borderPx > 0 ? 2*borderPx : 0);
-            int innerH = bounds.h - (borderPx > 0 ? 2*borderPx : 0);
 
-            int clickX = e.button.x - (innerX + 8);
+            int clickX = (e.button.x - (innerX + 8)) + scrollX;
             if (clickX <= 0) {
                 caret = 0;
             } else {
@@ -1463,6 +1482,10 @@ void UITextField::handleEvent(const SDL_Event& e) {
                 }
                 int oldCaret = caret;
                 caret = best;
+                TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+                SDL_Rect inner = innerRect(bounds, borderPx);
+                ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
+                                caret, inner, 8, scrollX);
                 const bool shiftHeld = (SDL_GetModState() & KMOD_SHIFT) != 0;
 
                 if (shiftHeld) {
@@ -1487,7 +1510,7 @@ void UITextField::handleEvent(const SDL_Event& e) {
     if (e.type == SDL_MOUSEMOTION && selectingDrag && focused) {
         TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
         int innerX = bounds.x + (borderPx > 0 ? borderPx : 0);
-        int clickX = e.motion.x - (innerX + 8);
+        int clickX = (e.motion.x - (innerX + 8)) + scrollX;
 
         const std::string& s = linkedText.get();
         int best = 0, bestDiff = 1e9;
@@ -1498,6 +1521,9 @@ void UITextField::handleEvent(const SDL_Event& e) {
             if (diff < bestDiff) { bestDiff = diff; best = i; }
         }
         caret = best;
+        SDL_Rect inner = innerRect(bounds, borderPx);
+        ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
+                        caret, inner, 8, scrollX);
         lastInputTicks = SDL_GetTicks();
         cursorVisible  = true;
         lastBlinkTicks = lastInputTicks;
@@ -1518,6 +1544,10 @@ void UITextField::handleEvent(const SDL_Event& e) {
             auto [a,b] = selRange();
             s.erase(a, b - a);
             caret = a;
+            TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+            SDL_Rect inner = innerRect(bounds, borderPx);
+            ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
+                            caret, inner, 8, scrollX);
             clearSelection();
         }
 
@@ -1529,6 +1559,10 @@ void UITextField::handleEvent(const SDL_Event& e) {
 
         s.insert(s.begin() + clampi(caret, 0, (int)s.size()), incoming.begin(), incoming.end());
         caret = clampi(caret + (int)incoming.size(), 0, (int)s.size());
+        TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+        SDL_Rect inner = innerRect(bounds, borderPx);
+        ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
+                        caret, inner, 8, scrollX);
 
         lastInputTicks = SDL_GetTicks();
         cursorVisible  = true;
@@ -1547,10 +1581,18 @@ void UITextField::handleEvent(const SDL_Event& e) {
                     auto [a,b] = selRange();
                     s.erase(a, b - a);
                     caret = a;
+                    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+                    SDL_Rect inner = innerRect(bounds, borderPx);
+                    ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
+                                    caret, inner, 8, scrollX);
                     clearSelection();
                 } else if (caret > 0 && !s.empty()) {
                     s.erase(s.begin() + (caret - 1));
                     caret--;
+                    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+                    SDL_Rect inner = innerRect(bounds, borderPx);
+                    ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
+                                    caret, inner, 8, scrollX);
                 }
                 break;
 
@@ -1559,9 +1601,17 @@ void UITextField::handleEvent(const SDL_Event& e) {
                     auto [a,b] = selRange();
                     s.erase(a, b - a);
                     caret = a;
+                    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+                    SDL_Rect inner = innerRect(bounds, borderPx);
+                    ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
+                                    caret, inner, 8, scrollX);
                     clearSelection();
                 } else if (caret < (int)s.size() && !s.empty()) {
                     s.erase(s.begin() + caret);
+                    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+                    SDL_Rect inner = innerRect(bounds, borderPx);
+                    ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
+                                    caret, inner, 8, scrollX);
                 }
                 break;
 
@@ -1570,11 +1620,19 @@ void UITextField::handleEvent(const SDL_Event& e) {
                 caret = clampi(caret - 1, 0, (int)s.size());
                 if (shiftHeld) { if (selAnchor < 0) selAnchor = before; }
                 else { clearSelection(); }
+                TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+                SDL_Rect inner = innerRect(bounds, borderPx);
+                ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
+                                caret, inner, 8, scrollX);
             } break;
 
             case SDLK_RIGHT: {
                 int before = caret;
                 caret = clampi(caret + 1, 0, (int)s.size());
+                TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+                SDL_Rect inner = innerRect(bounds, borderPx);
+                ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
+                                caret, inner, 8, scrollX);
                 if (shiftHeld) { if (selAnchor < 0) selAnchor = before; }
                 else { clearSelection(); }
             } break;
@@ -1582,6 +1640,10 @@ void UITextField::handleEvent(const SDL_Event& e) {
             case SDLK_HOME: {
                 int before = caret;
                 caret = 0;
+                TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+                SDL_Rect inner = innerRect(bounds, borderPx);
+                ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
+                                caret, inner, 8, scrollX);
                 if (shiftHeld) { if (selAnchor < 0) selAnchor = before; }
                 else { clearSelection(); }
             } break;
@@ -1589,6 +1651,10 @@ void UITextField::handleEvent(const SDL_Event& e) {
             case SDLK_END: {
                 int before = caret;
                 caret = (int)s.size();
+                TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+                SDL_Rect inner = innerRect(bounds, borderPx);
+                ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
+                                caret, inner, 8, scrollX);
                 if (shiftHeld) { if (selAnchor < 0) selAnchor = before; }
                 else { clearSelection(); }
             } break;
@@ -1597,6 +1663,10 @@ void UITextField::handleEvent(const SDL_Event& e) {
                 if (ctrlHeld) {
                     selAnchor = 0;
                     caret    = (int)s.size();
+                    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+                    SDL_Rect inner = innerRect(bounds, borderPx);
+                    ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
+                                    caret, inner, 8, scrollX);
                     break;
                 }
                 [[fallthrough]];
@@ -1688,12 +1758,15 @@ void UITextField::render(SDL_Renderer* renderer) {
     int cursorH = TTF_FontHeight(activeFont);
     int cursorY = dst.y + (dst.h - cursorH) / 2;
 
+    SDL_Rect clip = { dst.x + 4, dst.y + 2, dst.w - 8, dst.h - 4 };
+    SDL_RenderSetClipRect(renderer, &clip);
+
     if (!toRender.empty()) {
         SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, toRender.c_str(), drawCol);
         if (textSurface) {
             SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
             SDL_Rect textRect = {
-                dst.x + 8,
+                dst.x + 8 - scrollX,
                 dst.y + (dst.h - textSurface->h) / 2,
                 textSurface->w,
                 textSurface->h
@@ -1736,26 +1809,23 @@ void UITextField::render(SDL_Renderer* renderer) {
         }
     }
 
-
     {
         const std::string& full = linkedText.get();
-
-        std::string prefixMeasure;
-        if (inputType == InputType::PASSWORD)
-            prefixMeasure.assign(caret, '*');
-        else
-            prefixMeasure = full.substr(0, clampi(caret, 0, (int)full.size()));
+        std::string prefixMeasure = (inputType == InputType::PASSWORD)
+            ? std::string(caret, '*')
+            : full.substr(0, clampi(caret, 0, (int)full.size()));
 
         int wPrefix = textWidth(activeFont, prefixMeasure);
-        cursorX = dst.x + 8 + wPrefix;
+        cursorX = dst.x + 8 + wPrefix - scrollX;
     }
-
 
     if (focused && cursorVisible) {
         SDL_SetRenderDrawColor(renderer, baseCursor.r, baseCursor.g, baseCursor.b, baseCursor.a);
         SDL_Rect cursorRect = { cursorX, cursorY, 1, cursorH };
         SDL_RenderFillRect(renderer, &cursorRect);
     }
+
+    SDL_RenderSetClipRect(renderer, nullptr);
 }
 
 
