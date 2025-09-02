@@ -368,6 +368,8 @@ private:
     int selAnchor = -1;
     bool selectingDrag = false;
     int scrollX = 0;
+    Uint32 lastClickTicks = 0;
+    int lastClickX = -1;
 };
 
 
@@ -1407,6 +1409,29 @@ static void ensureCaretVisible(TTF_Font* font, const std::string& full, bool pas
     if (scrollX < 0) scrollX = 0;
 }
 
+static bool isWordChar(unsigned char c) {
+    return std::isalnum(c) || c == '_';
+}
+
+static int prevWordIndex(const std::string& s, int from) {
+    from = clampi(from, 0, (int)s.size());
+    if (from == 0) return 0;
+    int i = from - 1;
+    while (i > 0 && !isWordChar((unsigned char)s[i])) --i;
+    while (i > 0 && isWordChar((unsigned char)s[i-1])) --i;
+    return i;
+}
+
+static int nextWordIndex(const std::string& s, int from) {
+    from = clampi(from, 0, (int)s.size());
+    int n = (int)s.size();
+    if (from >= n) return n;
+    int i = from;
+    while (i < n && !isWordChar((unsigned char)s[i])) ++i;
+    while (i < n && isWordChar((unsigned char)s[i])) ++i;
+    return i;
+}
+
 UITextField::UITextField(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen)
     : label(label), linkedText(bind), maxLength(maxLen)
 {
@@ -1482,6 +1507,29 @@ void UITextField::handleEvent(const SDL_Event& e) {
                 }
                 int oldCaret = caret;
                 caret = best;
+                Uint32 now = SDL_GetTicks();
+                bool isDouble = (now - lastClickTicks) <= 350 && std::abs(e.button.x - lastClickX) <= 4;
+                lastClickTicks = now;
+                lastClickX     = e.button.x;
+
+                if (isDouble) {
+                    const std::string& sdd = linkedText.get();
+                    if (!sdd.empty()) {
+                        int start = caret > 0 ? caret - 1 : 0;
+                        while (start > 0 && isWordChar((unsigned char)sdd[start-1])) --start;
+                        int end = caret;
+                        while (end < (int)sdd.size() && isWordChar((unsigned char)sdd[end])) ++end;
+
+                        selAnchor = start;
+                        caret     = end;
+                        SDL_Rect inner = innerRect(bounds, borderPx);
+                        TTF_Font* activeFont2 = font ? font : UIConfig::getDefaultFont();
+                        ensureCaretVisible(activeFont2, linkedText.get(), inputType == InputType::PASSWORD,
+                                        caret, inner, 8, scrollX);
+                        selectingDrag = false;
+                        return;
+                    }
+                }
                 TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
                 SDL_Rect inner = innerRect(bounds, borderPx);
                 ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
@@ -1617,24 +1665,36 @@ void UITextField::handleEvent(const SDL_Event& e) {
 
             case SDLK_LEFT: {
                 int before = caret;
-                caret = clampi(caret - 1, 0, (int)s.size());
+                if (ctrlHeld) {
+                    caret = prevWordIndex(linkedText.get(), caret);
+                } else {
+                    caret = clampi(caret - 1, 0, (int)linkedText.get().size());
+                }
+
                 if (shiftHeld) { if (selAnchor < 0) selAnchor = before; }
                 else { clearSelection(); }
-                TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+
+                TTF_Font* activeFont2 = font ? font : UIConfig::getDefaultFont();
                 SDL_Rect inner = innerRect(bounds, borderPx);
-                ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
+                ensureCaretVisible(activeFont2, linkedText.get(), inputType == InputType::PASSWORD,
                                 caret, inner, 8, scrollX);
             } break;
 
             case SDLK_RIGHT: {
                 int before = caret;
-                caret = clampi(caret + 1, 0, (int)s.size());
-                TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-                SDL_Rect inner = innerRect(bounds, borderPx);
-                ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
-                                caret, inner, 8, scrollX);
+                if (ctrlHeld) {
+                    caret = nextWordIndex(linkedText.get(), caret);
+                } else {
+                    caret = clampi(caret + 1, 0, (int)linkedText.get().size());
+                }
+
                 if (shiftHeld) { if (selAnchor < 0) selAnchor = before; }
                 else { clearSelection(); }
+
+                TTF_Font* activeFont2 = font ? font : UIConfig::getDefaultFont();
+                SDL_Rect inner = innerRect(bounds, borderPx);
+                ensureCaretVisible(activeFont2, linkedText.get(), inputType == InputType::PASSWORD,
+                                caret, inner, 8, scrollX);
             } break;
 
             case SDLK_HOME: {
@@ -1670,6 +1730,64 @@ void UITextField::handleEvent(const SDL_Event& e) {
                     break;
                 }
                 [[fallthrough]];
+            case SDLK_c:
+                if (ctrlHeld && hasSelection()) {
+                    auto [a,b] = selRange();
+                    const std::string& ssrc = linkedText.get();
+                    std::string clip = ssrc.substr(a, b - a);
+                    SDL_SetClipboardText(clip.c_str());
+                    break;
+                }
+                break;
+
+            case SDLK_x:
+                if (ctrlHeld && hasSelection()) {
+                    auto [a,b] = selRange();
+                    std::string& sdst = linkedText.get();
+                    std::string clip = sdst.substr(a, b - a);
+                    SDL_SetClipboardText(clip.c_str());
+                    sdst.erase(a, b - a);
+                    caret = a;
+                    clearSelection();
+                    {
+                        TTF_Font* activeFont2 = font ? font : UIConfig::getDefaultFont();
+                        SDL_Rect inner = innerRect(bounds, borderPx);
+                        ensureCaretVisible(activeFont2, linkedText.get(), inputType == InputType::PASSWORD,
+                                        caret, inner, 8, scrollX);
+                    }
+                    break;
+                }
+                break;
+
+            case SDLK_v:
+                if (ctrlHeld) {
+                    char* txt = SDL_GetClipboardText();
+                    if (txt) {
+                        std::string paste = txt;
+                        SDL_free(txt);
+
+                        std::string& dst = linkedText.get();
+                        if (hasSelection()) {
+                            auto [a,b] = selRange();
+                            dst.erase(a, b - a);
+                            caret = a;
+                            clearSelection();
+                        }
+                        int cap = maxLength - (int)dst.size();
+                        if (cap > 0) {
+                            if ((int)paste.size() > cap) paste.resize(cap);
+                            dst.insert(dst.begin() + clampi(caret, 0, (int)dst.size()), paste.begin(), paste.end());
+                            caret += (int)paste.size();
+
+                            TTF_Font* activeFont2 = font ? font : UIConfig::getDefaultFont();
+                            SDL_Rect inner = innerRect(bounds, borderPx);
+                            ensureCaretVisible(activeFont2, linkedText.get(), inputType == InputType::PASSWORD,
+                                            caret, inner, 8, scrollX);
+                        }
+                    }
+                    break;
+                }
+                break;
 
             case SDLK_RETURN:
             case SDLK_KP_ENTER:
@@ -1683,7 +1801,6 @@ void UITextField::handleEvent(const SDL_Event& e) {
                 clearSelection();
                 break;
         }
-
         lastInputTicks = SDL_GetTicks();
         cursorVisible  = true;
         lastBlinkTicks = lastInputTicks;
