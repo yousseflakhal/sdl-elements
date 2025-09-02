@@ -1463,6 +1463,7 @@ void UITextField::handleEvent(const SDL_Event& e) {
     if (e.user.code == 0xF001) {
         if (!focused) { focused = true; SDL_StartTextInput(); }
         caret = (int)linkedText.get().size();
+        clearSelection();
         TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
         SDL_Rect inner = innerRect(bounds, borderPx);
         ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
@@ -1579,6 +1580,9 @@ void UITextField::handleEvent(const SDL_Event& e) {
     }
 
     if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {
+        if (selectingDrag && selAnchor == caret) {
+            clearSelection();
+        }
         selectingDrag = false;
         return;
     }
@@ -1587,6 +1591,9 @@ void UITextField::handleEvent(const SDL_Event& e) {
 
     if (e.type == SDL_TEXTINPUT) {
         std::string& s = linkedText.get();
+        if (selAnchor >= 0 && selAnchor == caret) {
+            clearSelection();
+        }
 
         if (hasSelection()) {
             auto [a,b] = selRange();
