@@ -66,4 +66,6 @@ private:
     int scrollX = 0;
     Uint32 lastClickTicks = 0;
     int lastClickX = -1;
+    std::string preedit;
+    int preeditCursor = 0;
 };

@@ -89,6 +89,8 @@ void UITextField::handleEvent(const SDL_Event& e) {
     if (e.type == SDL_USEREVENT) {
     if (e.user.code == 0xF001) {
         if (!focused) { focused = true; SDL_StartTextInput(); }
+        preedit.clear();
+        preeditCursor = 0;
         caret = (int)linkedText.get().size();
         clearSelection();
         TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
@@ -99,6 +101,8 @@ void UITextField::handleEvent(const SDL_Event& e) {
     }
     if (e.user.code == 0xF002) {
         if (focused) { focused = false; SDL_StopTextInput(); cursorVisible = false; }
+        preedit.clear();
+        preeditCursor = 0;
         return;
     }
 }
@@ -216,6 +220,36 @@ void UITextField::handleEvent(const SDL_Event& e) {
 
     if (!focused) return;
 
+    if (e.type == SDL_TEXTEDITING) {
+        preedit.assign(e.edit.text ? e.edit.text : "");
+        preeditCursor = e.edit.start;
+
+        SDL_Rect inner = innerRect(bounds, borderPx);
+
+        TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+        const std::string& full = linkedText.get();
+        std::string prefix = (inputType == InputType::PASSWORD)
+            ? std::string(caret, '*')
+            : full.substr(0, std::min<int>(caret, (int)full.size()));
+
+        int px = 0, ph = 0;
+        if (activeFont && !prefix.empty()) TTF_SizeUTF8(activeFont, prefix.c_str(), &px, &ph);
+
+        SDL_Rect imeRect{
+            inner.x + 8 + px - scrollX,
+            inner.y + (inner.h - TTF_FontHeight(activeFont)) / 2,
+            1, TTF_FontHeight(activeFont)
+        };
+        SDL_SetTextInputRect(&imeRect);
+
+        ensureCaretVisible(activeFont, full, inputType == InputType::PASSWORD, caret, inner, 8, scrollX);
+
+        lastInputTicks = SDL_GetTicks();
+        cursorVisible  = true;
+        lastBlinkTicks = lastInputTicks;
+        return;
+    }
+
     if (e.type == SDL_TEXTINPUT) {
         std::string& s = linkedText.get();
         if (selAnchor >= 0 && selAnchor == caret) {
@@ -241,6 +275,8 @@ void UITextField::handleEvent(const SDL_Event& e) {
 
         s.insert(s.begin() + clampi(caret, 0, (int)s.size()), incoming.begin(), incoming.end());
         caret = clampi(caret + (int)incoming.size(), 0, (int)s.size());
+        preedit.clear();
+        preeditCursor = 0;
         TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
         SDL_Rect inner = innerRect(bounds, borderPx);
         ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
@@ -433,6 +469,8 @@ void UITextField::handleEvent(const SDL_Event& e) {
                 SDL_StopTextInput();
                 cursorVisible = false;
                 clearSelection();
+                preedit.clear();
+                preeditCursor = 0;
                 break;
         }
         lastInputTicks = SDL_GetTicks();
@@ -551,6 +589,37 @@ void UITextField::render(SDL_Renderer* renderer) {
             }
 
             SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
+            if (focused && !preedit.empty()) {
+                std::string preToDraw = (inputType == InputType::PASSWORD)
+                    ? std::string(preedit.size(), '*')
+                    : preedit;
+
+                const std::string& full = linkedText.get();
+                std::string prefixMeasure = (inputType == InputType::PASSWORD)
+                    ? std::string(caret, '*')
+                    : full.substr(0, std::min<int>(caret, (int)full.size()));
+
+                int prefixW = textWidth(activeFont, prefixMeasure);
+
+                SDL_Color preCol = drawCol;
+                SDL_Surface* preSurf = TTF_RenderText_Blended(activeFont, preToDraw.c_str(), preCol);
+                if (preSurf) {
+                    SDL_Texture* preTex = SDL_CreateTextureFromSurface(renderer, preSurf);
+                    SDL_Rect preRect = {
+                        dst.x + 8 + prefixW - scrollX,
+                        dst.y + (dst.h - preSurf->h) / 2,
+                        preSurf->w,
+                        preSurf->h
+                    };
+                    SDL_SetRenderDrawColor(renderer, preCol.r, preCol.g, preCol.b, preCol.a);
+                    SDL_Rect underline = { preRect.x, preRect.y + preRect.h - 1, preRect.w, 1 };
+                    SDL_RenderFillRect(renderer, &underline);
+
+                    SDL_RenderCopy(renderer, preTex, nullptr, &preRect);
+                    SDL_DestroyTexture(preTex);
+                    SDL_FreeSurface(preSurf);
+                }
+            }
             SDL_DestroyTexture(textTexture);
 
             cursorH = textSurface->h;
