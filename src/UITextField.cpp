@@ -86,401 +86,332 @@ bool UITextField::isHovered() const {
 }
 
 void UITextField::handleEvent(const SDL_Event& e) {
-    if (e.type == SDL_USEREVENT) {
-    if (e.user.code == 0xF001) {
-        if (!focused) { focused = true; SDL_StartTextInput(); }
-        preedit.clear();
-        preeditCursor = 0;
-        caret = (int)linkedText.get().size();
+    auto activeFont = font ? font : UIConfig::getDefaultFont();
+    auto& textRef = linkedText.get();
+
+    auto isInside = [&](int x, int y) {
+        return x >= bounds.x && x < bounds.x + bounds.w && y >= bounds.y && y < bounds.y + bounds.h;
+    };
+    auto innerRect = [&]() {
+        if (borderPx <= 0) return bounds;
+        SDL_Rect r{bounds.x + borderPx, bounds.y + borderPx, bounds.w - 2 * borderPx, bounds.h - 2 * borderPx};
+        if (r.w < 0) r.w = 0;
+        if (r.h < 0) r.h = 0;
+        return r;
+    }();
+
+    auto isCont = [](unsigned char c) { return (c & 0xC0) == 0x80; };
+    auto nextCP = [&](const std::string& s, int i) {
+        int n = (int)s.size();
+        if (i < 0) return 0;
+        if (i >= n) return n;
+        i++;
+        while (i < n && isCont((unsigned char)s[i])) i++;
+        return i;
+    };
+    auto prevCP = [&](const std::string& s, int i) {
+        if (i <= 0) return 0;
+        i--;
+        while (i > 0 && isCont((unsigned char)s[i])) i--;
+        return i;
+    };
+
+    auto codepointCountUpTo = [&](const std::string& s, int byteIndex) {
+        int i = 0, count = 0, n = (int)s.size();
+        while (i < n && i < byteIndex) { i = nextCP(s, i); count++; }
+        return count;
+    };
+    auto maskedPrefixForWidth = [&](int byteCount) {
+        if (inputType == InputType::PASSWORD) {
+            int cps = codepointCountUpTo(textRef, byteCount);
+            return std::string(cps, '*');
+        } else {
+            return textRef.substr(0, byteCount);
+        }
+    };
+
+    auto caretByteFromX = [&](int mx) {
+        int pad = 8;
+        int xLocal = mx - (innerRect.x + pad) + scrollX;
+        if (!activeFont || xLocal <= 0) return 0;
+        int n = (int)textRef.size();
+        int i = 0, lastGood = 0, w = 0, h = 0;
+        while (i <= n) {
+            std::string pref = maskedPrefixForWidth(i);
+            TTF_SizeUTF8(activeFont, pref.c_str(), &w, &h);
+            if (w > xLocal) break;
+            lastGood = i;
+            if (i == n) break;
+            i = nextCP(textRef, i);
+        }
+        return lastGood;
+    };
+
+    auto ensureCaretVisible = [&]() {
+        if (!activeFont) return;
+        int pad = 8;
+        int innerW = innerRect.w - 2 * pad;
+        if (innerW < 0) innerW = 0;
+        std::string pref = maskedPrefixForWidth(caret);
+        int w = 0, h = 0;
+        if (!pref.empty()) TTF_SizeUTF8(activeFont, pref.c_str(), &w, &h);
+        int left = scrollX;
+        int right = scrollX + innerW;
+        if (w < left) scrollX = w;
+        else if (w > right) {
+            scrollX = w - innerW;
+            if (scrollX < 0) scrollX = 0;
+        }
+    };
+
+    auto updateImeRect = [&]() {
+        if (!activeFont) return;
+        int pad = 8;
+        int cursorH = TTF_FontHeight(activeFont);
+        std::string pref = maskedPrefixForWidth(caret);
+        int w = 0, h = 0;
+        if (!pref.empty()) TTF_SizeUTF8(activeFont, pref.c_str(), &w, &h);
+        SDL_Rect r{ innerRect.x + pad + w - scrollX, innerRect.y + (innerRect.h - cursorH) / 2, 1, cursorH };
+        SDL_SetTextInputRect(&r);
+    };
+
+    auto deleteSelection = [&]() {
+        if (!hasSelection()) return false;
+        auto [a, b] = selRange();
+        if (b < a) std::swap(a, b);
+        a = clampi(a, 0, (int)textRef.size());
+        b = clampi(b, 0, (int)textRef.size());
+        textRef.erase(a, b - a);
+        caret = a;
         clearSelection();
-        TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-        SDL_Rect inner = innerRect(bounds, borderPx);
-        ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
-                        caret, inner, 8, scrollX);
-        return;
-    }
-    if (e.user.code == 0xF002) {
-        if (focused) { focused = false; SDL_StopTextInput(); cursorVisible = false; }
-        preedit.clear();
-        preeditCursor = 0;
-        return;
-    }
-}
-    if (!enabled) return;
+        return true;
+    };
 
-    if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
-        auto inside = [&](int x, int y) {
-            return (x >= bounds.x && x < bounds.x + bounds.w &&
-                    y >= bounds.y && y < bounds.y + bounds.h);
-        };
+    auto setSelection = [&](int, int) { /* no-op stub: wire to your selection API */ };
 
-        const bool wasFocused = focused;
-        focused = inside(e.button.x, e.button.y);
-
-        if (focused) {
-            if (!wasFocused) SDL_StartTextInput();
-
-            TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-            int innerX = bounds.x + (borderPx > 0 ? borderPx : 0);
-
-            int clickX = (e.button.x - (innerX + 8)) + scrollX;
-            if (clickX <= 0) {
-                caret = 0;
+    auto moveLeft = [&](bool word, bool withSel) {
+        int oldCaret = caret;
+        if (!word) caret = prevCP(textRef, caret);
+        else {
+            int i = prevCP(textRef, caret);
+            while (i > 0 && std::isalnum((unsigned char)textRef[prevCP(textRef, i)])) i = prevCP(textRef, i);
+            caret = i;
+        }
+        if (withSel) {
+            if (hasSelection()) {
+                auto [a, b] = selRange();
+                int anchor = (oldCaret == a) ? b : a;
+                setSelection(std::min(anchor, caret), std::max(anchor, caret));
             } else {
-                const std::string& s = linkedText.get();
-                int best = 0, bestDiff = 1e9;
-                for (int i = 0; i <= (int)s.size(); ++i) {
-                    std::string prefix;
-                    if (inputType == InputType::PASSWORD) prefix.assign(i, '*');
-                    else prefix = s.substr(0, i);
-                    int w = textWidth(activeFont, prefix);
-                    int diff = std::abs(w - clickX);
-                    if (diff < bestDiff) { bestDiff = diff; best = i; }
-                }
-                int oldCaret = caret;
-                caret = best;
-                Uint32 now = SDL_GetTicks();
-                bool isDouble = (now - lastClickTicks) <= 350 && std::abs(e.button.x - lastClickX) <= 4;
-                lastClickTicks = now;
-                lastClickX     = e.button.x;
+                setSelection(std::min(oldCaret, caret), std::max(oldCaret, caret));
+            }
+        } else {
+            clearSelection();
+        }
+    };
 
-                if (isDouble) {
-                    const std::string& sdd = linkedText.get();
-                    if (!sdd.empty()) {
-                        int start = caret > 0 ? caret - 1 : 0;
-                        while (start > 0 && isWordChar((unsigned char)sdd[start-1])) --start;
-                        int end = caret;
-                        while (end < (int)sdd.size() && isWordChar((unsigned char)sdd[end])) ++end;
+    auto moveRight = [&](bool word, bool withSel) {
+        int oldCaret = caret;
+        if (!word) caret = nextCP(textRef, caret);
+        else {
+            int n = (int)textRef.size();
+            int i = nextCP(textRef, caret);
+            while (i < n && std::isalnum((unsigned char)textRef[i])) i = nextCP(textRef, i);
+            caret = i;
+        }
+        if (withSel) {
+            if (hasSelection()) {
+                auto [a, b] = selRange();
+                int anchor = (oldCaret == a) ? b : a;
+                setSelection(std::min(anchor, caret), std::max(anchor, caret));
+            } else {
+                setSelection(std::min(oldCaret, caret), std::max(oldCaret, caret));
+            }
+        } else {
+            clearSelection();
+        }
+    };
 
-                        selAnchor = start;
-                        caret     = end;
-                        SDL_Rect inner = innerRect(bounds, borderPx);
-                        TTF_Font* activeFont2 = font ? font : UIConfig::getDefaultFont();
-                        ensureCaretVisible(activeFont2, linkedText.get(), inputType == InputType::PASSWORD,
-                                        caret, inner, 8, scrollX);
-                        selectingDrag = false;
-                        return;
-                    }
-                }
-                TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-                SDL_Rect inner = innerRect(bounds, borderPx);
-                ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
-                                caret, inner, 8, scrollX);
-                const bool shiftHeld = (SDL_GetModState() & KMOD_SHIFT) != 0;
+    auto insertTextAtCaret = [&](const char* utf8) {
+        if (!utf8 || !*utf8) return;
+        deleteSelection();
+        textRef.insert(caret, utf8);
+        caret += (int)strlen(utf8);
+        preedit.clear();
+        cursorVisible = true;
+        lastBlinkTicks = SDL_GetTicks();
+        ensureCaretVisible();
+        updateImeRect();
+    };
 
-                if (shiftHeld) {
-                    if (selAnchor < 0) selAnchor = oldCaret;
+    switch (e.type) {
+        case SDL_MOUSEBUTTONDOWN: {
+            if (e.button.button == SDL_BUTTON_LEFT) {
+                if (isInside(e.button.x, e.button.y)) {
+                    if (!focused) { focused = true; SDL_StartTextInput(); }
+                    clearSelection();
+                    caret = caretByteFromX(e.button.x);
+                    ensureCaretVisible();
+                    updateImeRect();
+                    cursorVisible = true;
+                    lastBlinkTicks = SDL_GetTicks();
+                    return;
                 } else {
-                    selAnchor = caret;
+                    if (focused) { focused = false; SDL_StopTextInput(); preedit.clear(); }
                 }
+            }
+        } break;
 
-                selectingDrag = true;
+        case SDL_MOUSEMOTION: {
+            if (focused && (e.motion.state & SDL_BUTTON_LMASK) && isInside(e.motion.x, e.motion.y)) {
+                int newPos = caretByteFromX(e.motion.x);
+                if (!hasSelection()) setSelection(std::min(caret, newPos), std::max(caret, newPos));
+                else {
+                    auto [a, b] = selRange();
+                    int anchor = (caret == a) ? b : a;
+                    setSelection(std::min(anchor, newPos), std::max(anchor, newPos));
+                }
+                caret = newPos;
+                ensureCaretVisible();
+                updateImeRect();
+                return;
+            }
+        } break;
+
+        case SDL_MOUSEBUTTONUP: {
+            if (focused && e.button.button == SDL_BUTTON_LEFT && isInside(e.button.x, e.button.y)) {
+                ensureCaretVisible();
+                updateImeRect();
+                return;
+            }
+        } break;
+
+        case SDL_KEYDOWN: {
+            if (!focused) break;
+            SDL_Keycode key = e.key.keysym.sym;
+            bool ctrl = (e.key.keysym.mod & KMOD_CTRL) != 0;
+            bool shift = (e.key.keysym.mod & KMOD_SHIFT) != 0;
+
+            if (ctrl && (key == SDLK_a)) {
+                setSelection(0, (int)textRef.size());
+                caret = (int)textRef.size();
+                ensureCaretVisible();
+                updateImeRect();
+                return;
+            }
+            if (ctrl && (key == SDLK_c)) {
+                if (hasSelection()) {
+                    auto [a, b] = selRange();
+                    if (b < a) std::swap(a, b);
+                    std::string s = textRef.substr(a, b - a);
+                    SDL_SetClipboardText(s.c_str());
+                }
+                return;
+            }
+            if (ctrl && (key == SDLK_x)) {
+                if (hasSelection()) {
+                    auto [a, b] = selRange();
+                    if (b < a) std::swap(a, b);
+                    std::string s = textRef.substr(a, b - a);
+                    SDL_SetClipboardText(s.c_str());
+                    deleteSelection();
+                    ensureCaretVisible();
+                    updateImeRect();
+                }
+                return;
+            }
+            if (ctrl && (key == SDLK_v)) {
+                if (SDL_HasClipboardText()) {
+                    char* clip = SDL_GetClipboardText();
+                    if (clip) { insertTextAtCaret(clip); SDL_free(clip); }
+                }
+                return;
             }
 
-            lastInputTicks = SDL_GetTicks();
-            cursorVisible  = true;
-            lastBlinkTicks = lastInputTicks;
-        } else {
-            if (wasFocused) SDL_StopTextInput();
-            cursorVisible = false;
-        }
-        return;
-    }
-
-    if (e.type == SDL_MOUSEMOTION && selectingDrag && focused) {
-        TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-        int innerX = bounds.x + (borderPx > 0 ? borderPx : 0);
-        int clickX = (e.motion.x - (innerX + 8)) + scrollX;
-
-        const std::string& s = linkedText.get();
-        int best = 0, bestDiff = 1e9;
-        for (int i = 0; i <= (int)s.size(); ++i) {
-            std::string prefix = (inputType == InputType::PASSWORD) ? std::string(i, '*') : s.substr(0, i);
-            int w = textWidth(activeFont, prefix);
-            int diff = std::abs(w - clickX);
-            if (diff < bestDiff) { bestDiff = diff; best = i; }
-        }
-        caret = best;
-        SDL_Rect inner = innerRect(bounds, borderPx);
-        ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
-                        caret, inner, 8, scrollX);
-        lastInputTicks = SDL_GetTicks();
-        cursorVisible  = true;
-        lastBlinkTicks = lastInputTicks;
-        return;
-    }
-
-    if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {
-        if (selectingDrag && selAnchor == caret) {
-            clearSelection();
-        }
-        selectingDrag = false;
-        return;
-    }
-
-    if (!focused) return;
-
-    if (e.type == SDL_TEXTEDITING) {
-        preedit.assign(e.edit.text ? e.edit.text : "");
-        preeditCursor = e.edit.start;
-
-        SDL_Rect inner = innerRect(bounds, borderPx);
-
-        TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-        const std::string& full = linkedText.get();
-        std::string prefix = (inputType == InputType::PASSWORD)
-            ? std::string(caret, '*')
-            : full.substr(0, std::min<int>(caret, (int)full.size()));
-
-        int px = 0, ph = 0;
-        if (activeFont && !prefix.empty()) TTF_SizeUTF8(activeFont, prefix.c_str(), &px, &ph);
-
-        SDL_Rect imeRect{
-            inner.x + 8 + px - scrollX,
-            inner.y + (inner.h - TTF_FontHeight(activeFont)) / 2,
-            1, TTF_FontHeight(activeFont)
-        };
-        SDL_SetTextInputRect(&imeRect);
-
-        ensureCaretVisible(activeFont, full, inputType == InputType::PASSWORD, caret, inner, 8, scrollX);
-
-        lastInputTicks = SDL_GetTicks();
-        cursorVisible  = true;
-        lastBlinkTicks = lastInputTicks;
-        return;
-    }
-
-    if (e.type == SDL_TEXTINPUT) {
-        std::string& s = linkedText.get();
-        if (selAnchor >= 0 && selAnchor == caret) {
-            clearSelection();
-        }
-
-        if (hasSelection()) {
-            auto [a,b] = selRange();
-            s.erase(a, b - a);
-            caret = a;
-            TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-            SDL_Rect inner = innerRect(bounds, borderPx);
-            ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
-                            caret, inner, 8, scrollX);
-            clearSelection();
-        }
-
-        int capacity = maxLength - (int)s.size();
-        if (capacity <= 0) return;
-
-        std::string incoming = e.text.text;
-        if ((int)incoming.size() > capacity) incoming.resize(capacity);
-
-        s.insert(s.begin() + clampi(caret, 0, (int)s.size()), incoming.begin(), incoming.end());
-        caret = clampi(caret + (int)incoming.size(), 0, (int)s.size());
-        preedit.clear();
-        preeditCursor = 0;
-        TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-        SDL_Rect inner = innerRect(bounds, borderPx);
-        ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
-                        caret, inner, 8, scrollX);
-
-        lastInputTicks = SDL_GetTicks();
-        cursorVisible  = true;
-        lastBlinkTicks = lastInputTicks;
-        return;
-    }
-
-    if (e.type == SDL_KEYDOWN) {
-        std::string& s = linkedText.get();
-        const bool shiftHeld = (SDL_GetModState() & KMOD_SHIFT) != 0;
-        const bool ctrlHeld  = (SDL_GetModState() & KMOD_CTRL)  != 0;
-
-        switch (e.key.keysym.sym) {
-            case SDLK_BACKSPACE:
-                if (hasSelection()) {
-                    auto [a,b] = selRange();
-                    s.erase(a, b - a);
-                    caret = a;
-                    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-                    SDL_Rect inner = innerRect(bounds, borderPx);
-                    ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
-                                    caret, inner, 8, scrollX);
-                    clearSelection();
-                } else if (caret > 0 && !s.empty()) {
-                    s.erase(s.begin() + (caret - 1));
-                    caret--;
-                    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-                    SDL_Rect inner = innerRect(bounds, borderPx);
-                    ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
-                                    caret, inner, 8, scrollX);
-                }
-                break;
-
-            case SDLK_DELETE:
-                if (hasSelection()) {
-                    auto [a,b] = selRange();
-                    s.erase(a, b - a);
-                    caret = a;
-                    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-                    SDL_Rect inner = innerRect(bounds, borderPx);
-                    ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
-                                    caret, inner, 8, scrollX);
-                    clearSelection();
-                } else if (caret < (int)s.size() && !s.empty()) {
-                    s.erase(s.begin() + caret);
-                    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-                    SDL_Rect inner = innerRect(bounds, borderPx);
-                    ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
-                                    caret, inner, 8, scrollX);
-                }
-                break;
-
-            case SDLK_LEFT: {
-                int before = caret;
-                if (ctrlHeld) {
-                    caret = prevWordIndex(linkedText.get(), caret);
-                } else {
-                    caret = clampi(caret - 1, 0, (int)linkedText.get().size());
-                }
-
-                if (shiftHeld) { if (selAnchor < 0) selAnchor = before; }
-                else { clearSelection(); }
-
-                TTF_Font* activeFont2 = font ? font : UIConfig::getDefaultFont();
-                SDL_Rect inner = innerRect(bounds, borderPx);
-                ensureCaretVisible(activeFont2, linkedText.get(), inputType == InputType::PASSWORD,
-                                caret, inner, 8, scrollX);
-            } break;
-
-            case SDLK_RIGHT: {
-                int before = caret;
-                if (ctrlHeld) {
-                    caret = nextWordIndex(linkedText.get(), caret);
-                } else {
-                    caret = clampi(caret + 1, 0, (int)linkedText.get().size());
-                }
-
-                if (shiftHeld) { if (selAnchor < 0) selAnchor = before; }
-                else { clearSelection(); }
-
-                TTF_Font* activeFont2 = font ? font : UIConfig::getDefaultFont();
-                SDL_Rect inner = innerRect(bounds, borderPx);
-                ensureCaretVisible(activeFont2, linkedText.get(), inputType == InputType::PASSWORD,
-                                caret, inner, 8, scrollX);
-            } break;
-
-            case SDLK_HOME: {
-                int before = caret;
+            if (key == SDLK_LEFT)  { moveLeft(ctrl,  shift); ensureCaretVisible(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return; }
+            if (key == SDLK_RIGHT) { moveRight(ctrl, shift); ensureCaretVisible(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return; }
+            if (key == SDLK_HOME) {
+                int oldCaret = caret;
                 caret = 0;
-                TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-                SDL_Rect inner = innerRect(bounds, borderPx);
-                ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
-                                caret, inner, 8, scrollX);
-                if (shiftHeld) { if (selAnchor < 0) selAnchor = before; }
-                else { clearSelection(); }
-            } break;
-
-            case SDLK_END: {
-                int before = caret;
-                caret = (int)s.size();
-                TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-                SDL_Rect inner = innerRect(bounds, borderPx);
-                ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
-                                caret, inner, 8, scrollX);
-                if (shiftHeld) { if (selAnchor < 0) selAnchor = before; }
-                else { clearSelection(); }
-            } break;
-
-            case SDLK_a:
-                if (ctrlHeld) {
-                    selAnchor = 0;
-                    caret    = (int)s.size();
-                    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
-                    SDL_Rect inner = innerRect(bounds, borderPx);
-                    ensureCaretVisible(activeFont, linkedText.get(), inputType == InputType::PASSWORD,
-                                    caret, inner, 8, scrollX);
-                    break;
-                }
-                [[fallthrough]];
-            case SDLK_c:
-                if (ctrlHeld && hasSelection()) {
-                    auto [a,b] = selRange();
-                    const std::string& ssrc = linkedText.get();
-                    std::string clip = ssrc.substr(a, b - a);
-                    SDL_SetClipboardText(clip.c_str());
-                    break;
-                }
-                break;
-
-            case SDLK_x:
-                if (ctrlHeld && hasSelection()) {
-                    auto [a,b] = selRange();
-                    std::string& sdst = linkedText.get();
-                    std::string clip = sdst.substr(a, b - a);
-                    SDL_SetClipboardText(clip.c_str());
-                    sdst.erase(a, b - a);
-                    caret = a;
-                    clearSelection();
-                    {
-                        TTF_Font* activeFont2 = font ? font : UIConfig::getDefaultFont();
-                        SDL_Rect inner = innerRect(bounds, borderPx);
-                        ensureCaretVisible(activeFont2, linkedText.get(), inputType == InputType::PASSWORD,
-                                        caret, inner, 8, scrollX);
+                if (shift) {
+                    if (hasSelection()) {
+                        auto [a, b] = selRange();
+                        int anchor = (oldCaret == a) ? b : a;
+                        setSelection(std::min(anchor, caret), std::max(anchor, caret));
+                    } else {
+                        setSelection(std::min(oldCaret, caret), std::max(oldCaret, caret));
                     }
-                    break;
-                }
-                break;
-
-            case SDLK_v:
-                if (ctrlHeld) {
-                    char* txt = SDL_GetClipboardText();
-                    if (txt) {
-                        std::string paste = txt;
-                        SDL_free(txt);
-
-                        std::string& dst = linkedText.get();
-                        if (hasSelection()) {
-                            auto [a,b] = selRange();
-                            dst.erase(a, b - a);
-                            caret = a;
-                            clearSelection();
-                        }
-                        int cap = maxLength - (int)dst.size();
-                        if (cap > 0) {
-                            if ((int)paste.size() > cap) paste.resize(cap);
-                            dst.insert(dst.begin() + clampi(caret, 0, (int)dst.size()), paste.begin(), paste.end());
-                            caret += (int)paste.size();
-
-                            TTF_Font* activeFont2 = font ? font : UIConfig::getDefaultFont();
-                            SDL_Rect inner = innerRect(bounds, borderPx);
-                            ensureCaretVisible(activeFont2, linkedText.get(), inputType == InputType::PASSWORD,
-                                            caret, inner, 8, scrollX);
-                        }
+                } else clearSelection();
+                ensureCaretVisible(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return;
+            }
+            if (key == SDLK_END) {
+                int oldCaret = caret;
+                caret = (int)textRef.size();
+                if (shift) {
+                    if (hasSelection()) {
+                        auto [a, b] = selRange();
+                        int anchor = (oldCaret == a) ? b : a;
+                        setSelection(std::min(anchor, caret), std::max(anchor, caret));
+                    } else {
+                        setSelection(std::min(oldCaret, caret), std::max(oldCaret, caret));
                     }
-                    break;
+                } else clearSelection();
+                ensureCaretVisible(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return;
+            }
+            if (key == SDLK_BACKSPACE) {
+                if (!deleteSelection()) {
+                    if (caret > 0) {
+                        int p = prevCP(textRef, caret);
+                        textRef.erase(p, caret - p);
+                        caret = p;
+                    }
                 }
-                break;
+                ensureCaretVisible(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return;
+            }
+            if (key == SDLK_DELETE) {
+                if (!deleteSelection()) {
+                    if (caret < (int)textRef.size()) {
+                        int n = nextCP(textRef, caret);
+                        textRef.erase(caret, n - caret);
+                    }
+                }
+                ensureCaretVisible(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return;
+            }
+            if (key == SDLK_RETURN || key == SDLK_KP_ENTER) { return; }
+        } break;
 
-            case SDLK_RETURN:
-            case SDLK_KP_ENTER:
-                if (onSubmit) onSubmit(s);
-                break;
+        case SDL_TEXTINPUT: {
+            if (!focused) break;
+            insertTextAtCaret(e.text.text);
+            return;
+        } break;
 
-            case SDLK_ESCAPE:
-                focused = false;
-                SDL_StopTextInput();
-                cursorVisible = false;
-                clearSelection();
-                preedit.clear();
-                preeditCursor = 0;
-                break;
-        }
-        lastInputTicks = SDL_GetTicks();
-        cursorVisible  = true;
-        lastBlinkTicks = lastInputTicks;
-        return;
+        case SDL_TEXTEDITING: {
+            if (!focused) break;
+            preedit.assign(e.edit.text ? e.edit.text : "");
+            preeditCursor = e.edit.start;
+            updateImeRect();
+            return;
+        } break;
+
+#ifdef SDL_TEXTEDITING_EXT
+        case SDL_TEXTEDITING_EXT: {
+            if (!focused) break;
+            preedit.assign(e.editExt.text ? e.editExt.text : "");
+            preeditCursor = e.editExt.start;
+            updateImeRect();
+            return;
+        } break;
+#endif
+
+        case SDL_WINDOWEVENT: {
+            if (e.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
+                if (focused) { focused = false; SDL_StopTextInput(); preedit.clear(); clearSelection(); }
+            }
+        } break;
     }
-
-
 }
+
 
 
 void UITextField::update(float) {
@@ -551,7 +482,7 @@ void UITextField::render(SDL_Renderer* renderer) {
     SDL_RenderSetClipRect(renderer, &clip);
 
     if (!toRender.empty()) {
-        SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, toRender.c_str(), drawCol);
+        SDL_Surface* textSurface = TTF_RenderUTF8_Blended(activeFont, toRender.c_str(), drawCol);
         if (textSurface) {
             SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
             SDL_Rect textRect = {
@@ -589,43 +520,44 @@ void UITextField::render(SDL_Renderer* renderer) {
             }
 
             SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
-            if (focused && !preedit.empty()) {
-                std::string preToDraw = (inputType == InputType::PASSWORD)
-                    ? std::string(preedit.size(), '*')
-                    : preedit;
-
-                const std::string& full = linkedText.get();
-                std::string prefixMeasure = (inputType == InputType::PASSWORD)
-                    ? std::string(caret, '*')
-                    : full.substr(0, std::min<int>(caret, (int)full.size()));
-
-                int prefixW = textWidth(activeFont, prefixMeasure);
-
-                SDL_Color preCol = drawCol;
-                SDL_Surface* preSurf = TTF_RenderText_Blended(activeFont, preToDraw.c_str(), preCol);
-                if (preSurf) {
-                    SDL_Texture* preTex = SDL_CreateTextureFromSurface(renderer, preSurf);
-                    SDL_Rect preRect = {
-                        dst.x + 8 + prefixW - scrollX,
-                        dst.y + (dst.h - preSurf->h) / 2,
-                        preSurf->w,
-                        preSurf->h
-                    };
-                    SDL_SetRenderDrawColor(renderer, preCol.r, preCol.g, preCol.b, preCol.a);
-                    SDL_Rect underline = { preRect.x, preRect.y + preRect.h - 1, preRect.w, 1 };
-                    SDL_RenderFillRect(renderer, &underline);
-
-                    SDL_RenderCopy(renderer, preTex, nullptr, &preRect);
-                    SDL_DestroyTexture(preTex);
-                    SDL_FreeSurface(preSurf);
-                }
-            }
             SDL_DestroyTexture(textTexture);
 
             cursorH = textSurface->h;
             cursorY = textRect.y;
 
             SDL_FreeSurface(textSurface);
+        }
+    }
+
+    if (focused && !preedit.empty()) {
+        std::string preToDraw = (inputType == InputType::PASSWORD)
+            ? std::string(preedit.size(), '*')
+            : preedit;
+
+        const std::string& full = linkedText.get();
+        std::string prefixMeasure = (inputType == InputType::PASSWORD)
+            ? std::string(caret, '*')
+            : full.substr(0, std::min<int>(caret, (int)full.size()));
+
+        int prefixW = textWidth(activeFont, prefixMeasure);
+
+        SDL_Color preCol = baseText;
+        SDL_Surface* preSurf = TTF_RenderUTF8_Blended(activeFont, preToDraw.c_str(), preCol);
+        if (preSurf) {
+            SDL_Texture* preTex = SDL_CreateTextureFromSurface(renderer, preSurf);
+            SDL_Rect preRect = {
+                dst.x + 8 + prefixW - scrollX,
+                dst.y + (dst.h - preSurf->h) / 2,
+                preSurf->w,
+                preSurf->h
+            };
+            SDL_SetRenderDrawColor(renderer, preCol.r, preCol.g, preCol.b, preCol.a);
+            SDL_Rect underline = { preRect.x, preRect.y + preRect.h - 1, preRect.w, 1 };
+            SDL_RenderFillRect(renderer, &underline);
+
+            SDL_RenderCopy(renderer, preTex, nullptr, &preRect);
+            SDL_DestroyTexture(preTex);
+            SDL_FreeSurface(preSurf);
         }
     }
 
