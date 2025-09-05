@@ -28,6 +28,7 @@ public:
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
+    bool isInside(int x, int y) const override;
     UIComboBox* setTextColor(SDL_Color c);
 
     UIComboBox* setFocusable(bool f) { focusable = f; return this; }

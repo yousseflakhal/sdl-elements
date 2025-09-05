@@ -393,6 +393,7 @@ public:
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
+    bool isInside(int x, int y) const override;
     UIComboBox* setTextColor(SDL_Color c);
 
     UIComboBox* setFocusable(bool f) { focusable = f; return this; }
@@ -2000,7 +2001,7 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
             for (int i = 0; i < (int)options.size(); ++i) {
                 SDL_Rect itemRect{ bounds.x, bounds.y + (i + 1) * ih, bounds.w, ih };
                 if (SDL_PointInRect(&p, &itemRect)) {
-                    selectedIndex = i;
+                    selectedIndex.get() = i;
                     if (onSelect) onSelect(i);
                     expanded = false;
                     return;
@@ -2021,7 +2022,7 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
             case SDLK_RETURN:
                 if (expanded) {
                     if (!options.empty() && hoveredIndex >= 0 && hoveredIndex < (int)options.size()) {
-                        selectedIndex = hoveredIndex;
+                        selectedIndex.get() = hoveredIndex;
                         if (onSelect) onSelect(hoveredIndex);
                     }
                     expanded = false;
@@ -2155,6 +2156,17 @@ void UIComboBox::render(SDL_Renderer* renderer) {
             }
         }
     }
+}
+
+bool UIComboBox::isInside(int x, int y) const {
+    SDL_Point p{ x, y };
+    if (SDL_PointInRect(&p, &bounds)) return true;
+    if (expanded) {
+        const int ih = bounds.h;
+        SDL_Rect listRect{ bounds.x, bounds.y + bounds.h, bounds.w, ih * (int)options.size() };
+        if (SDL_PointInRect(&p, &listRect)) return true;
+    }
+    return false;
 }
 
 UIComboBox* UIComboBox::setTextColor(SDL_Color c) {
