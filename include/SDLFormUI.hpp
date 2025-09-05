@@ -1461,13 +1461,23 @@ bool UITextField::isHovered() const {
 }
 
 void UITextField::handleEvent(const SDL_Event& e) {
+    if (e.type == SDL_USEREVENT) {
+        if (e.user.code == 0xF001) {
+            if (!focused) { focused = true; SDL_StartTextInput(); }
+            return;
+        }
+        if (e.user.code == 0xF002) {
+            if (focused) { focused = false; SDL_StopTextInput(); preedit.clear(); clearSelection(); cursorVisible = false; }
+            return;
+        }
+    }
     auto activeFont = font ? font : UIConfig::getDefaultFont();
     auto& textRef = linkedText.get();
 
     auto isInside = [&](int x, int y) {
         return x >= bounds.x && x < bounds.x + bounds.w && y >= bounds.y && y < bounds.y + bounds.h;
     };
-    auto innerRect = [&]() {
+    auto innerR = [&]() {
         if (borderPx <= 0) return bounds;
         SDL_Rect r{bounds.x + borderPx, bounds.y + borderPx, bounds.w - 2 * borderPx, bounds.h - 2 * borderPx};
         if (r.w < 0) r.w = 0;
@@ -1490,7 +1500,6 @@ void UITextField::handleEvent(const SDL_Event& e) {
         while (i > 0 && isCont((unsigned char)s[i])) i--;
         return i;
     };
-
     auto codepointCountUpTo = [&](const std::string& s, int byteIndex) {
         int i = 0, count = 0, n = (int)s.size();
         while (i < n && i < byteIndex) { i = nextCP(s, i); count++; }
@@ -1504,10 +1513,9 @@ void UITextField::handleEvent(const SDL_Event& e) {
             return textRef.substr(0, byteCount);
         }
     };
-
     auto caretByteFromX = [&](int mx) {
         int pad = 8;
-        int xLocal = mx - (innerRect.x + pad) + scrollX;
+        int xLocal = mx - (innerR.x + pad) + scrollX;
         if (!activeFont || xLocal <= 0) return 0;
         int n = (int)textRef.size();
         int i = 0, lastGood = 0, w = 0, h = 0;
@@ -1521,11 +1529,10 @@ void UITextField::handleEvent(const SDL_Event& e) {
         }
         return lastGood;
     };
-
-    auto ensureCaretVisible = [&]() {
+    auto ensureCaretVisibleLocal = [&]() {
         if (!activeFont) return;
         int pad = 8;
-        int innerW = innerRect.w - 2 * pad;
+        int innerW = innerR.w - 2 * pad;
         if (innerW < 0) innerW = 0;
         std::string pref = maskedPrefixForWidth(caret);
         int w = 0, h = 0;
@@ -1538,7 +1545,6 @@ void UITextField::handleEvent(const SDL_Event& e) {
             if (scrollX < 0) scrollX = 0;
         }
     };
-
     auto updateImeRect = [&]() {
         if (!activeFont) return;
         int pad = 8;
@@ -1546,10 +1552,9 @@ void UITextField::handleEvent(const SDL_Event& e) {
         std::string pref = maskedPrefixForWidth(caret);
         int w = 0, h = 0;
         if (!pref.empty()) TTF_SizeUTF8(activeFont, pref.c_str(), &w, &h);
-        SDL_Rect r{ innerRect.x + pad + w - scrollX, innerRect.y + (innerRect.h - cursorH) / 2, 1, cursorH };
+        SDL_Rect r{ innerR.x + pad + w - scrollX, innerR.y + (innerR.h - cursorH) / 2, 1, cursorH };
         SDL_SetTextInputRect(&r);
     };
-
     auto deleteSelection = [&]() {
         if (!hasSelection()) return false;
         auto [a, b] = selRange();
@@ -1561,52 +1566,33 @@ void UITextField::handleEvent(const SDL_Event& e) {
         clearSelection();
         return true;
     };
-
-    auto setSelection = [&](int, int) { /* no-op stub: wire to your selection API */ };
-
     auto moveLeft = [&](bool word, bool withSel) {
         int oldCaret = caret;
-        if (!word) caret = prevCP(textRef, caret);
+        int c;
+        if (!word) c = prevCP(textRef, caret);
         else {
             int i = prevCP(textRef, caret);
             while (i > 0 && std::isalnum((unsigned char)textRef[prevCP(textRef, i)])) i = prevCP(textRef, i);
-            caret = i;
+            c = i;
         }
-        if (withSel) {
-            if (hasSelection()) {
-                auto [a, b] = selRange();
-                int anchor = (oldCaret == a) ? b : a;
-                setSelection(std::min(anchor, caret), std::max(anchor, caret));
-            } else {
-                setSelection(std::min(oldCaret, caret), std::max(oldCaret, caret));
-            }
-        } else {
-            clearSelection();
-        }
+        if (withSel) { if (selAnchor < 0) selAnchor = oldCaret; }
+        else { clearSelection(); }
+        caret = c;
     };
-
     auto moveRight = [&](bool word, bool withSel) {
         int oldCaret = caret;
-        if (!word) caret = nextCP(textRef, caret);
+        int c;
+        if (!word) c = nextCP(textRef, caret);
         else {
             int n = (int)textRef.size();
             int i = nextCP(textRef, caret);
             while (i < n && std::isalnum((unsigned char)textRef[i])) i = nextCP(textRef, i);
-            caret = i;
+            c = i;
         }
-        if (withSel) {
-            if (hasSelection()) {
-                auto [a, b] = selRange();
-                int anchor = (oldCaret == a) ? b : a;
-                setSelection(std::min(anchor, caret), std::max(anchor, caret));
-            } else {
-                setSelection(std::min(oldCaret, caret), std::max(oldCaret, caret));
-            }
-        } else {
-            clearSelection();
-        }
+        if (withSel) { if (selAnchor < 0) selAnchor = oldCaret; }
+        else { clearSelection(); }
+        caret = c;
     };
-
     auto insertTextAtCaret = [&](const char* utf8) {
         if (!utf8 || !*utf8) return;
         deleteSelection();
@@ -1615,8 +1601,9 @@ void UITextField::handleEvent(const SDL_Event& e) {
         preedit.clear();
         cursorVisible = true;
         lastBlinkTicks = SDL_GetTicks();
-        ensureCaretVisible();
+        ensureCaretVisibleLocal();
         updateImeRect();
+        clearSelection();
     };
 
     switch (e.type) {
@@ -1624,39 +1611,39 @@ void UITextField::handleEvent(const SDL_Event& e) {
             if (e.button.button == SDL_BUTTON_LEFT) {
                 if (isInside(e.button.x, e.button.y)) {
                     if (!focused) { focused = true; SDL_StartTextInput(); }
-                    clearSelection();
+                    int oldCaret = caret;
                     caret = caretByteFromX(e.button.x);
-                    ensureCaretVisible();
+                    const bool shiftHeld = (SDL_GetModState() & KMOD_SHIFT) != 0;
+                    if (shiftHeld) { if (selAnchor < 0) selAnchor = oldCaret; }
+                    else { clearSelection(); selAnchor = caret; }
+                    selectingDrag = true;
+                    ensureCaretVisibleLocal();
                     updateImeRect();
                     cursorVisible = true;
                     lastBlinkTicks = SDL_GetTicks();
                     return;
                 } else {
-                    if (focused) { focused = false; SDL_StopTextInput(); preedit.clear(); }
+                    if (focused) { focused = false; SDL_StopTextInput(); preedit.clear(); clearSelection(); }
                 }
             }
         } break;
 
         case SDL_MOUSEMOTION: {
-            if (focused && (e.motion.state & SDL_BUTTON_LMASK) && isInside(e.motion.x, e.motion.y)) {
-                int newPos = caretByteFromX(e.motion.x);
-                if (!hasSelection()) setSelection(std::min(caret, newPos), std::max(caret, newPos));
-                else {
-                    auto [a, b] = selRange();
-                    int anchor = (caret == a) ? b : a;
-                    setSelection(std::min(anchor, newPos), std::max(anchor, newPos));
-                }
-                caret = newPos;
-                ensureCaretVisible();
+            if (focused && selectingDrag) {
+                caret = caretByteFromX(e.motion.x);
+                ensureCaretVisibleLocal();
                 updateImeRect();
+                lastInputTicks = SDL_GetTicks();
+                cursorVisible  = true;
+                lastBlinkTicks = lastInputTicks;
                 return;
             }
         } break;
 
         case SDL_MOUSEBUTTONUP: {
-            if (focused && e.button.button == SDL_BUTTON_LEFT && isInside(e.button.x, e.button.y)) {
-                ensureCaretVisible();
-                updateImeRect();
+            if (e.button.button == SDL_BUTTON_LEFT) {
+                selectingDrag = false;
+                if (!hasSelection()) clearSelection();
                 return;
             }
         } break;
@@ -1664,13 +1651,13 @@ void UITextField::handleEvent(const SDL_Event& e) {
         case SDL_KEYDOWN: {
             if (!focused) break;
             SDL_Keycode key = e.key.keysym.sym;
-            bool ctrl = (e.key.keysym.mod & KMOD_CTRL) != 0;
+            bool ctrl  = (e.key.keysym.mod & KMOD_CTRL)  != 0;
             bool shift = (e.key.keysym.mod & KMOD_SHIFT) != 0;
 
             if (ctrl && (key == SDLK_a)) {
-                setSelection(0, (int)textRef.size());
+                selAnchor = 0;
                 caret = (int)textRef.size();
-                ensureCaretVisible();
+                ensureCaretVisibleLocal();
                 updateImeRect();
                 return;
             }
@@ -1678,8 +1665,7 @@ void UITextField::handleEvent(const SDL_Event& e) {
                 if (hasSelection()) {
                     auto [a, b] = selRange();
                     if (b < a) std::swap(a, b);
-                    std::string s = textRef.substr(a, b - a);
-                    SDL_SetClipboardText(s.c_str());
+                    SDL_SetClipboardText(textRef.substr(a, b - a).c_str());
                 }
                 return;
             }
@@ -1687,10 +1673,9 @@ void UITextField::handleEvent(const SDL_Event& e) {
                 if (hasSelection()) {
                     auto [a, b] = selRange();
                     if (b < a) std::swap(a, b);
-                    std::string s = textRef.substr(a, b - a);
-                    SDL_SetClipboardText(s.c_str());
+                    SDL_SetClipboardText(textRef.substr(a, b - a).c_str());
                     deleteSelection();
-                    ensureCaretVisible();
+                    ensureCaretVisibleLocal();
                     updateImeRect();
                 }
                 return;
@@ -1703,35 +1688,22 @@ void UITextField::handleEvent(const SDL_Event& e) {
                 return;
             }
 
-            if (key == SDLK_LEFT)  { moveLeft(ctrl,  shift); ensureCaretVisible(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return; }
-            if (key == SDLK_RIGHT) { moveRight(ctrl, shift); ensureCaretVisible(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return; }
+            if (key == SDLK_LEFT)  { moveLeft(ctrl,  shift); ensureCaretVisibleLocal(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return; }
+            if (key == SDLK_RIGHT) { moveRight(ctrl, shift); ensureCaretVisibleLocal(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return; }
+
             if (key == SDLK_HOME) {
-                int oldCaret = caret;
+                int before = caret;
                 caret = 0;
-                if (shift) {
-                    if (hasSelection()) {
-                        auto [a, b] = selRange();
-                        int anchor = (oldCaret == a) ? b : a;
-                        setSelection(std::min(anchor, caret), std::max(anchor, caret));
-                    } else {
-                        setSelection(std::min(oldCaret, caret), std::max(oldCaret, caret));
-                    }
-                } else clearSelection();
-                ensureCaretVisible(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return;
+                if (shift) { if (selAnchor < 0) selAnchor = before; }
+                else { clearSelection(); selAnchor = caret; }
+                ensureCaretVisibleLocal(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return;
             }
             if (key == SDLK_END) {
-                int oldCaret = caret;
+                int before = caret;
                 caret = (int)textRef.size();
-                if (shift) {
-                    if (hasSelection()) {
-                        auto [a, b] = selRange();
-                        int anchor = (oldCaret == a) ? b : a;
-                        setSelection(std::min(anchor, caret), std::max(anchor, caret));
-                    } else {
-                        setSelection(std::min(oldCaret, caret), std::max(oldCaret, caret));
-                    }
-                } else clearSelection();
-                ensureCaretVisible(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return;
+                if (shift) { if (selAnchor < 0) selAnchor = before; }
+                else { clearSelection(); selAnchor = caret; }
+                ensureCaretVisibleLocal(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return;
             }
             if (key == SDLK_BACKSPACE) {
                 if (!deleteSelection()) {
@@ -1741,7 +1713,7 @@ void UITextField::handleEvent(const SDL_Event& e) {
                         caret = p;
                     }
                 }
-                ensureCaretVisible(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return;
+                ensureCaretVisibleLocal(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return;
             }
             if (key == SDLK_DELETE) {
                 if (!deleteSelection()) {
@@ -1750,14 +1722,17 @@ void UITextField::handleEvent(const SDL_Event& e) {
                         textRef.erase(caret, n - caret);
                     }
                 }
-                ensureCaretVisible(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return;
+                ensureCaretVisibleLocal(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return;
             }
-            if (key == SDLK_RETURN || key == SDLK_KP_ENTER) { return; }
+            if (key == SDLK_RETURN || key == SDLK_KP_ENTER) { if (onSubmit) onSubmit(textRef); return; }
         } break;
 
         case SDL_TEXTINPUT: {
             if (!focused) break;
             insertTextAtCaret(e.text.text);
+            lastInputTicks = SDL_GetTicks();
+            cursorVisible  = true;
+            lastBlinkTicks = lastInputTicks;
             return;
         } break;
 
@@ -1766,6 +1741,9 @@ void UITextField::handleEvent(const SDL_Event& e) {
             preedit.assign(e.edit.text ? e.edit.text : "");
             preeditCursor = e.edit.start;
             updateImeRect();
+            lastInputTicks = SDL_GetTicks();
+            cursorVisible  = true;
+            lastBlinkTicks = lastInputTicks;
             return;
         } break;
 
@@ -1775,6 +1753,9 @@ void UITextField::handleEvent(const SDL_Event& e) {
             preedit.assign(e.editExt.text ? e.editExt.text : "");
             preeditCursor = e.editExt.start;
             updateImeRect();
+            lastInputTicks = SDL_GetTicks();
+            cursorVisible  = true;
+            lastBlinkTicks = lastInputTicks;
             return;
         } break;
 #endif
@@ -1786,6 +1767,7 @@ void UITextField::handleEvent(const SDL_Event& e) {
         } break;
     }
 }
+
 
 
 
