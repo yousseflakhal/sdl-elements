@@ -135,7 +135,7 @@ void UISpinner::render(SDL_Renderer* renderer) {
 
     std::ostringstream oss;
     oss << value.get();
-    SDL_Surface* surface = TTF_RenderText_Blended(activeFont, oss.str().c_str(), theme.textColor);
+    SDL_Surface* surface = TTF_RenderUTF8_Blended(activeFont, oss.str().c_str(), theme.textColor);
     if (surface) {
         SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
         SDL_Rect textRect = {

@@ -95,7 +95,7 @@ void UIButton::render(SDL_Renderer* renderer) {
     if (!activeFont) return;
 
     SDL_Color txt = baseText; txt.a = globalAlpha;
-    SDL_Surface* s = TTF_RenderText_Blended(activeFont, label.c_str(), txt);
+    SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, label.c_str(), txt);
     if (!s) return;
     SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
     if (!t) { SDL_FreeSurface(s); return; }

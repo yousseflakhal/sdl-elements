@@ -763,8 +763,8 @@ void UIDialog::render(SDL_Renderer* renderer) {
     SDL_SetRenderDrawColor(renderer, theme.borderColor.r, theme.borderColor.g, theme.borderColor.b, theme.borderColor.a);
     SDL_RenderDrawRect(renderer, &bounds);
 
-    SDL_Surface* titleSurf = TTF_RenderText_Blended(font, title.c_str(), theme.textColor);
-    SDL_Surface* msgSurf = TTF_RenderText_Blended(font, message.c_str(), theme.textColor);
+    SDL_Surface* titleSurf = TTF_RenderUTF8_Blended(font, title.c_str(), theme.textColor);
+    SDL_Surface* msgSurf = TTF_RenderUTF8_Blended(font, message.c_str(), theme.textColor);
 
     if (titleSurf) {
         SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, titleSurf);
@@ -1063,7 +1063,7 @@ void UIRadioButton::render(SDL_Renderer* renderer) {
     }
 
     SDL_Color textCol = {0, 0, 0,255};
-    SDL_Surface* s = TTF_RenderText_Blended(activeFont, label.c_str(), textCol);
+    SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, label.c_str(), textCol);
     if (!s) return;
     SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
     SDL_Rect textRect = { bounds.x + 30, bounds.y + (bounds.h - (s->h))/2, s->w, s->h };
@@ -1179,7 +1179,7 @@ void UIButton::render(SDL_Renderer* renderer) {
     if (!activeFont) return;
 
     SDL_Color txt = baseText; txt.a = globalAlpha;
-    SDL_Surface* s = TTF_RenderText_Blended(activeFont, label.c_str(), txt);
+    SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, label.c_str(), txt);
     if (!s) return;
     SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
     if (!t) { SDL_FreeSurface(s); return; }
@@ -1229,7 +1229,7 @@ void UILabel::render(SDL_Renderer* renderer) {
 
     const SDL_Color& textColor = (color.a == 0) ? getTheme().textColor : color;
 
-    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, text.c_str(), textColor);
+    SDL_Surface* textSurface = TTF_RenderUTF8_Blended(activeFont, text.c_str(), textColor);
     if (!textSurface) {
         SDL_Log("UILabel: Failed to render text surface: %s", TTF_GetError());
         return;
@@ -1365,7 +1365,7 @@ void UICheckbox::render(SDL_Renderer* renderer) {
     }
 
     const int textLeft = box.x + box.w + 8;
-    SDL_Surface* s = TTF_RenderText_Blended(activeFont, label.c_str(), textCol);
+    SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, label.c_str(), textCol);
     if (!s) return;
     SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
     SDL_Rect tr = { textLeft, bounds.y + (bounds.h - s->h)/2, s->w, s->h };
@@ -2122,7 +2122,7 @@ void UIComboBox::render(SDL_Renderer* renderer) {
 
         const std::string selectedText = options.empty() ? "" : options[selectedIndex.get()];
         if (!selectedText.empty()) {
-            SDL_Surface* s = TTF_RenderText_Blended(activeFont, selectedText.c_str(), textCol);
+            SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, selectedText.c_str(), textCol);
             if (s) {
                 SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
                 SDL_Rect tr{ inner.x + 10, inner.y + (inner.h - s->h)/2, s->w, s->h };
@@ -2163,7 +2163,7 @@ void UIComboBox::render(SDL_Renderer* renderer) {
                 SDL_SetRenderDrawColor(renderer, bg.r, bg.g, bg.b, bg.a);
                 SDL_RenderFillRect(renderer, &itemRect);
             }
-            SDL_Surface* s = TTF_RenderText_Blended(activeFont, options[i].c_str(), fg);
+            SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, options[i].c_str(), fg);
             if (s) {
                 SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
                 SDL_Rect tr{ itemRect.x + 10, itemRect.y + (itemRect.h - s->h)/2, s->w, s->h };
@@ -2415,7 +2415,7 @@ void UISpinner::render(SDL_Renderer* renderer) {
 
     std::ostringstream oss;
     oss << value.get();
-    SDL_Surface* surface = TTF_RenderText_Blended(activeFont, oss.str().c_str(), theme.textColor);
+    SDL_Surface* surface = TTF_RenderUTF8_Blended(activeFont, oss.str().c_str(), theme.textColor);
     if (surface) {
         SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
         SDL_Rect textRect = {
@@ -2628,7 +2628,7 @@ void UITextArea::render(SDL_Renderer* renderer) {
     if (!fnt) return;
 
     if (!label.empty()) {
-        SDL_Surface* ls = TTF_RenderText_Blended(fnt, label.c_str(), theme.textColor);
+        SDL_Surface* ls = TTF_RenderUTF8_Blended(fnt, label.c_str(), theme.textColor);
         SDL_Texture* lt = SDL_CreateTextureFromSurface(renderer, ls);
         SDL_Rect labelRect = {bounds.x, bounds.y - ls->h - 4, ls->w, ls->h};
         SDL_RenderCopy(renderer, lt, nullptr, &labelRect);
@@ -2650,7 +2650,7 @@ void UITextArea::render(SDL_Renderer* renderer) {
 
     for (const auto& line : lines) {
         if (!line.empty()) {
-            SDL_Surface* s = TTF_RenderText_Blended(fnt, line.c_str(), col);
+            SDL_Surface* s = TTF_RenderUTF8_Blended(fnt, line.c_str(), col);
             SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
             SDL_Rect dst = {bounds.x + 5, y, s->w, s->h};
             SDL_RenderCopy(renderer, t, nullptr, &dst);
@@ -2671,7 +2671,7 @@ void UITextArea::render(SDL_Renderer* renderer) {
     if (focused || !linkedText.get().empty()) {
         int words = getWordCount();
         std::string wcLabel = std::to_string(words) + " words";
-        SDL_Surface* wcSurface = TTF_RenderText_Blended(fnt, wcLabel.c_str(), theme.placeholderColor);
+        SDL_Surface* wcSurface = TTF_RenderUTF8_Blended(fnt, wcLabel.c_str(), theme.placeholderColor);
         if (wcSurface) {
             SDL_Texture* wcTexture = SDL_CreateTextureFromSurface(renderer, wcSurface);
             SDL_Rect wcRect = {
@@ -2795,7 +2795,7 @@ void UIGroupBox::render(SDL_Renderer* renderer) {
     SDL_RenderDrawLine(renderer, bounds.x, bounds.y + bounds.h, bounds.x + bounds.w, bounds.y + bounds.h);
 
     if (!title.empty() && font) {
-        SDL_Surface* surf = TTF_RenderText_Blended(font, title.c_str(), theme.textColor);
+        SDL_Surface* surf = TTF_RenderUTF8_Blended(font, title.c_str(), theme.textColor);
         if (surf) {
             SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, surf);
             SDL_Rect textRect = {

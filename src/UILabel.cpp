@@ -16,7 +16,7 @@ void UILabel::render(SDL_Renderer* renderer) {
 
     const SDL_Color& textColor = (color.a == 0) ? getTheme().textColor : color;
 
-    SDL_Surface* textSurface = TTF_RenderText_Blended(activeFont, text.c_str(), textColor);
+    SDL_Surface* textSurface = TTF_RenderUTF8_Blended(activeFont, text.c_str(), textColor);
     if (!textSurface) {
         SDL_Log("UILabel: Failed to render text surface: %s", TTF_GetError());
         return;

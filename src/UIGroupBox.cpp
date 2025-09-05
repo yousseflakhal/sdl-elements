@@ -51,7 +51,7 @@ void UIGroupBox::render(SDL_Renderer* renderer) {
     SDL_RenderDrawLine(renderer, bounds.x, bounds.y + bounds.h, bounds.x + bounds.w, bounds.y + bounds.h);
 
     if (!title.empty() && font) {
-        SDL_Surface* surf = TTF_RenderText_Blended(font, title.c_str(), theme.textColor);
+        SDL_Surface* surf = TTF_RenderUTF8_Blended(font, title.c_str(), theme.textColor);
         if (surf) {
             SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, surf);
             SDL_Rect textRect = {

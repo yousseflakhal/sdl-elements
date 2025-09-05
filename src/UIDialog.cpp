@@ -53,8 +53,8 @@ void UIDialog::render(SDL_Renderer* renderer) {
     SDL_SetRenderDrawColor(renderer, theme.borderColor.r, theme.borderColor.g, theme.borderColor.b, theme.borderColor.a);
     SDL_RenderDrawRect(renderer, &bounds);
 
-    SDL_Surface* titleSurf = TTF_RenderText_Blended(font, title.c_str(), theme.textColor);
-    SDL_Surface* msgSurf = TTF_RenderText_Blended(font, message.c_str(), theme.textColor);
+    SDL_Surface* titleSurf = TTF_RenderUTF8_Blended(font, title.c_str(), theme.textColor);
+    SDL_Surface* msgSurf = TTF_RenderUTF8_Blended(font, message.c_str(), theme.textColor);
 
     if (titleSurf) {
         SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, titleSurf);

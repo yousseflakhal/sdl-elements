@@ -82,7 +82,7 @@ void UIRadioButton::render(SDL_Renderer* renderer) {
     }
 
     SDL_Color textCol = {0, 0, 0,255};
-    SDL_Surface* s = TTF_RenderText_Blended(activeFont, label.c_str(), textCol);
+    SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, label.c_str(), textCol);
     if (!s) return;
     SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
     SDL_Rect textRect = { bounds.x + 30, bounds.y + (bounds.h - (s->h))/2, s->w, s->h };

@@ -197,7 +197,7 @@ void UITextArea::render(SDL_Renderer* renderer) {
     if (!fnt) return;
 
     if (!label.empty()) {
-        SDL_Surface* ls = TTF_RenderText_Blended(fnt, label.c_str(), theme.textColor);
+        SDL_Surface* ls = TTF_RenderUTF8_Blended(fnt, label.c_str(), theme.textColor);
         SDL_Texture* lt = SDL_CreateTextureFromSurface(renderer, ls);
         SDL_Rect labelRect = {bounds.x, bounds.y - ls->h - 4, ls->w, ls->h};
         SDL_RenderCopy(renderer, lt, nullptr, &labelRect);
@@ -219,7 +219,7 @@ void UITextArea::render(SDL_Renderer* renderer) {
 
     for (const auto& line : lines) {
         if (!line.empty()) {
-            SDL_Surface* s = TTF_RenderText_Blended(fnt, line.c_str(), col);
+            SDL_Surface* s = TTF_RenderUTF8_Blended(fnt, line.c_str(), col);
             SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
             SDL_Rect dst = {bounds.x + 5, y, s->w, s->h};
             SDL_RenderCopy(renderer, t, nullptr, &dst);
@@ -240,7 +240,7 @@ void UITextArea::render(SDL_Renderer* renderer) {
     if (focused || !linkedText.get().empty()) {
         int words = getWordCount();
         std::string wcLabel = std::to_string(words) + " words";
-        SDL_Surface* wcSurface = TTF_RenderText_Blended(fnt, wcLabel.c_str(), theme.placeholderColor);
+        SDL_Surface* wcSurface = TTF_RenderUTF8_Blended(fnt, wcLabel.c_str(), theme.placeholderColor);
         if (wcSurface) {
             SDL_Texture* wcTexture = SDL_CreateTextureFromSurface(renderer, wcSurface);
             SDL_Rect wcRect = {

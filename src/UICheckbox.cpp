@@ -99,7 +99,7 @@ void UICheckbox::render(SDL_Renderer* renderer) {
     }
 
     const int textLeft = box.x + box.w + 8;
-    SDL_Surface* s = TTF_RenderText_Blended(activeFont, label.c_str(), textCol);
+    SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, label.c_str(), textCol);
     if (!s) return;
     SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
     SDL_Rect tr = { textLeft, bounds.y + (bounds.h - s->h)/2, s->w, s->h };

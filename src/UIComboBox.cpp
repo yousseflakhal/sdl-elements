@@ -164,7 +164,7 @@ void UIComboBox::render(SDL_Renderer* renderer) {
 
         const std::string selectedText = options.empty() ? "" : options[selectedIndex.get()];
         if (!selectedText.empty()) {
-            SDL_Surface* s = TTF_RenderText_Blended(activeFont, selectedText.c_str(), textCol);
+            SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, selectedText.c_str(), textCol);
             if (s) {
                 SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
                 SDL_Rect tr{ inner.x + 10, inner.y + (inner.h - s->h)/2, s->w, s->h };
@@ -205,7 +205,7 @@ void UIComboBox::render(SDL_Renderer* renderer) {
                 SDL_SetRenderDrawColor(renderer, bg.r, bg.g, bg.b, bg.a);
                 SDL_RenderFillRect(renderer, &itemRect);
             }
-            SDL_Surface* s = TTF_RenderText_Blended(activeFont, options[i].c_str(), fg);
+            SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, options[i].c_str(), fg);
             if (s) {
                 SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
                 SDL_Rect tr{ itemRect.x + 10, itemRect.y + (itemRect.h - s->h)/2, s->w, s->h };
