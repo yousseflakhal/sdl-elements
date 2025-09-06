@@ -65,7 +65,8 @@ private:
     bool selectingDrag = false;
     int scrollX = 0;
     Uint32 lastClickTicks = 0;
-    int lastClickX = -1;
     std::string preedit;
     int preeditCursor = 0;
+    int lastClickX = 0, lastClickY = 0;
+    int clickCount = 0;
 };

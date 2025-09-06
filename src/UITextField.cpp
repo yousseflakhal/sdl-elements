@@ -258,6 +258,45 @@ void UITextField::handleEvent(const SDL_Event& e) {
                     if (!focused) { focused = true; SDL_StartTextInput(); }
                     int oldCaret = caret;
                     caret = caretByteFromX(e.button.x);
+                    Uint32 now = SDL_GetTicks();
+                    bool near = std::abs(e.button.x - lastClickX) <= 4 && std::abs(e.button.y - lastClickY) <= 4;
+                    if (now - lastClickTicks <= 350 && near) clickCount++;
+                    else clickCount = 1;
+                    lastClickTicks = now; lastClickX = e.button.x; lastClickY = e.button.y;
+
+                    if (clickCount == 2) {
+                        int L = caret, R = caret;
+                        auto isCont = [](unsigned char c){ return (c & 0xC0) == 0x80; };
+                        auto prevCP = [&](const std::string& s, int i){ if(i<=0) return 0; i--; while(i>0&&isCont((unsigned char)s[i])) i--; return i; };
+                        auto nextCP = [&](const std::string& s, int i){ int n=(int)s.size(); if(i>=n) return n; i++; while(i<n&&isCont((unsigned char)s[i])) i++; return i; };
+
+                        while (L > 0) {
+                            int p = prevCP(textRef, L);
+                            unsigned char ch = (unsigned char)textRef[p];
+                            if (!std::isalnum(ch) && ch != '_') break;
+                            L = p;
+                        }
+                        while (R < (int)textRef.size()) {
+                            unsigned char ch = (unsigned char)textRef[R];
+                            if (!std::isalnum(ch) && ch != '_') break;
+                            R = nextCP(textRef, R);
+                        }
+                        selAnchor = L;
+                        caret     = R;
+                        selectingDrag = false;
+                        ensureCaretVisibleLocal();
+                        updateImeRect();
+                        return;
+                    }
+
+                    if (clickCount == 3) {
+                        selAnchor = 0;
+                        caret     = (int)textRef.size();
+                        selectingDrag = false;
+                        ensureCaretVisibleLocal();
+                        updateImeRect();
+                        return;
+                    }
                     const bool shiftHeld = (SDL_GetModState() & KMOD_SHIFT) != 0;
                     if (shiftHeld) { if (selAnchor < 0) selAnchor = oldCaret; }
                     else { clearSelection(); selAnchor = caret; }
@@ -275,7 +314,16 @@ void UITextField::handleEvent(const SDL_Event& e) {
 
         case SDL_MOUSEMOTION: {
             if (focused && selectingDrag) {
+                int pad = 8;
+                int leftEdge  = innerR.x + pad;
+                int rightEdge = innerR.x + innerR.w - pad;
+
+                const int scrollStep = 12;
+                if (e.motion.x < leftEdge)  scrollX = std::max(0, scrollX - scrollStep);
+                if (e.motion.x > rightEdge) scrollX = scrollX + scrollStep;
+
                 caret = caretByteFromX(e.motion.x);
+
                 ensureCaretVisibleLocal();
                 updateImeRect();
                 lastInputTicks = SDL_GetTicks();
@@ -351,21 +399,33 @@ void UITextField::handleEvent(const SDL_Event& e) {
                 ensureCaretVisibleLocal(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return;
             }
             if (key == SDLK_BACKSPACE) {
-                if (!deleteSelection()) {
-                    if (caret > 0) {
-                        int p = prevCP(textRef, caret);
-                        textRef.erase(p, caret - p);
-                        caret = p;
+                if (ctrl) {
+                    int L = caret;
+                    while (L > 0 && !std::isalnum((unsigned char)textRef[L-1]) && textRef[L-1] != '_') {
+                        L = prevCP(textRef, L);
                     }
+                    while (L > 0 && (std::isalnum((unsigned char)textRef[L-1]) || textRef[L-1] == '_')) {
+                        L = prevCP(textRef, L);
+                    }
+                    if (L < caret) { textRef.erase(L, caret - L); caret = L; }
+                } else if (!deleteSelection()) {
+                    if (caret > 0) { int p = prevCP(textRef, caret); textRef.erase(p, caret - p); caret = p; }
                 }
                 ensureCaretVisibleLocal(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return;
             }
+
             if (key == SDLK_DELETE) {
-                if (!deleteSelection()) {
-                    if (caret < (int)textRef.size()) {
-                        int n = nextCP(textRef, caret);
-                        textRef.erase(caret, n - caret);
+                if (ctrl) {
+                    int R = caret, n = (int)textRef.size();
+                    while (R < n && !std::isalnum((unsigned char)textRef[R]) && textRef[R] != '_') {
+                        R = nextCP(textRef, R);
                     }
+                    while (R < n && (std::isalnum((unsigned char)textRef[R]) || textRef[R] == '_')) {
+                        R = nextCP(textRef, R);
+                    }
+                    if (R > caret) { textRef.erase(caret, R - caret); }
+                } else if (!deleteSelection()) {
+                    if (caret < (int)textRef.size()) { int n2 = nextCP(textRef, caret); textRef.erase(caret, n2 - caret); }
                 }
                 ensureCaretVisibleLocal(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return;
             }
