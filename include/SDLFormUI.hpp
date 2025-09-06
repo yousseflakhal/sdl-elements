@@ -2021,7 +2021,7 @@ void UITextField::render(SDL_Renderer* renderer) {
             int preCaretW = 0, preCaretH = 0;
             if (!preCaretSub.empty()) TTF_SizeUTF8(activeFont, preCaretSub.c_str(), &preCaretW, &preCaretH);
 
-            if (cursorVisible) {
+            if (cursorVisible && !hasSelection()) {
                 SDL_SetRenderDrawColor(renderer, baseCursor.r, baseCursor.g, baseCursor.b, baseCursor.a);
                 SDL_Rect preCaret = { preRect.x + preCaretW, preRect.y, 1, preRect.h };
                 SDL_RenderFillRect(renderer, &preCaret);
@@ -2040,7 +2040,7 @@ void UITextField::render(SDL_Renderer* renderer) {
         cursorX = dst.x + 8 + wPrefix - scrollX;
     }
 
-    if (focused && cursorVisible && preedit.empty()) {
+    if (focused && cursorVisible && preedit.empty() && !hasSelection()) {
         SDL_SetRenderDrawColor(renderer, baseCursor.r, baseCursor.g, baseCursor.b, baseCursor.a);
         SDL_Rect cursorRect = { cursorX, cursorY, 1, cursorH };
         SDL_RenderFillRect(renderer, &cursorRect);
