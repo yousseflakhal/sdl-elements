@@ -174,9 +174,29 @@ void UITextField::handleEvent(const SDL_Event& e) {
         if (!activeFont) return;
         int pad = 8;
         int cursorH = TTF_FontHeight(activeFont);
+
         std::string pref = maskedPrefixForWidth(caret);
         int w = 0, h = 0;
         if (!pref.empty()) TTF_SizeUTF8(activeFont, pref.c_str(), &w, &h);
+
+        if (!preedit.empty()) {
+            auto isContB = [](unsigned char c){ return (c & 0xC0) == 0x80; };
+            int preByte = 0, cpLeft = std::max(0, preeditCursor);
+            while (preByte < (int)preedit.size() && cpLeft-- > 0) {
+                preByte++;
+                while (preByte < (int)preedit.size() && isContB((unsigned char)preedit[preByte])) preByte++;
+            }
+
+            std::string preSub = (inputType == InputType::PASSWORD)
+                ? std::string((int)std::count_if(preedit.begin(), preedit.begin() + preByte,
+                    [&](unsigned char ch){ return !isContB(ch); }), '*')
+                : preedit.substr(0, preByte);
+
+            int wPre = 0; 
+            if (!preSub.empty()) TTF_SizeUTF8(activeFont, preSub.c_str(), &wPre, &h);
+            w += wPre;
+        }
+
         SDL_Rect r{ innerR.x + pad + w - scrollX, innerR.y + (innerR.h - cursorH) / 2, 1, cursorH };
         SDL_SetTextInputRect(&r);
     };
@@ -363,24 +383,32 @@ void UITextField::handleEvent(const SDL_Event& e) {
 
         case SDL_TEXTEDITING: {
             if (!focused) break;
-            preedit.assign(e.edit.text ? e.edit.text : "");
+            std::string newText = e.edit.text ? e.edit.text : "";
+            bool changed = (newText != preedit) || (preeditCursor != e.edit.start);
+            preedit.assign(newText);
             preeditCursor = e.edit.start;
             updateImeRect();
-            lastInputTicks = SDL_GetTicks();
-            cursorVisible  = true;
-            lastBlinkTicks = lastInputTicks;
+            if (changed) {
+                lastInputTicks = SDL_GetTicks();
+                cursorVisible  = true;
+                lastBlinkTicks = lastInputTicks;
+            }
             return;
         } break;
 
 #ifdef SDL_TEXTEDITING_EXT
         case SDL_TEXTEDITING_EXT: {
             if (!focused) break;
-            preedit.assign(e.editExt.text ? e.editExt.text : "");
-            preeditCursor = e.editExt.start;
+            std::string newText = e.edit.text ? e.edit.text : "";
+            bool changed = (newText != preedit) || (preeditCursor != e.edit.start);
+            preedit.assign(newText);
+            preeditCursor = e.edit.start;
             updateImeRect();
-            lastInputTicks = SDL_GetTicks();
-            cursorVisible  = true;
-            lastBlinkTicks = lastInputTicks;
+            if (changed) {
+                lastInputTicks = SDL_GetTicks();
+                cursorVisible  = true;
+                lastBlinkTicks = lastInputTicks;
+            }
             return;
         } break;
 #endif
@@ -540,7 +568,29 @@ void UITextField::render(SDL_Renderer* renderer) {
             SDL_RenderCopy(renderer, preTex, nullptr, &preRect);
             SDL_DestroyTexture(preTex);
             SDL_FreeSurface(preSurf);
+            auto isContB = [](unsigned char c){ return (c & 0xC0) == 0x80; };
+
+            int preByte = 0, cpLeft = std::max(0, preeditCursor);
+            while (preByte < (int)preedit.size() && cpLeft-- > 0) {
+                preByte++;
+                while (preByte < (int)preedit.size() && isContB((unsigned char)preedit[preByte])) preByte++;
+            }
+
+            std::string preCaretSub = (inputType == InputType::PASSWORD)
+                ? std::string((int)std::count_if(preedit.begin(), preedit.begin() + preByte,
+                    [&](unsigned char ch){ static auto ic=[](unsigned char c){return (c&0xC0)==0x80;}; return !ic(ch);} ), '*')
+                : preedit.substr(0, preByte);
+
+            int preCaretW = 0, preCaretH = 0;
+            if (!preCaretSub.empty()) TTF_SizeUTF8(activeFont, preCaretSub.c_str(), &preCaretW, &preCaretH);
+
+            if (cursorVisible) {
+                SDL_SetRenderDrawColor(renderer, baseCursor.r, baseCursor.g, baseCursor.b, baseCursor.a);
+                SDL_Rect preCaret = { preRect.x + preCaretW, preRect.y, 1, preRect.h };
+                SDL_RenderFillRect(renderer, &preCaret);
+            }
         }
+        
     }
 
     {
@@ -553,7 +603,7 @@ void UITextField::render(SDL_Renderer* renderer) {
         cursorX = dst.x + 8 + wPrefix - scrollX;
     }
 
-    if (focused && cursorVisible) {
+    if (focused && cursorVisible && preedit.empty()) {
         SDL_SetRenderDrawColor(renderer, baseCursor.r, baseCursor.g, baseCursor.b, baseCursor.a);
         SDL_Rect cursorRect = { cursorX, cursorY, 1, cursorH };
         SDL_RenderFillRect(renderer, &cursorRect);
