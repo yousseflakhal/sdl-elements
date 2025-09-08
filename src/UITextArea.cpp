@@ -131,6 +131,91 @@ void UITextArea::handleEvent(const SDL_Event& e) {
             cursorPos++;
             clearSelection();
         }
+        const bool ctrl = (e.key.keysym.mod & KMOD_CTRL) != 0;
+        if (ctrl && e.key.keysym.sym == SDLK_a) {
+            selectAll();
+            updateCursorPosition();
+            lastBlinkTime = SDL_GetTicks();
+            cursorVisible = true;
+            return;
+        }
+        if (ctrl && e.key.keysym.sym == SDLK_c) {
+            if (hasSelection()) {
+                auto [a,b] = selRange();
+                std::string clip = linkedText.get().substr(a, b - a);
+                SDL_SetClipboardText(clip.c_str());
+            }
+            return;
+        }
+        if (ctrl && e.key.keysym.sym == SDLK_x) {
+            if (hasSelection()) {
+                auto [a,b] = selRange();
+                std::string clip = linkedText.get().substr(a, b - a);
+                SDL_SetClipboardText(clip.c_str());
+                linkedText.get().erase(a, b - a);
+                cursorPos = a;
+                clearSelection();
+                updateCursorPosition();
+                lastBlinkTime = SDL_GetTicks();
+                cursorVisible = true;
+            }
+            return;
+        }
+        if (ctrl && e.key.keysym.sym == SDLK_v) {
+            char* txt = SDL_GetClipboardText();
+            if (txt) {
+                std::string paste = txt;
+                SDL_free(txt);
+                size_t curLen = linkedText.get().size();
+                size_t selLen = hasSelection() ? (selRange().second - selRange().first) : 0;
+                size_t maxLen = (maxLength > 0) ? (size_t)maxLength : SIZE_MAX;
+                size_t room   = (curLen - selLen < maxLen) ? (maxLen - (curLen - selLen)) : 0;
+
+                if (hasSelection()) {
+                    auto [a,b] = selRange();
+                    linkedText.get().erase(a, b - a);
+                    cursorPos = a;
+                    clearSelection();
+                }
+                if (room > 0) {
+                    if (paste.size() > room) paste.resize(room);
+                    linkedText.get().insert(cursorPos, paste);
+                    cursorPos += paste.size();
+                    updateCursorPosition();
+                    lastBlinkTime = SDL_GetTicks();
+                    cursorVisible = true;
+                }
+            }
+            return;
+        }
+        lastBlinkTime = SDL_GetTicks();
+        cursorVisible = true;
+        const bool alt  = (e.key.keysym.mod & (KMOD_ALT | KMOD_GUI)) != 0;
+
+        if (!ctrl && !alt) {
+            SDL_Keycode k = e.key.keysym.sym;
+            if (k >= 32 && k < 127) {
+                std::string s(1, static_cast<char>(k));
+
+                if (hasSelection()) {
+                    auto [a,b] = selRange();
+                    linkedText.get().erase(a, b - a);
+                    cursorPos = a;
+                    clearSelection();
+                }
+
+                size_t maxLen = (maxLength > 0) ? (size_t)maxLength : SIZE_MAX;
+                if (linkedText.get().size() < maxLen) {
+                    linkedText.get().insert(cursorPos, s);
+                    cursorPos += s.size();
+                }
+
+                updateCursorPosition();
+                lastBlinkTime = SDL_GetTicks();
+                cursorVisible = true;
+                return;
+            }
+        }
         updateCursorPosition();
     } else if (e.type == SDL_MOUSEWHEEL) {
         int mx, my; SDL_GetMouseState(&mx, &my);
