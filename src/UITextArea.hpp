@@ -1,6 +1,7 @@
 #pragma once
 #include "UIElement.hpp"
 #include "UICommon.hpp"
+#include "UIHelpers.hpp"
 #include <string>
 #include <algorithm>
 #include <vector>
@@ -20,15 +21,36 @@ public:
     void renderScrollbar(SDL_Renderer* renderer);
     bool isScrollbarHovered() const;
     bool isScrollbarDragging() const;
+    bool isFocusable() const override { return true; }
 
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
     bool isHovered() const override;
     int getWordCount() const;
+    inline std::pair<size_t,size_t> selRange() const {
+        return selStart < selEnd ? std::make_pair(selStart, selEnd)
+                                : std::make_pair(selEnd, selStart);
+    }
+    inline void selectAll() {
+        selStart = 0;
+        selEnd   = linkedText.get().size();
+        cursorPos = selEnd;
+    }
+    bool hasSelection() const {
+        return selStart != std::string::npos && selEnd != std::string::npos && selStart != selEnd;
+    }
+    void clearSelection() { selStart = selEnd = std::string::npos; }
+    std::pair<size_t,size_t> selectionRange() const {
+        if (!hasSelection()) return {0,0};
+        return selStart < selEnd ? std::pair<size_t,size_t>(selStart, selEnd)
+                                : std::pair<size_t,size_t>(selEnd, selStart);
+    }
+
+    size_t indexFromMouse(int mx, int my) const;
 
 private:
-    std::vector<std::string> wrapTextToLines(const std::string& text, TTF_Font* font, int maxWidth);
+    std::vector<std::string> wrapTextToLines(const std::string& text, TTF_Font* font, int maxWidth) const ;
     std::string label;
     std::reference_wrapper<std::string> linkedText;
     std::string placeholder;
@@ -47,4 +69,10 @@ private:
     float scrollOffsetY = 0.0f;
     float contentHeight = 0.0f;
     int cursorX = 0, cursorY = 0;
+    int cornerRadius = 10;
+    int borderPx     = 1;
+    int paddingPx    = 8;
+    size_t selStart = std::string::npos;
+    size_t selEnd   = std::string::npos;
+    bool   selectingDrag = false;
 };
