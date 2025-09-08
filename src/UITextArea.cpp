@@ -18,15 +18,24 @@ void UITextArea::setPlaceholder(const std::string& text) {
 
 void UITextArea::handleEvent(const SDL_Event& e) {
     if (e.type == SDL_USEREVENT) {
-        if (e.user.code == 0xF001) {
-            if (!focused) { focused = true; SDL_StartTextInput(); }
-            return;
-        }
-        if (e.user.code == 0xF002) {
-            if (focused) { focused = false; SDL_StopTextInput(); clearSelection(); }
-            return;
+        if (e.user.code == 0xF001) { if (!focused) { focused = true; SDL_StartTextInput(); } return; }
+        if (e.user.code == 0xF002) { if (focused) { focused = false; SDL_StopTextInput(); clearSelection(); } 
+            imeText.clear(); imeStart = imeLength = 0; imeActive = false; 
+            return; 
         }
     }
+
+    if (focused && e.type == SDL_TEXTEDITING) {
+        imeText   = e.edit.text ? e.edit.text : "";
+        imeStart  = e.edit.start;
+        imeLength = e.edit.length;
+        imeActive = !imeText.empty();
+        setIMERectAtCaret();
+        lastBlinkTime = SDL_GetTicks();
+        cursorVisible = true;
+        return;
+    }
+
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) {
         SDL_Point p{ e.button.x, e.button.y };
         bool wasFocused = focused;
@@ -34,6 +43,7 @@ void UITextArea::handleEvent(const SDL_Event& e) {
         if (!wasFocused && focused) {
             cursorPos = linkedText.get().size();
             updateCursorPosition();
+            setIMERectAtCaret();
             SDL_StartTextInput();
             lastBlinkTime = SDL_GetTicks();
             cursorVisible = true;
@@ -55,13 +65,20 @@ void UITextArea::handleEvent(const SDL_Event& e) {
                 scrollbarThumbStartOffset = scrollOffsetY;
             }
         }
-    } else if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {
+        return;
+    }
+
+    if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {
         scrollbarDragging = false;
-    } else if (e.type == SDL_MOUSEMOTION) {
+        return;
+    }
+
+    if (e.type == SDL_MOUSEMOTION) {
         if (scrollbarDragging) {
             int dy = e.motion.y - scrollbarDragStartY;
             scrollOffsetY = scrollbarThumbStartOffset + dy * (contentHeight - bounds.h) / bounds.h;
             scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, contentHeight - float(bounds.h));
+            if (focused) setIMERectAtCaret();
         }
         if (contentHeight > bounds.h) {
             SDL_Point p{ e.motion.x, e.motion.y };
@@ -75,18 +92,29 @@ void UITextArea::handleEvent(const SDL_Event& e) {
         } else {
             scrollbarHovered = false;
         }
-    } else if (focused && e.type == SDL_TEXTINPUT) {
+        return;
+    }
+
+    if (e.type == SDL_MOUSEWHEEL) {
+        int mx, my; SDL_GetMouseState(&mx, &my);
+        if (mx >= bounds.x && mx <= bounds.x + bounds.w && my >= bounds.y && my <= bounds.y + bounds.h) {
+            int lh = TTF_FontHeight(font ? font : UIConfig::getDefaultFont());
+            scrollOffsetY -= e.wheel.y * lh;
+            scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, contentHeight - float(bounds.h));
+            if (focused) setIMERectAtCaret();
+        }
+        return;
+    }
+
+    if (focused && e.type == SDL_TEXTINPUT) {
+        imeText.clear(); imeStart = imeLength = 0; imeActive = false;
+
         std::string in = e.text.text;
         bool valid = true;
         switch (inputType) {
-            case InputType::NUMERIC:
-                valid = std::all_of(in.begin(), in.end(), ::isdigit);
-                break;
-            case InputType::EMAIL:
-                valid = std::all_of(in.begin(), in.end(), [](char c){ return std::isalnum(c) || c=='@' || c=='.' || c=='-' || c=='_'; });
-                break;
-            default:
-                break;
+            case InputType::NUMERIC: valid = std::all_of(in.begin(), in.end(), ::isdigit); break;
+            case InputType::EMAIL:   valid = std::all_of(in.begin(), in.end(), [](char c){ return std::isalnum(c) || c=='@' || c=='.' || c=='-' || c=='_'; }); break;
+            default: break;
         }
         if (valid && !in.empty()) {
             size_t curLen = linkedText.get().size();
@@ -106,9 +134,13 @@ void UITextArea::handleEvent(const SDL_Event& e) {
             }
         }
         updateCursorPosition();
+        setIMERectAtCaret();
         lastBlinkTime = SDL_GetTicks();
         cursorVisible = true;
-    } else if (focused && e.type == SDL_KEYDOWN) {
+        return;
+    }
+
+    if (focused && e.type == SDL_KEYDOWN) {
         if (e.key.keysym.sym == SDLK_BACKSPACE && cursorPos > 0) {
             if (hasSelection()) {
                 auto [a,b] = selRange();
@@ -125,18 +157,16 @@ void UITextArea::handleEvent(const SDL_Event& e) {
                 cursorPos++;
             }
         } else if (e.key.keysym.sym == SDLK_LEFT && cursorPos > 0) {
-            cursorPos--;
-            clearSelection();
+            cursorPos--; clearSelection();
         } else if (e.key.keysym.sym == SDLK_RIGHT && cursorPos < linkedText.get().size()) {
-            cursorPos++;
-            clearSelection();
+            cursorPos++; clearSelection();
         }
+
         const bool ctrl = (e.key.keysym.mod & KMOD_CTRL) != 0;
         if (ctrl && e.key.keysym.sym == SDLK_a) {
             selectAll();
-            updateCursorPosition();
-            lastBlinkTime = SDL_GetTicks();
-            cursorVisible = true;
+            updateCursorPosition(); setIMERectAtCaret();
+            lastBlinkTime = SDL_GetTicks(); cursorVisible = true;
             return;
         }
         if (ctrl && e.key.keysym.sym == SDLK_c) {
@@ -155,22 +185,19 @@ void UITextArea::handleEvent(const SDL_Event& e) {
                 linkedText.get().erase(a, b - a);
                 cursorPos = a;
                 clearSelection();
-                updateCursorPosition();
-                lastBlinkTime = SDL_GetTicks();
-                cursorVisible = true;
+                updateCursorPosition(); setIMERectAtCaret();
+                lastBlinkTime = SDL_GetTicks(); cursorVisible = true;
             }
             return;
         }
         if (ctrl && e.key.keysym.sym == SDLK_v) {
             char* txt = SDL_GetClipboardText();
             if (txt) {
-                std::string paste = txt;
-                SDL_free(txt);
+                std::string paste = txt; SDL_free(txt);
                 size_t curLen = linkedText.get().size();
                 size_t selLen = hasSelection() ? (selRange().second - selRange().first) : 0;
                 size_t maxLen = (maxLength > 0) ? (size_t)maxLength : SIZE_MAX;
                 size_t room   = (curLen - selLen < maxLen) ? (maxLen - (curLen - selLen)) : 0;
-
                 if (hasSelection()) {
                     auto [a,b] = selRange();
                     linkedText.get().erase(a, b - a);
@@ -181,51 +208,42 @@ void UITextArea::handleEvent(const SDL_Event& e) {
                     if (paste.size() > room) paste.resize(room);
                     linkedText.get().insert(cursorPos, paste);
                     cursorPos += paste.size();
-                    updateCursorPosition();
-                    lastBlinkTime = SDL_GetTicks();
-                    cursorVisible = true;
+                    updateCursorPosition(); setIMERectAtCaret();
+                    lastBlinkTime = SDL_GetTicks(); cursorVisible = true;
                 }
             }
             return;
         }
+
         lastBlinkTime = SDL_GetTicks();
         cursorVisible = true;
-        const bool alt  = (e.key.keysym.mod & (KMOD_ALT | KMOD_GUI)) != 0;
 
+        const bool alt = (e.key.keysym.mod & (KMOD_ALT | KMOD_GUI)) != 0;
         if (!ctrl && !alt) {
             SDL_Keycode k = e.key.keysym.sym;
             if (k >= 32 && k < 127) {
                 std::string s(1, static_cast<char>(k));
-
                 if (hasSelection()) {
                     auto [a,b] = selRange();
                     linkedText.get().erase(a, b - a);
                     cursorPos = a;
                     clearSelection();
                 }
-
                 size_t maxLen = (maxLength > 0) ? (size_t)maxLength : SIZE_MAX;
                 if (linkedText.get().size() < maxLen) {
                     linkedText.get().insert(cursorPos, s);
                     cursorPos += s.size();
                 }
-
-                updateCursorPosition();
-                lastBlinkTime = SDL_GetTicks();
-                cursorVisible = true;
+                updateCursorPosition(); setIMERectAtCaret();
+                lastBlinkTime = SDL_GetTicks(); cursorVisible = true;
                 return;
             }
         }
-        updateCursorPosition();
-    } else if (e.type == SDL_MOUSEWHEEL) {
-        int mx, my; SDL_GetMouseState(&mx, &my);
-        if (mx >= bounds.x && mx <= bounds.x + bounds.w && my >= bounds.y && my <= bounds.y + bounds.h) {
-            int lh = TTF_FontHeight(font ? font : UIConfig::getDefaultFont());
-            scrollOffsetY -= e.wheel.y * lh;
-            scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, contentHeight - float(bounds.h));
-        }
+        updateCursorPosition(); setIMERectAtCaret();
+        return;
     }
 }
+
 
 
 void UITextArea::update(float) {
@@ -250,6 +268,7 @@ void UITextArea::update(float) {
     auto lines = wrapTextToLines(linkedText.get().empty()?placeholder:linkedText.get(), fnt, bounds.w-10);
     contentHeight = float(lines.size()*TTF_FontHeight(fnt));
     scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, std::max(0.0f, contentHeight - float(bounds.h)));
+    if (focused) setIMERectAtCaret();
 }
 
 
@@ -389,6 +408,26 @@ void UITextArea::render(SDL_Renderer* renderer) {
         baseIndex += line.size();
     }
 
+    if (focused && imeActive && !imeText.empty()) {
+        int onScreenY = cursorY - (int)scrollOffsetY;
+        onScreenY = std::clamp(onScreenY, dst.y, dst.y + dst.h - lh);
+
+        SDL_Color compCol = { baseText.r, baseText.g, baseText.b, 255 };
+        SDL_Surface* s = TTF_RenderUTF8_Blended(fnt, imeText.c_str(), compCol);
+        if (s) {
+            SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
+            SDL_Rect compDst{ cursorX, onScreenY + (lh - s->h)/2, s->w, s->h };
+            SDL_RenderCopy(renderer, t, nullptr, &compDst);
+
+            SDL_SetRenderDrawColor(renderer, compCol.r, compCol.g, compCol.b, 255);
+            SDL_Rect ul{ compDst.x, compDst.y + compDst.h - 1, compDst.w, 1 };
+            SDL_RenderFillRect(renderer, &ul);
+
+            SDL_DestroyTexture(t);
+            SDL_FreeSurface(s);
+        }
+    }
+
     if (focused && cursorVisible && !showPlaceholder && !hasSelection()) {
         int onScreenY = cursorY - (int)scrollOffsetY;
         onScreenY = std::clamp(onScreenY, dst.y, dst.y + dst.h - lh);
@@ -488,4 +527,19 @@ size_t UITextArea::indexFromMouse(int mx, int my) const {
     for (int i = 0; i < lineIdx; ++i) idx += lines[i].size();
     idx += best;
     return idx;
+}
+
+void UITextArea::setIMERectAtCaret() {
+    TTF_Font* fnt = font ? font : UIConfig::getDefaultFont();
+    if (!fnt) return;
+
+    const int lh = TTF_FontHeight(fnt);
+
+    int onScreenY = cursorY - (int)scrollOffsetY;
+    SDL_Rect r{ cursorX, onScreenY, 1, lh };
+
+    r.x = std::max(bounds.x, std::min(bounds.x + bounds.w - 1, r.x));
+    r.y = std::max(bounds.y, std::min(bounds.y + bounds.h - lh, r.y));
+
+    SDL_SetTextInputRect(&r);
 }

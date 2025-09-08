@@ -48,6 +48,7 @@ public:
     }
 
     size_t indexFromMouse(int mx, int my) const;
+    void setIMERectAtCaret();
 
 private:
     std::vector<std::string> wrapTextToLines(const std::string& text, TTF_Font* font, int maxWidth) const ;
@@ -75,4 +76,8 @@ private:
     size_t selStart = std::string::npos;
     size_t selEnd   = std::string::npos;
     bool   selectingDrag = false;
+    std::string imeText;
+    int imeStart = 0;
+    int imeLength = 0;
+    bool imeActive = false;
 };
