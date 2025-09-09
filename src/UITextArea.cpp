@@ -40,18 +40,32 @@ void UITextArea::handleEvent(const SDL_Event& e) {
         SDL_Point p{ e.button.x, e.button.y };
         bool wasFocused = focused;
         focused = SDL_PointInRect(&p, &bounds);
-        if (!wasFocused && focused) {
-            cursorPos = linkedText.get().size();
+
+        if (focused) {
+            size_t idx = indexFromMouse(e.button.x, e.button.y);
+            const bool shift = (SDL_GetModState() & KMOD_SHIFT) != 0;
+
+            if (shift && wasFocused) {
+                if (!hasSelection()) selectAnchor = cursorPos;
+                cursorPos = idx;
+                setSelection(std::min(selectAnchor, cursorPos), std::max(selectAnchor, cursorPos));
+            } else {
+                cursorPos = idx;
+                clearSelection();
+                selectAnchor = cursorPos;
+                selectingMouse = true;
+            }
+
             updateCursorPosition();
             setIMERectAtCaret();
             SDL_StartTextInput();
             lastBlinkTime = SDL_GetTicks();
             cursorVisible = true;
-            clearSelection();
         } else if (wasFocused && !focused) {
             SDL_StopTextInput();
             clearSelection();
         }
+
         SDL_Rect sb = getScrollbarRect();
         if (contentHeight > bounds.h) {
             float vr = float(bounds.h) / contentHeight;
@@ -70,6 +84,7 @@ void UITextArea::handleEvent(const SDL_Event& e) {
 
     if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {
         scrollbarDragging = false;
+        selectingMouse = false;
         return;
     }
 
@@ -80,6 +95,17 @@ void UITextArea::handleEvent(const SDL_Event& e) {
             scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, contentHeight - float(bounds.h));
             if (focused) setIMERectAtCaret();
         }
+
+        if (selectingMouse && focused) {
+            size_t idx = indexFromMouse(e.motion.x, e.motion.y);
+            cursorPos = idx;
+            setSelection(std::min(selectAnchor, cursorPos), std::max(selectAnchor, cursorPos));
+            updateCursorPosition();
+            setIMERectAtCaret();
+            lastBlinkTime = SDL_GetTicks();
+            cursorVisible = true;
+        }
+
         if (contentHeight > bounds.h) {
             SDL_Point p{ e.motion.x, e.motion.y };
             SDL_Rect sb = getScrollbarRect();
@@ -94,6 +120,7 @@ void UITextArea::handleEvent(const SDL_Event& e) {
         }
         return;
     }
+
 
     if (e.type == SDL_MOUSEWHEEL) {
         int mx, my; SDL_GetMouseState(&mx, &my);
@@ -156,13 +183,30 @@ void UITextArea::handleEvent(const SDL_Event& e) {
                 linkedText.get().insert(cursorPos, "\n");
                 cursorPos++;
             }
-        } else if (e.key.keysym.sym == SDLK_LEFT && cursorPos > 0) {
-            cursorPos--; clearSelection();
-        } else if (e.key.keysym.sym == SDLK_RIGHT && cursorPos < linkedText.get().size()) {
-            cursorPos++; clearSelection();
         }
 
         const bool ctrl = (e.key.keysym.mod & KMOD_CTRL) != 0;
+        const bool shift = (e.key.keysym.mod & KMOD_SHIFT) != 0;
+        if (e.key.keysym.sym == SDLK_LEFT && cursorPos > 0) {
+        if (shift) {
+            if (!hasSelection()) selectAnchor = cursorPos;
+            cursorPos--;
+            setSelection(std::min(selectAnchor, cursorPos), std::max(selectAnchor, cursorPos));
+        } else {
+            cursorPos--;
+            clearSelection();
+        }
+    }
+    else if (e.key.keysym.sym == SDLK_RIGHT && cursorPos < linkedText.get().size()) {
+        if (shift) {
+            if (!hasSelection()) selectAnchor = cursorPos;
+            cursorPos++;
+            setSelection(std::min(selectAnchor, cursorPos), std::max(selectAnchor, cursorPos));
+        } else {
+            cursorPos++;
+            clearSelection();
+        }
+    }
         if (ctrl && e.key.keysym.sym == SDLK_a) {
             selectAll();
             updateCursorPosition(); setIMERectAtCaret();
@@ -217,28 +261,6 @@ void UITextArea::handleEvent(const SDL_Event& e) {
 
         lastBlinkTime = SDL_GetTicks();
         cursorVisible = true;
-
-        const bool alt = (e.key.keysym.mod & (KMOD_ALT | KMOD_GUI)) != 0;
-        if (!ctrl && !alt) {
-            SDL_Keycode k = e.key.keysym.sym;
-            if (k >= 32 && k < 127) {
-                std::string s(1, static_cast<char>(k));
-                if (hasSelection()) {
-                    auto [a,b] = selRange();
-                    linkedText.get().erase(a, b - a);
-                    cursorPos = a;
-                    clearSelection();
-                }
-                size_t maxLen = (maxLength > 0) ? (size_t)maxLength : SIZE_MAX;
-                if (linkedText.get().size() < maxLen) {
-                    linkedText.get().insert(cursorPos, s);
-                    cursorPos += s.size();
-                }
-                updateCursorPosition(); setIMERectAtCaret();
-                lastBlinkTime = SDL_GetTicks(); cursorVisible = true;
-                return;
-            }
-        }
         updateCursorPosition(); setIMERectAtCaret();
         return;
     }
@@ -542,4 +564,19 @@ void UITextArea::setIMERectAtCaret() {
     r.y = std::max(bounds.y, std::min(bounds.y + bounds.h - lh, r.y));
 
     SDL_SetTextInputRect(&r);
+}
+
+void UITextArea::setSelection(size_t a, size_t b) {
+    if (a > b) std::swap(a,b);
+
+    if (a == b) {
+        selStart = selEnd = std::string::npos;
+    } else {
+        selStart = a;
+        selEnd   = b;
+    }
+
+    selectionStart  = (a == b) ? 0 : a;
+    selectionEnd    = (a == b) ? 0 : b;
+    selectionActive = (b > a);
 }

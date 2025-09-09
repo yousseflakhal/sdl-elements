@@ -28,6 +28,7 @@ public:
     void render(SDL_Renderer* renderer) override;
     bool isHovered() const override;
     int getWordCount() const;
+    void setSelection(size_t a, size_t b);
     inline std::pair<size_t,size_t> selRange() const {
         return selStart < selEnd ? std::make_pair(selStart, selEnd)
                                 : std::make_pair(selEnd, selStart);
@@ -80,4 +81,9 @@ private:
     int imeStart = 0;
     int imeLength = 0;
     bool imeActive = false;
+    bool selectingMouse = false;
+    size_t selectAnchor = 0;
+    size_t selectionStart = 0;
+    size_t selectionEnd   = 0;
+    bool   selectionActive = false;
 };
