@@ -512,36 +512,39 @@ void UITextField::render(SDL_Renderer* renderer) {
     TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
     if (!activeFont) return;
 
-    SDL_Color baseBg      = {255,255,255,255};
-    SDL_Color baseBorder  = {180,180,180,255};
-    SDL_Color baseText    = {73, 80, 87,255};
-    SDL_Color baseCursor  = {73, 80, 87,255};
-    SDL_Color placeholderCol = {160,160,160,255};
-    SDL_Color focusBlue   = {13,110,253,178};
+    const UITheme& th = getTheme();
+    const auto st = MakeTextFieldStyle(th);
+
+    const int effRadius   = (cornerRadius > 0 ? cornerRadius : st.radius);
+    const int effBorderPx = (borderPx     > 0 ? borderPx     : st.borderPx);
+
+    const SDL_Color borderNow = focused ? st.borderFocus : (hovered ? st.borderHover : st.border);
 
     if (focused) {
-        UIHelpers::StrokeRoundedRectOutside(renderer, bounds, cornerRadius, 2, focusBlue, baseBg);
+        UIHelpers::StrokeRoundedRectOutside(renderer, bounds, effRadius, effBorderPx + 1, th.focusRing, st.bg);
     }
 
     SDL_Rect dst = bounds;
 
-    if (borderPx > 0) {
-        UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, cornerRadius, baseBorder);
-        SDL_Rect inner = { dst.x + borderPx, dst.y + borderPx, dst.w - 2*borderPx, dst.h - 2*borderPx };
-        UIHelpers::FillRoundedRect(renderer, inner.x, inner.y, inner.w, inner.h, std::max(0, cornerRadius - borderPx), baseBg);
+    if (effBorderPx > 0) {
+        UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, effRadius, borderNow);
+        SDL_Rect inner = { dst.x + effBorderPx, dst.y + effBorderPx,
+                           dst.w - 2*effBorderPx, dst.h - 2*effBorderPx };
+        UIHelpers::FillRoundedRect(renderer, inner.x, inner.y, inner.w, inner.h,
+                                   std::max(0, effRadius - effBorderPx), st.bg);
         dst = inner;
     } else {
-        UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, cornerRadius, baseBg);
+        UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, effRadius, st.bg);
     }
 
     std::string toRender = (inputType == InputType::PASSWORD)
         ? std::string(linkedText.get().size(), '*')
         : linkedText.get();
 
-    SDL_Color drawCol = baseText;
+    SDL_Color drawCol = st.fg;
     if (toRender.empty() && !focused && !placeholder.empty()) {
         toRender = placeholder;
-        drawCol = placeholderCol;
+        drawCol  = st.placeholder;
     }
 
     int cursorX = dst.x + 8;
@@ -566,25 +569,13 @@ void UITextField::render(SDL_Renderer* renderer) {
                 auto [a, b] = selRange();
                 if (b > a) {
                     const std::string& full = linkedText.get();
-
-                    std::string left = (inputType == InputType::PASSWORD)
-                        ? std::string(a, '*')
-                        : full.substr(0, a);
-
-                    std::string mid = (inputType == InputType::PASSWORD)
-                        ? std::string(b - a, '*')
-                        : full.substr(a, b - a);
-
+                    std::string left = (inputType == InputType::PASSWORD) ? std::string(a, '*') : full.substr(0, a);
+                    std::string mid  = (inputType == InputType::PASSWORD) ? std::string(b - a, '*') : full.substr(a, b - a);
                     int leftW = textWidth(activeFont, left);
                     int midW  = textWidth(activeFont, mid);
 
-                    int selX = textRect.x + leftW;
-                    int selY = textRect.y;
-                    int selW = midW;
-                    int selH = textSurface->h;
-
-                    SDL_SetRenderDrawColor(renderer, 0, 120, 215, 120);
-                    SDL_Rect selRect{ selX, selY, selW, selH };
+                    SDL_SetRenderDrawColor(renderer, st.selectionBg.r, st.selectionBg.g, st.selectionBg.b, st.selectionBg.a);
+                    SDL_Rect selRect{ textRect.x + leftW, textRect.y, midW, textSurface->h };
                     SDL_RenderFillRect(renderer, &selRect);
                 }
             }
@@ -600,9 +591,7 @@ void UITextField::render(SDL_Renderer* renderer) {
     }
 
     if (focused && !preedit.empty()) {
-        std::string preToDraw = (inputType == InputType::PASSWORD)
-            ? std::string(preedit.size(), '*')
-            : preedit;
+        std::string preToDraw = (inputType == InputType::PASSWORD) ? std::string(preedit.size(), '*') : preedit;
 
         const std::string& full = linkedText.get();
         std::string prefixMeasure = (inputType == InputType::PASSWORD)
@@ -611,7 +600,7 @@ void UITextField::render(SDL_Renderer* renderer) {
 
         int prefixW = textWidth(activeFont, prefixMeasure);
 
-        SDL_Color preCol = baseText;
+        SDL_Color preCol = st.fg;
         SDL_Surface* preSurf = TTF_RenderUTF8_Blended(activeFont, preToDraw.c_str(), preCol);
         if (preSurf) {
             SDL_Texture* preTex = SDL_CreateTextureFromSurface(renderer, preSurf);
@@ -628,29 +617,27 @@ void UITextField::render(SDL_Renderer* renderer) {
             SDL_RenderCopy(renderer, preTex, nullptr, &preRect);
             SDL_DestroyTexture(preTex);
             SDL_FreeSurface(preSurf);
-            auto isContB = [](unsigned char c){ return (c & 0xC0) == 0x80; };
 
+            auto isContB = [](unsigned char c){ return (c & 0xC0) == 0x80; };
             int preByte = 0, cpLeft = std::max(0, preeditCursor);
             while (preByte < (int)preedit.size() && cpLeft-- > 0) {
                 preByte++;
                 while (preByte < (int)preedit.size() && isContB((unsigned char)preedit[preByte])) preByte++;
             }
-
             std::string preCaretSub = (inputType == InputType::PASSWORD)
                 ? std::string((int)std::count_if(preedit.begin(), preedit.begin() + preByte,
-                    [&](unsigned char ch){ static auto ic=[](unsigned char c){return (c&0xC0)==0x80;}; return !ic(ch);} ), '*')
+                    [&](unsigned char ch){ return ((ch & 0xC0) != 0x80); }), '*')
                 : preedit.substr(0, preByte);
 
             int preCaretW = 0, preCaretH = 0;
             if (!preCaretSub.empty()) TTF_SizeUTF8(activeFont, preCaretSub.c_str(), &preCaretW, &preCaretH);
 
             if (cursorVisible && !hasSelection()) {
-                SDL_SetRenderDrawColor(renderer, baseCursor.r, baseCursor.g, baseCursor.b, baseCursor.a);
+                SDL_SetRenderDrawColor(renderer, st.caret.r, st.caret.g, st.caret.b, st.caret.a);
                 SDL_Rect preCaret = { preRect.x + preCaretW, preRect.y, 1, preRect.h };
                 SDL_RenderFillRect(renderer, &preCaret);
             }
         }
-        
     }
 
     {
@@ -664,12 +651,13 @@ void UITextField::render(SDL_Renderer* renderer) {
     }
 
     if (focused && cursorVisible && preedit.empty() && !hasSelection()) {
-        SDL_SetRenderDrawColor(renderer, baseCursor.r, baseCursor.g, baseCursor.b, baseCursor.a);
+        SDL_SetRenderDrawColor(renderer, st.caret.r, st.caret.g, st.caret.b, st.caret.a);
         SDL_Rect cursorRect = { cursorX, cursorY, 1, cursorH };
         SDL_RenderFillRect(renderer, &cursorRect);
     }
 
     SDL_RenderSetClipRect(renderer, nullptr);
 }
+
 
 
