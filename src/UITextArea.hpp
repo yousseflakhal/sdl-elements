@@ -2,6 +2,7 @@
 #include "UIElement.hpp"
 #include "UICommon.hpp"
 #include "UIHelpers.hpp"
+#include "UIStyles.hpp"
 #include <string>
 #include <algorithm>
 #include <vector>

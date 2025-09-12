@@ -102,7 +102,24 @@ struct UITextFieldStyle {
     SDL_Color caret{};
 };
 
+struct UITextAreaStyle {
+    int radius   = 10;
+    int borderPx = 1;
+
+    SDL_Color bg{};
+    SDL_Color fg{};
+    SDL_Color placeholder{};
+
+    SDL_Color border{};
+    SDL_Color borderHover{};
+    SDL_Color borderFocus{};
+
+    SDL_Color selectionBg{};
+    SDL_Color caret{};
+};
+
 UITextFieldStyle MakeTextFieldStyle(const UITheme& t);
+UITextAreaStyle MakeTextAreaStyle(const UITheme& t);
 
 
 class UIElement {
@@ -798,6 +815,24 @@ TTF_Font** UIConfig::getDefaultFontPtr() {
 
 UITextFieldStyle MakeTextFieldStyle(const UITheme& t) {
     UITextFieldStyle s;
+    s.radius       = t.radiusMd;
+    s.borderPx     = t.borderThin;
+
+    s.bg           = t.backgroundColor;
+    s.fg           = t.textColor;
+    s.placeholder  = t.placeholderColor;
+
+    s.border       = t.borderColor;
+    s.borderHover  = t.borderHoverColor;
+    s.borderFocus  = t.focusRing;
+
+    s.selectionBg  = t.selectionBg;
+    s.caret        = t.cursorColor;
+    return s;
+}
+
+UITextAreaStyle MakeTextAreaStyle(const UITheme& t) {
+    UITextAreaStyle s;
     s.radius       = t.radiusMd;
     s.borderPx     = t.borderThin;
 
@@ -3002,29 +3037,28 @@ std::vector<std::string> UITextArea::wrapTextToLines(const std::string& text, TT
 }
 
 void UITextArea::render(SDL_Renderer* renderer) {
-    TTF_Font* fnt = font ? font : UIConfig::getDefaultFont();
+    TTF_Font* fnt = font ? font : (getTheme().font ? getTheme().font : UIConfig::getDefaultFont());
     if (!fnt) return;
 
-    SDL_Color baseBg       = {255,255,255,255};
-    SDL_Color baseBorder   = {180,180,180,255};
-    SDL_Color baseText     = {73, 80, 87,255};
-    SDL_Color baseCursor   = {73, 80, 87,255};
-    SDL_Color placeholderC = {160,160,160,255};
-    SDL_Color focusBlue    = {13,110,253,178};
+    const UITheme& th = getTheme();
+    auto st = MakeTextAreaStyle(th);
+
+    int effRadius = (cornerRadius > 0 ? cornerRadius : st.radius);
+    int effBorderPx = (borderPx > 0 ? borderPx : st.borderPx);
 
     if (focused) {
-        UIHelpers::StrokeRoundedRectOutside(renderer, bounds, cornerRadius, 2, focusBlue, baseBg);
+        UIHelpers::StrokeRoundedRectOutside(renderer, bounds, effRadius, effBorderPx + 1, st.borderFocus, st.bg);
     }
 
     SDL_Rect dst = bounds;
-    if (borderPx > 0) {
-        UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, cornerRadius, baseBorder);
-        SDL_Rect inner = { dst.x + borderPx, dst.y + borderPx, dst.w - 2*borderPx, dst.h - 2*borderPx };
-        UIHelpers::FillRoundedRect(renderer, inner.x, inner.y, inner.w, inner.h,
-                                   std::max(0, cornerRadius - borderPx), baseBg);
+    if (effBorderPx > 0) {
+        SDL_Color borderNow = focused ? st.borderFocus : (hovered ? st.borderHover : st.border);
+        UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, effRadius, borderNow);
+        SDL_Rect inner = { dst.x + effBorderPx, dst.y + effBorderPx, dst.w - 2*effBorderPx, dst.h - 2*effBorderPx };
+        UIHelpers::FillRoundedRect(renderer, inner.x, inner.y, inner.w, inner.h, std::max(0, effRadius - effBorderPx), st.bg);
         dst = inner;
     } else {
-        UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, cornerRadius, baseBg);
+        UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, effRadius, st.bg);
     }
 
     SDL_Rect clip = { dst.x + 2, dst.y + 2, dst.w - 4, dst.h - 4 };
@@ -3032,7 +3066,7 @@ void UITextArea::render(SDL_Renderer* renderer) {
 
     const bool showPlaceholder = linkedText.get().empty() && !focused && !placeholder.empty();
     std::string txt = showPlaceholder ? placeholder : linkedText.get();
-    SDL_Color drawCol = showPlaceholder ? placeholderC : baseText;
+    SDL_Color drawCol = showPlaceholder ? st.placeholder : st.fg;
 
     const int lh = TTF_FontHeight(fnt);
     const int innerX = dst.x + paddingPx;
@@ -3054,14 +3088,13 @@ void UITextArea::render(SDL_Renderer* renderer) {
             size_t R = (selB <= baseIndex) ? 0 : (selB - baseIndex);
             L = std::min(L, line.size());
             R = std::min(R, line.size());
-
             if (R > L) {
                 int wLeft=0,h=0, wMid=0;
                 std::string left = line.substr(0, L);
                 std::string mid  = line.substr(L, R-L);
                 if (!left.empty()) TTF_SizeUTF8(fnt, left.c_str(), &wLeft, &h);
                 if (!mid.empty())  TTF_SizeUTF8(fnt, mid.c_str(),  &wMid,  &h);
-                SDL_SetRenderDrawColor(renderer, 0, 120, 215, 120);
+                SDL_SetRenderDrawColor(renderer, st.selectionBg.r, st.selectionBg.g, st.selectionBg.b, st.selectionBg.a);
                 SDL_Rect selR{ innerX + wLeft, y, wMid, lh };
                 SDL_RenderFillRect(renderer, &selR);
             }
@@ -3084,18 +3117,14 @@ void UITextArea::render(SDL_Renderer* renderer) {
     if (focused && imeActive && !imeText.empty()) {
         int onScreenY = cursorY - (int)scrollOffsetY;
         onScreenY = std::clamp(onScreenY, dst.y, dst.y + dst.h - lh);
-
-        SDL_Color compCol = { baseText.r, baseText.g, baseText.b, 255 };
-        SDL_Surface* s = TTF_RenderUTF8_Blended(fnt, imeText.c_str(), compCol);
+        SDL_Surface* s = TTF_RenderUTF8_Blended(fnt, imeText.c_str(), st.fg);
         if (s) {
             SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
             SDL_Rect compDst{ cursorX, onScreenY + (lh - s->h)/2, s->w, s->h };
             SDL_RenderCopy(renderer, t, nullptr, &compDst);
-
-            SDL_SetRenderDrawColor(renderer, compCol.r, compCol.g, compCol.b, 255);
+            SDL_SetRenderDrawColor(renderer, st.fg.r, st.fg.g, st.fg.b, st.fg.a);
             SDL_Rect ul{ compDst.x, compDst.y + compDst.h - 1, compDst.w, 1 };
             SDL_RenderFillRect(renderer, &ul);
-
             SDL_DestroyTexture(t);
             SDL_FreeSurface(s);
         }
@@ -3104,8 +3133,7 @@ void UITextArea::render(SDL_Renderer* renderer) {
     if (focused && cursorVisible && !showPlaceholder && !hasSelection()) {
         int onScreenY = cursorY - (int)scrollOffsetY;
         onScreenY = std::clamp(onScreenY, dst.y, dst.y + dst.h - lh);
-
-        SDL_SetRenderDrawColor(renderer, baseCursor.r, baseCursor.g, baseCursor.b, baseCursor.a);
+        SDL_SetRenderDrawColor(renderer, st.caret.r, st.caret.g, st.caret.b, st.caret.a);
         SDL_Rect caretR{ cursorX, onScreenY, 1, lh };
         SDL_RenderFillRect(renderer, &caretR);
     }
@@ -3114,6 +3142,7 @@ void UITextArea::render(SDL_Renderer* renderer) {
 
     if (contentHeight > dst.h) renderScrollbar(renderer);
 }
+
 
 
 
