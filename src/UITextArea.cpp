@@ -26,7 +26,7 @@ void UITextArea::handleEvent(const SDL_Event& e) {
     }
 
     if (focused && e.type == SDL_TEXTEDITING) {
-        imeText   = e.edit.text ? e.edit.text : "";
+        imeText = e.edit.text;
         imeStart  = e.edit.start;
         imeLength = e.edit.length;
         imeActive = !imeText.empty();
@@ -45,6 +45,50 @@ void UITextArea::handleEvent(const SDL_Event& e) {
             size_t idx = indexFromMouse(e.button.x, e.button.y);
             const bool shift = (SDL_GetModState() & KMOD_SHIFT) != 0;
 
+            Uint32 now = SDL_GetTicks();
+            bool near = std::abs(e.button.x - lastClickX) <= 4 && std::abs(e.button.y - lastClickY) <= 4;
+            if (now - lastClickTicks <= 350 && near) clickCount++;
+            else clickCount = 1;
+            lastClickTicks = now; lastClickX = e.button.x; lastClickY = e.button.y;
+
+            auto& s = linkedText.get();
+            auto isCont = [](unsigned char c){ return (c & 0xC0) == 0x80; };
+            auto prevCP = [&](int i){ if(i<=0) return 0; i--; while(i>0 && isCont((unsigned char)s[i])) i--; return i; };
+            auto nextCP = [&](int i){ int n=(int)s.size(); if(i>=n) return n; i++; while(i<n && isCont((unsigned char)s[i])) i++; return i; };
+            auto isWord = [&](unsigned char ch){ return std::isalnum(ch) || ch=='_'; };
+
+            if (clickCount == 3) {
+                selectAll();
+                cursorPos = s.size();
+                updateCursorPosition(); setIMERectAtCaret();
+                SDL_StartTextInput();
+                lastBlinkTime = SDL_GetTicks(); cursorVisible = true;
+                selectingMouse = false;
+                return;
+            }
+
+            if (clickCount == 2) {
+                int L = (int)idx, R = (int)idx, n=(int)s.size();
+                while (L > 0) {
+                    int pB = prevCP(L);
+                    unsigned char ch = (unsigned char)s[pB];
+                    if (!isWord(ch)) break;
+                    L = pB;
+                }
+                while (R < n) {
+                    unsigned char ch = (unsigned char)s[R];
+                    if (!isWord(ch)) break;
+                    R = nextCP(R);
+                }
+                setSelection((size_t)L, (size_t)R);
+                cursorPos = (size_t)R;
+                updateCursorPosition(); setIMERectAtCaret();
+                SDL_StartTextInput();
+                lastBlinkTime = SDL_GetTicks(); cursorVisible = true;
+                selectingMouse = false;
+                return;
+            }
+
             if (shift && wasFocused) {
                 if (!hasSelection()) selectAnchor = cursorPos;
                 cursorPos = idx;
@@ -55,12 +99,9 @@ void UITextArea::handleEvent(const SDL_Event& e) {
                 selectAnchor = cursorPos;
                 selectingMouse = true;
             }
-
-            updateCursorPosition();
-            setIMERectAtCaret();
+            updateCursorPosition(); setIMERectAtCaret();
             SDL_StartTextInput();
-            lastBlinkTime = SDL_GetTicks();
-            cursorVisible = true;
+            lastBlinkTime = SDL_GetTicks(); cursorVisible = true;
         } else if (wasFocused && !focused) {
             SDL_StopTextInput();
             clearSelection();
@@ -81,6 +122,7 @@ void UITextArea::handleEvent(const SDL_Event& e) {
         }
         return;
     }
+
 
     if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {
         scrollbarDragging = false;
@@ -531,11 +573,11 @@ size_t UITextArea::indexFromMouse(int mx, int my) const {
     int xLocal = mx - innerX; if (xLocal < 0) xLocal = 0;
 
     size_t best = 0;
-    int bestW = 0, w=0, h=0;
+    int w=0, h=0;
     for (size_t i = 0; i <= line.size(); ++i) {
         std::string s = line.substr(0, i);
         TTF_SizeUTF8(fnt, s.c_str(), &w, &h);
-        if (w <= xLocal) { best = i; bestW = w; }
+        if (w <= xLocal) { best = i; }
         else break;
     }
 

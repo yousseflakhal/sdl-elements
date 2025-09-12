@@ -87,4 +87,8 @@ private:
     size_t selectionStart = 0;
     size_t selectionEnd   = 0;
     bool   selectionActive = false;
+    Uint32 lastClickTicks = 0;
+    int clickCount = 0;
+    int lastClickX = -10000;
+    int lastClickY = -10000;
 };
