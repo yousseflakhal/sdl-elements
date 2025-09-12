@@ -8,57 +8,6 @@ static int textWidth(TTF_Font* font, const std::string& s) {
     return w;
 }
 
-static SDL_Rect innerRect(const SDL_Rect& r, int borderPx) {
-    if (borderPx <= 0) return r;
-    SDL_Rect out{ r.x + borderPx, r.y + borderPx,
-                  r.w - 2*borderPx, r.h - 2*borderPx };
-    if (out.w < 0) out.w = 0;
-    if (out.h < 0) out.h = 0;
-    return out;
-}
-
-static void ensureCaretVisible(TTF_Font* font, const std::string& full, bool passwordMode,
-                               int caret, const SDL_Rect& inner, int paddingLeft,
-                               int& scrollX) {
-    std::string prefix = passwordMode ? std::string(caret, '*')
-                                      : full.substr(0, clampi(caret, 0, (int)full.size()));
-    int caretPx = 0, dummy = 0;
-    if (font && !prefix.empty()) TTF_SizeUTF8(font, prefix.c_str(), &caretPx, &dummy);
-
-    const int viewLeft  = scrollX;
-    const int viewRight = scrollX + (inner.w - paddingLeft * 2);
-
-    if (caretPx < viewLeft) {
-        scrollX = caretPx;
-    } else if (caretPx > viewRight) {
-        scrollX = caretPx - (inner.w - paddingLeft * 2);
-    }
-    if (scrollX < 0) scrollX = 0;
-}
-
-static bool isWordChar(unsigned char c) {
-    return std::isalnum(c) || c == '_';
-}
-
-static int prevWordIndex(const std::string& s, int from) {
-    from = clampi(from, 0, (int)s.size());
-    if (from == 0) return 0;
-    int i = from - 1;
-    while (i > 0 && !isWordChar((unsigned char)s[i])) --i;
-    while (i > 0 && isWordChar((unsigned char)s[i-1])) --i;
-    return i;
-}
-
-static int nextWordIndex(const std::string& s, int from) {
-    from = clampi(from, 0, (int)s.size());
-    int n = (int)s.size();
-    if (from >= n) return n;
-    int i = from;
-    while (i < n && !isWordChar((unsigned char)s[i])) ++i;
-    while (i < n && isWordChar((unsigned char)s[i])) ++i;
-    return i;
-}
-
 UITextField::UITextField(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen)
     : label(label), linkedText(bind), maxLength(maxLen)
 {
@@ -443,7 +392,7 @@ void UITextField::handleEvent(const SDL_Event& e) {
 
         case SDL_TEXTEDITING: {
             if (!focused) break;
-            std::string newText = e.edit.text ? e.edit.text : "";
+            std::string newText = e.edit.text;
             bool changed = (newText != preedit) || (preeditCursor != e.edit.start);
             preedit.assign(newText);
             preeditCursor = e.edit.start;
