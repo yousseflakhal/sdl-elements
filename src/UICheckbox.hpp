@@ -1,11 +1,13 @@
 #pragma once
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
-#include <string>
 #include "UIElement.hpp"
 #include "UIConfig.hpp"
 #include "UIHelpers.hpp"
+#include "UIStyles.hpp"
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
+#include <string>
 #include <optional>
+#include <algorithm>
 
 class UICheckbox : public UIElement {
 public:

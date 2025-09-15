@@ -53,35 +53,41 @@ void UICheckbox::update(float) {
 }
 
 void UICheckbox::render(SDL_Renderer* renderer) {
-    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+    const UITheme& th = getTheme();
+    const auto st = MakeCheckboxStyle(th);
+
+    TTF_Font* activeFont = font ? font
+                                : (th.font ? th.font : UIConfig::getDefaultFont());
     if (!activeFont) return;
 
     const bool isChecked = linkedValue.get();
-    const int  boxSize   = 18;
-    const int  radius    = 4;
 
-    SDL_Color textCol   = hasCustomTextColor ? customTextColor
-                                             : UIHelpers::RGBA(33,37,41, enabled ? 255 : 160);
-    SDL_Color borderCol = hasCustomBorderColor ? customBorderColor
-                                               : (hovered ? UIHelpers::RGBA(120,120,120)
-                                                          : UIHelpers::RGBA(160,160,160));
-    SDL_Color fillCol   = hasCustomBoxBgColor ? customBoxBgColor
-                                              : UIHelpers::RGBA(255,255,255);
-    SDL_Color tickCol   = hasCustomCheckedColor ? customCheckedColor
-                                                : UIHelpers::RGBA(13,110,253);
+    SDL_Color textCol   = hasCustomTextColor    ? customTextColor    : st.text;
+    SDL_Color borderCol = hasCustomBorderColor  ? customBorderColor  : (hovered ? st.borderHover : st.border);
+    SDL_Color fillCol   = hasCustomBoxBgColor   ? customBoxBgColor   : st.boxBg;
+    SDL_Color tickCol   = hasCustomCheckedColor ? customCheckedColor : st.tick;
 
-    const UITheme& theme = getTheme();
-    SDL_Color parentBg   = theme.backgroundColor;
+    Uint8 globalAlpha = enabled ? 255 : 160;
+    textCol.a   = globalAlpha;
+    borderCol.a = globalAlpha;
+    fillCol.a   = globalAlpha;
+    tickCol.a   = globalAlpha;
 
-    SDL_Rect box = { bounds.x, bounds.y + (bounds.h - boxSize)/2, boxSize, boxSize };
+    SDL_Rect box = { bounds.x, bounds.y + (bounds.h - st.boxSize)/2, st.boxSize, st.boxSize };
 
-    int stroke = std::max(0, borderPx);
+    int stroke = std::max<int>(0, (borderPx > 0 ? borderPx : st.borderPx));
+    int radius = st.radius;
     int innerRadius = std::max(0, radius - stroke);
     SDL_Rect inner = { box.x + stroke, box.y + stroke, box.w - 2*stroke, box.h - 2*stroke };
 
+    if (focusable && focused) {
+        SDL_Color ring = st.borderFocus; ring.a = std::min<int>(ring.a, globalAlpha);
+        UIHelpers::StrokeRoundedRectOutside(renderer, inner, innerRadius, stroke + 1, ring, fillCol);
+    }
+
     if (stroke > 0) {
         if (fillCol.a == 0) {
-            UIHelpers::StrokeRoundedRectOutside(renderer, inner, innerRadius, stroke, borderCol, parentBg);
+            UIHelpers::StrokeRoundedRectOutside(renderer, inner, innerRadius, stroke, borderCol, th.backgroundColor);
         } else {
             UIHelpers::FillRoundedRect(renderer, inner.x, inner.y, inner.w, inner.h, innerRadius, fillCol);
             UIHelpers::StrokeRoundedRectOutside(renderer, inner, innerRadius, stroke, borderCol, fillCol);
@@ -98,7 +104,7 @@ void UICheckbox::render(SDL_Renderer* renderer) {
         UIHelpers::DrawCheckmark(renderer, markBox, thick, tickCol, pad);
     }
 
-    const int textLeft = box.x + box.w + 8;
+    const int textLeft = box.x + box.w + st.spacingPx;
     SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, label.c_str(), textCol);
     if (!s) return;
     SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
