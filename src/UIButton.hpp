@@ -1,11 +1,13 @@
 #pragma once
 #include "UIElement.hpp"
 #include "UIHelpers.hpp"
+#include "UIStyles.hpp"
+#include "UIConfig.hpp"
+#include <SDL2/SDL_ttf.h>
+#include <SDL2/SDL.h>
 #include <functional>
 #include <string>
-#include <SDL2/SDL_ttf.h>
 #include <optional>
-#include "UIConfig.hpp"
 
 class UIButton : public UIElement {
 public:

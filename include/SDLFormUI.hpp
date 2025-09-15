@@ -118,8 +118,18 @@ struct UITextAreaStyle {
     SDL_Color caret{};
 };
 
+struct UIButtonStyle {
+    int radius   = 10;
+    int borderPx = 1;
+
+    SDL_Color text{};
+    SDL_Color border{};
+    SDL_Color borderFocus{};
+};
+
 UITextFieldStyle MakeTextFieldStyle(const UITheme& t);
 UITextAreaStyle MakeTextAreaStyle(const UITheme& t);
+UIButtonStyle MakeButtonStyle(const UITheme& t);
 
 
 class UIElement {
@@ -853,6 +863,16 @@ UITextAreaStyle MakeTextAreaStyle(const UITheme& t) {
     return s;
 }
 
+UIButtonStyle MakeButtonStyle(const UITheme& t) {
+    UIButtonStyle s;
+    s.radius      = t.radiusMd;
+    s.borderPx    = t.borderThin;
+    s.text        = t.textColor;
+    s.border      = t.borderColor;
+    s.borderFocus = t.focusRing;
+    return s;
+}
+
 
 UIPopup::UIPopup(int x, int y, int w, int h) {
     bounds = { x, y, w, h };
@@ -1319,9 +1339,12 @@ void UIButton::update(float) {
 
 
 void UIButton::render(SDL_Renderer* renderer) {
-    const UITheme& theme = getTheme();
-    SDL_Color baseBg   = customBgColor   ? *customBgColor   : theme.backgroundColor;
-    SDL_Color baseText = customTextColor ? *customTextColor : theme.textColor;
+    const UITheme& th = getTheme();
+    const auto st = MakeButtonStyle(th);
+
+    SDL_Color baseBg     = customBgColor   ? *customBgColor   : th.backgroundColor;
+    SDL_Color baseText   = customTextColor ? *customTextColor : st.text;
+    SDL_Color baseBorder = customBorderColor? *customBorderColor: st.border;
 
     Uint8 globalAlpha = enabled ? 255 : 128;
 
@@ -1332,18 +1355,30 @@ void UIButton::render(SDL_Renderer* renderer) {
     }
     bg.a = globalAlpha;
 
+    int effRadius   = (cornerRadius > 0 ? cornerRadius : st.radius);
+    int effBorderPx = (borderPx     > 0 ? borderPx     : st.borderPx);
+
     if (focusable && focused) {
-        SDL_Color ring = UIHelpers::PickFocusRing(baseBg);
+        SDL_Color ring = st.borderFocus;
         ring.a = (Uint8)std::min<int>(178, globalAlpha);
-        UIHelpers::StrokeRoundedRectOutside(renderer, bounds, cornerRadius, 2, ring, bg);
+        UIHelpers::StrokeRoundedRectOutside(renderer, bounds, effRadius, effBorderPx + 1, ring, bg);
     }
 
     SDL_Rect dst = bounds;
     if (pressed) { dst.y += pressOffset; dst.x += 1; dst.w -= 2; dst.h -= 2; }
 
-    UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, cornerRadius, bg);
+    if (effBorderPx > 0) {
+        UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, effRadius, baseBorder);
+        SDL_Rect inner{ dst.x + effBorderPx, dst.y + effBorderPx, dst.w - 2*effBorderPx, dst.h - 2*effBorderPx };
+        UIHelpers::FillRoundedRect(renderer, inner.x, inner.y, inner.w, inner.h,
+                                   std::max(0, effRadius - effBorderPx), bg);
+        dst = inner;
+    } else {
+        UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, effRadius, bg);
+    }
 
-    TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
+    TTF_Font* activeFont = font ? font
+                                : (th.font ? th.font : UIConfig::getDefaultFont());
     if (!activeFont) return;
 
     SDL_Color txt = baseText; txt.a = globalAlpha;
@@ -1356,6 +1391,7 @@ void UIButton::render(SDL_Renderer* renderer) {
     SDL_FreeSurface(s);
     SDL_DestroyTexture(t);
 }
+
 
 
 void UIButton::setFont(TTF_Font* f) {
@@ -1549,10 +1585,6 @@ static int textWidth(TTF_Font* font, const std::string& s) {
     int w = 0, h = 0;
     if (font && !s.empty()) TTF_SizeUTF8(font, s.c_str(), &w, &h);
     return w;
-}
-
-static bool isWordChar(unsigned char c) {
-    return std::isalnum(c) || c == '_';
 }
 
 UITextField::UITextField(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen)

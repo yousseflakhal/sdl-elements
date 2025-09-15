@@ -35,3 +35,13 @@ UITextAreaStyle MakeTextAreaStyle(const UITheme& t) {
     s.caret        = t.cursorColor;
     return s;
 }
+
+UIButtonStyle MakeButtonStyle(const UITheme& t) {
+    UIButtonStyle s;
+    s.radius      = t.radiusMd;
+    s.borderPx    = t.borderThin;
+    s.text        = t.textColor;
+    s.border      = t.borderColor;
+    s.borderFocus = t.focusRing;
+    return s;
+}

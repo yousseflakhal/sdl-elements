@@ -33,5 +33,15 @@ struct UITextAreaStyle {
     SDL_Color caret{};
 };
 
+struct UIButtonStyle {
+    int radius   = 10;
+    int borderPx = 1;
+
+    SDL_Color text{};
+    SDL_Color border{};
+    SDL_Color borderFocus{};
+};
+
 UITextFieldStyle MakeTextFieldStyle(const UITheme& t);
 UITextAreaStyle MakeTextAreaStyle(const UITheme& t);
+UIButtonStyle MakeButtonStyle(const UITheme& t);
