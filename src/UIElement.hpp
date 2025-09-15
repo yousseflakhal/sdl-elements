@@ -2,6 +2,8 @@
 #include <SDL2/SDL.h>
 #include "UITheme.hpp"
 #include "UIConfig.hpp"
+#include "UIStyles.hpp"
+#include "UIHelpers.hpp"
 
 class UIElement {
 public:

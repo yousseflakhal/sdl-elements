@@ -61,3 +61,13 @@ UICheckboxStyle MakeCheckboxStyle(const UITheme& t) {
     s.tick        = t.checkboxTickColor;
     return s;
 }
+
+UIGroupBoxStyle MakeGroupBoxStyle(const UITheme& t) {
+    UIGroupBoxStyle s;
+    s.radius   = t.radiusMd;
+    s.borderPx = t.borderThin;
+    s.title    = t.textColor;
+    s.border   = t.borderColor;
+    s.bg       = {0,0,0,0};
+    return s;
+}

@@ -57,7 +57,19 @@ struct UICheckboxStyle {
     SDL_Color tick{};
 };
 
+struct UIGroupBoxStyle {
+    int  radius    = 10;
+    int  borderPx  = 1;
+    int  titlePadX = 8;
+    int  titlePadY = 2;
+
+    SDL_Color title;
+    SDL_Color border;
+    SDL_Color bg;
+};
+
 UITextFieldStyle MakeTextFieldStyle(const UITheme& t);
 UITextAreaStyle MakeTextAreaStyle(const UITheme& t);
 UIButtonStyle MakeButtonStyle(const UITheme& t);
 UICheckboxStyle MakeCheckboxStyle(const UITheme& t);
+UIGroupBoxStyle MakeGroupBoxStyle(const UITheme& t);
