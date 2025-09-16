@@ -169,3 +169,13 @@ void UIHelpers::DrawCheckmark(SDL_Renderer* r, const SDL_Rect& box, float thickn
     UIHelpers::DrawFilledCircle(r, (int)std::round(xm), (int)std::round(ym),
                                 (int)std::round(t * 0.50f), color);
 }
+
+void UIHelpers::DrawChevronDown(SDL_Renderer* r, int cx, int cy, int width, int height, float thickness, SDL_Color color) {
+    const float halfW = width * 0.5f;
+    const float halfH = height * 0.5f;
+    float x1 = cx - halfW, y1 = cy - halfH;
+    float xm = cx,         yxm = cy + halfH;
+    float x2 = cx + halfW, y2 = cy - halfH;
+    UIHelpers::DrawRoundStrokeLine(r, x1, y1, xm, yxm, thickness, color);
+    UIHelpers::DrawRoundStrokeLine(r, xm, yxm, x2, y2, thickness, color);
+}

@@ -25,6 +25,8 @@ public:
 
     bool isFocusable() const override { return focusable; }
 
+    UIComboBox* setPlaceholder(std::string ph) { placeholder = std::move(ph); return this; }
+
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
@@ -48,4 +50,5 @@ private:
     bool focused = false;
     bool focusable = true;
     int  cornerRadius = 8;
+    std::string placeholder;
 };

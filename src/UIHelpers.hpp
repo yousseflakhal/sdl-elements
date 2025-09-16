@@ -50,4 +50,7 @@ namespace UIHelpers {
         auto clip = [](int v){ return static_cast<Uint8>(std::clamp(v, 0, 255)); };
         return SDL_Color{ clip(r), clip(g), clip(b), clip(a) };
     }
+
+    void DrawChevronDown(SDL_Renderer* r, int cx, int cy, int width, int height, float thickness, SDL_Color color);
+
 }

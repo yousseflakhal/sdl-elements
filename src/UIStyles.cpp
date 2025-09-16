@@ -87,3 +87,27 @@ UIRadioStyle MakeRadioStyle(const UITheme& t) {
     s.selected    = t.checkboxTickColor;
     return s;
 }
+
+UIComboBoxStyle MakeComboBoxStyle(const UITheme& t) {
+    UIComboBoxStyle s;
+    s.radius    = t.radiusMd;
+    s.borderPx  = t.borderThin;
+    s.padX      = t.padMd;
+
+    s.fieldBg   = t.backgroundColor;
+    s.fieldFg   = t.textColor;
+    s.placeholder = t.placeholderColor;
+    s.border    = t.borderColor;
+    s.borderHover = t.borderHoverColor;
+    s.borderFocus = t.focusRing;
+    s.caret     = t.textColor;
+
+    s.menuBg    = t.backgroundColor;
+    s.menuBorder= t.borderColor;
+
+    s.itemFg        = t.textColor;
+    s.itemHoverBg   = UIHelpers::PickHoverColor(t.backgroundColor);
+    s.itemSelectedBg= UIHelpers::Darken(t.backgroundColor, 8);
+    s.itemSelectedFg= t.textColor;
+    return s;
+}
