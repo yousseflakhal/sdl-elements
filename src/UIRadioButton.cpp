@@ -55,38 +55,44 @@ void UIRadioButton::update(float) {
 }
 
 void UIRadioButton::render(SDL_Renderer* renderer) {
-    TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
+    const UITheme& th = getTheme();
+    const auto st = MakeRadioStyle(th);
+
+    TTF_Font* activeFont = font ? font : (th.font ? th.font : UIConfig::getDefaultFont());
     if (!activeFont) return;
 
     const bool selected = (group && group->getSelectedID() == id);
-
-    const int cx = bounds.x + 12;
+    const int cx = bounds.x + st.spacingPx;
     const int cy = bounds.y + bounds.h / 2;
-    const int outerRadius     = 9;
-    const int borderThickness = 2;
-    const int donutThickness  = 5;
+
+    SDL_Color ringCol   = hovered ? st.borderHover : st.border;
+    SDL_Color selectCol = st.selected;
+    SDL_Color textCol   = st.text;
+
+    Uint8 globalAlpha = enabled ? 255 : 160;
+    ringCol.a   = globalAlpha;
+    selectCol.a = globalAlpha;
+    textCol.a   = globalAlpha;
 
     if (focusable && focused) {
-        SDL_Color halo = {0x0D, 0x6E, 0xFD, 100};
-        UIHelpers::DrawCircleRing(renderer, cx, cy, outerRadius + 3, 3, halo);
+        SDL_Color halo = st.borderFocus; halo.a = std::min<int>(halo.a, globalAlpha);
+        UIHelpers::DrawCircleRing(renderer, cx, cy, st.outerRadius + 3, 3, halo);
     }
 
     if (selected) {
-        SDL_Color blue = {0x0D, 0x6E, 0xFD, 255};
-        if (pressed) blue = UIHelpers::AdjustBrightness(blue, -18);
-        UIHelpers::DrawCircleRing(renderer, cx, cy, outerRadius, donutThickness, blue);
+        SDL_Color c = pressed ? UIHelpers::AdjustBrightness(selectCol, -18) : selectCol;
+        UIHelpers::DrawCircleRing(renderer, cx, cy, st.outerRadius, st.ringThickness, c);
     } else {
-        SDL_Color gray = {160,160,160,255};
-        if (pressed) gray = UIHelpers::AdjustBrightness(gray, -18);
-        UIHelpers::DrawCircleRing(renderer, cx, cy, outerRadius, borderThickness, gray);
+        SDL_Color c = pressed ? UIHelpers::AdjustBrightness(ringCol, -18) : ringCol;
+        UIHelpers::DrawCircleRing(renderer, cx, cy, st.outerRadius, st.borderThickness, c);
     }
 
-    SDL_Color textCol = {0, 0, 0,255};
     SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, label.c_str(), textCol);
     if (!s) return;
     SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
-    SDL_Rect textRect = { bounds.x + 30, bounds.y + (bounds.h - (s->h))/2, s->w, s->h };
+    SDL_Rect textRect = { bounds.x + st.spacingPx + st.outerRadius + st.gapTextPx - st.outerRadius,
+                          bounds.y + (bounds.h - s->h)/2, s->w, s->h };
     SDL_RenderCopy(renderer, t, nullptr, &textRect);
-    SDL_FreeSurface(s);
     SDL_DestroyTexture(t);
+    SDL_FreeSurface(s);
 }

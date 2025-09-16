@@ -71,3 +71,19 @@ UIGroupBoxStyle MakeGroupBoxStyle(const UITheme& t) {
     s.bg       = {0,0,0,0};
     return s;
 }
+
+UIRadioStyle MakeRadioStyle(const UITheme& t) {
+    UIRadioStyle s;
+    s.outerRadius     = std::max(7, t.radiusSm);
+    s.ringThickness   = std::max(3, s.outerRadius / 3);
+    s.borderThickness = std::max(1, t.borderThin);
+    s.spacingPx       = 12;
+    s.gapTextPx       = 18;
+
+    s.text        = t.textColor;
+    s.border      = t.borderColor;
+    s.borderHover = t.borderHoverColor;
+    s.borderFocus = t.focusRing;
+    s.selected    = t.checkboxTickColor;
+    return s;
+}
