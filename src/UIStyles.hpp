@@ -105,6 +105,23 @@ struct UIComboBoxStyle {
     SDL_Color itemSelectedFg{};
 };
 
+struct UISpinnerStyle {
+    int radius   = 10;
+    int borderPx = 1;
+    int padX     = 10;
+
+    SDL_Color fieldBg{};
+    SDL_Color fieldBorder{};
+    SDL_Color text{};
+
+    SDL_Color btnBg{};
+    SDL_Color btnBgHover{};
+    SDL_Color btnBorder{};
+    SDL_Color btnGlyph{};
+
+    SDL_Color focusRing{};
+};
+
 UITextFieldStyle MakeTextFieldStyle(const UITheme& t);
 UITextAreaStyle MakeTextAreaStyle(const UITheme& t);
 UIButtonStyle MakeButtonStyle(const UITheme& t);
@@ -112,3 +129,4 @@ UICheckboxStyle MakeCheckboxStyle(const UITheme& t);
 UIGroupBoxStyle MakeGroupBoxStyle(const UITheme& t);
 UIRadioStyle MakeRadioStyle(const UITheme& t);
 UIComboBoxStyle MakeComboBoxStyle(const UITheme& t);
+UISpinnerStyle MakeSpinnerStyle(const UITheme& t);

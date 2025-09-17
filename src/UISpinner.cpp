@@ -81,71 +81,52 @@ void UISpinner::update(float) {
 }
 
 void UISpinner::render(SDL_Renderer* renderer) {
-    const UITheme& theme = getTheme();
-    TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+    const UITheme& th = getTheme();
+    const auto st = MakeSpinnerStyle(th);
+    TTF_Font* activeFont = font ? font : (th.font ? th.font : UIConfig::getDefaultFont());
     if (!activeFont) return;
+
+    const int effRadius   = st.radius;
+    const int effBorderPx = st.borderPx;
 
     SDL_Rect minusRect = { bounds.x, bounds.y, bounds.h, bounds.h };
     SDL_Rect plusRect  = { bounds.x + bounds.w - bounds.h, bounds.y, bounds.h, bounds.h };
-    SDL_Rect centerRect = {
-        bounds.x + bounds.h,
-        bounds.y,
-        bounds.w - 2 * bounds.h,
-        bounds.h
-    };
+    SDL_Rect centerRect{ bounds.x + bounds.h, bounds.y, bounds.w - 2*bounds.h, bounds.h };
 
-    SDL_Color minusColor = hoveredMinus ? theme.hoverColor : theme.borderColor;
-    SDL_Color plusColor  = hoveredPlus  ? theme.hoverColor : theme.borderColor;
-    SDL_Color centerColor = theme.borderColor;
+    UIHelpers::FillRoundedRect(renderer, bounds.x, bounds.y, bounds.w, bounds.h, effRadius, st.fieldBorder);
+    SDL_Rect inner = { bounds.x + effBorderPx, bounds.y + effBorderPx, bounds.w - 2*effBorderPx, bounds.h - 2*effBorderPx };
+    UIHelpers::FillRoundedRect(renderer, inner.x, inner.y, inner.w, inner.h, std::max(0, effRadius - effBorderPx), st.fieldBg);
 
-    SDL_SetRenderDrawColor(renderer, theme.backgroundColor.r, theme.backgroundColor.g, theme.backgroundColor.b, theme.backgroundColor.a);
-    SDL_RenderFillRect(renderer, &bounds);
+    SDL_SetRenderDrawColor(renderer, st.fieldBorder.r, st.fieldBorder.g, st.fieldBorder.b, st.fieldBorder.a);
+    SDL_RenderDrawLine(renderer, centerRect.x, bounds.y, centerRect.x, bounds.y + bounds.h - 1);
+    SDL_RenderDrawLine(renderer, centerRect.x + centerRect.w, bounds.y, centerRect.x + centerRect.w, bounds.y + bounds.h - 1);
 
-    SDL_SetRenderDrawColor(renderer, centerColor.r, centerColor.g, centerColor.b, centerColor.a);
-    SDL_RenderDrawRect(renderer, &centerRect);
+    if (hoveredMinus) {
+        SDL_Color hb = st.btnBgHover;
+        SDL_SetRenderDrawColor(renderer, hb.r, hb.g, hb.b, hb.a);
+        SDL_RenderFillRect(renderer, &minusRect);
+    }
+    if (hoveredPlus) {
+        SDL_Color hb = st.btnBgHover;
+        SDL_SetRenderDrawColor(renderer, hb.r, hb.g, hb.b, hb.a);
+        SDL_RenderFillRect(renderer, &plusRect);
+    }
 
-    SDL_SetRenderDrawColor(renderer, minusColor.r, minusColor.g, minusColor.b, 255);
-    SDL_RenderDrawLine(renderer, minusRect.x, minusRect.y, minusRect.x + minusRect.w, minusRect.y);
-    SDL_RenderDrawLine(renderer, minusRect.x, minusRect.y, minusRect.x, minusRect.y + minusRect.h);
-    SDL_RenderDrawLine(renderer, minusRect.x, minusRect.y + minusRect.h - 1, minusRect.x + minusRect.w, minusRect.y + minusRect.h - 1);
+    SDL_Color glyph = st.btnGlyph;
+    SDL_SetRenderDrawColor(renderer, glyph.r, glyph.g, glyph.b, glyph.a);
+    SDL_RenderDrawLine(renderer, minusRect.x + minusRect.w/4, minusRect.y + minusRect.h/2, minusRect.x + 3*minusRect.w/4, minusRect.y + minusRect.h/2);
+    SDL_RenderDrawLine(renderer, plusRect.x + plusRect.w/4, plusRect.y + plusRect.h/2, plusRect.x + 3*plusRect.w/4, plusRect.y + plusRect.h/2);
+    SDL_RenderDrawLine(renderer, plusRect.x + plusRect.w/2, plusRect.y + plusRect.h/4, plusRect.x + plusRect.w/2, plusRect.y + 3*plusRect.h/4);
 
-    SDL_SetRenderDrawColor(renderer, plusColor.r, plusColor.g, plusColor.b, 255);
-    SDL_RenderDrawLine(renderer, plusRect.x, plusRect.y, plusRect.x + plusRect.w, plusRect.y);
-    SDL_RenderDrawLine(renderer, plusRect.x + plusRect.w - 1, plusRect.y, plusRect.x + plusRect.w - 1, plusRect.y + plusRect.h);
-    SDL_RenderDrawLine(renderer, plusRect.x, plusRect.y + plusRect.h - 1, plusRect.x + plusRect.w, plusRect.y + plusRect.h - 1);
-
-    SDL_SetRenderDrawColor(renderer, minusColor.r, minusColor.g, minusColor.b, 255);
-    SDL_RenderDrawLine(renderer,
-        minusRect.x + minusRect.w / 4,
-        minusRect.y + minusRect.h / 2,
-        minusRect.x + 3 * minusRect.w / 4,
-        minusRect.y + minusRect.h / 2);
-
-    SDL_SetRenderDrawColor(renderer, plusColor.r, plusColor.g, plusColor.b, 255);
-    SDL_RenderDrawLine(renderer,
-        plusRect.x + plusRect.w / 2,
-        plusRect.y + plusRect.h / 4,
-        plusRect.x + plusRect.w / 2,
-        plusRect.y + 3 * plusRect.h / 4);
-    SDL_RenderDrawLine(renderer,
-        plusRect.x + plusRect.w / 4,
-        plusRect.y + plusRect.h / 2,
-        plusRect.x + 3 * plusRect.w / 4,
-        plusRect.y + plusRect.h / 2);
-
-    std::ostringstream oss;
-    oss << value.get();
-    SDL_Surface* surface = TTF_RenderUTF8_Blended(activeFont, oss.str().c_str(), theme.textColor);
+    std::ostringstream oss; oss << value.get();
+    SDL_Color txtCol = st.text;
+    SDL_Surface* surface = TTF_RenderUTF8_Blended(activeFont, oss.str().c_str(), txtCol);
     if (surface) {
         SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-        SDL_Rect textRect = {
-            centerRect.x + (centerRect.w - surface->w) / 2,
-            centerRect.y + (centerRect.h - surface->h) / 2,
-            surface->w,
-            surface->h
-        };
+        SDL_Rect textRect = { centerRect.x + (centerRect.w - surface->w)/2, centerRect.y + (centerRect.h - surface->h)/2, surface->w, surface->h };
         SDL_RenderCopy(renderer, texture, nullptr, &textRect);
-        SDL_FreeSurface(surface);
         SDL_DestroyTexture(texture);
+        SDL_FreeSurface(surface);
     }
 }
+

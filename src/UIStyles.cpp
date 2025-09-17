@@ -111,3 +111,22 @@ UIComboBoxStyle MakeComboBoxStyle(const UITheme& t) {
     s.itemSelectedFg= t.textColor;
     return s;
 }
+
+UISpinnerStyle MakeSpinnerStyle(const UITheme& t) {
+    UISpinnerStyle s;
+    s.radius      = t.radiusMd;
+    s.borderPx    = t.borderThin;
+    s.padX        = t.padMd;
+
+    s.fieldBg     = t.backgroundColor;
+    s.fieldBorder = t.borderColor;
+    s.text        = t.textColor;
+
+    s.btnBg       = t.backgroundColor;
+    s.btnBgHover  = UIHelpers::PickHoverColor(t.backgroundColor);
+    s.btnBorder   = t.borderColor;
+    s.btnGlyph    = t.textColor;
+
+    s.focusRing   = t.focusRing;
+    return s;
+}
