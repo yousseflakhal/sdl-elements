@@ -205,6 +205,14 @@ struct UISpinnerStyle {
     SDL_Color focusRing{};
 };
 
+struct UISliderStyle {
+    int trackH = 6;
+    SDL_Color track{};
+    SDL_Color thumb{};
+    SDL_Color thumbDrag{};
+    SDL_Color focusRing{};
+};
+
 UITextFieldStyle MakeTextFieldStyle(const UITheme& t);
 UITextAreaStyle MakeTextAreaStyle(const UITheme& t);
 UIButtonStyle MakeButtonStyle(const UITheme& t);
@@ -213,6 +221,7 @@ UIGroupBoxStyle MakeGroupBoxStyle(const UITheme& t);
 UIRadioStyle MakeRadioStyle(const UITheme& t);
 UIComboBoxStyle MakeComboBoxStyle(const UITheme& t);
 UISpinnerStyle MakeSpinnerStyle(const UITheme& t);
+UISliderStyle MakeSliderStyle(const UITheme& t);
 
 
 class UIElement {
@@ -1044,6 +1053,15 @@ UISpinnerStyle MakeSpinnerStyle(const UITheme& t) {
     s.btnGlyph    = t.textColor;
 
     s.focusRing   = t.focusRing;
+    return s;
+}
+
+UISliderStyle MakeSliderStyle(const UITheme& t) {
+    UISliderStyle s;
+    s.track     = t.sliderTrackColor;
+    s.thumb     = t.sliderThumbColor;
+    s.thumbDrag = UIHelpers::AdjustBrightness(s.thumb, +18);
+    s.focusRing = t.focusRing;
     return s;
 }
 
@@ -2707,12 +2725,10 @@ void UISlider::update(float) {
 
 
 void UISlider::render(SDL_Renderer* renderer) {
-    SDL_Color trackCol  = {224,224,224,255};
-    SDL_Color thumbCol  = {0,123,255,255};
-    SDL_Color thumbDrag = UIHelpers::AdjustBrightness(thumbCol, +18);
-    SDL_Color ringCol   = {13,110,253,178};
+    const UITheme& th = getTheme();
+    const auto st = MakeSliderStyle(th);
 
-    const int trackH = 6;
+    const int trackH = st.trackH;
     SDL_Rect track = {
         bounds.x,
         bounds.y + (bounds.h - trackH)/2,
@@ -2720,7 +2736,7 @@ void UISlider::render(SDL_Renderer* renderer) {
         trackH
     };
 
-    UIHelpers::FillRoundedRect(renderer, track.x, track.y, track.w, track.h, trackH/2, trackCol);
+    UIHelpers::FillRoundedRect(renderer, track.x, track.y, track.w, track.h, trackH/2, st.track);
 
     auto clamp01 = [](float v){ return v < 0.f ? 0.f : (v > 1.f ? 1.f : v); };
     float t = (linkedValue.get() - minVal) / (maxVal - minVal);
@@ -2730,10 +2746,10 @@ void UISlider::render(SDL_Renderer* renderer) {
     const int cy = bounds.y + bounds.h/2;
 
     if (focusable && focused) {
-        UIHelpers::DrawCircleRing(renderer, cx, cy, thumbRadius + 3, 3, ringCol);
+        UIHelpers::DrawCircleRing(renderer, cx, cy, thumbRadius + 3, 3, st.focusRing);
     }
 
-    SDL_Color drawThumb = dragging ? thumbDrag : thumbCol;
+    SDL_Color drawThumb = dragging ? st.thumbDrag : st.thumb;
     UIHelpers::DrawFilledCircle(renderer, cx, cy, thumbRadius, drawThumb);
 }
 

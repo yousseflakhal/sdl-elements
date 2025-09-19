@@ -130,3 +130,12 @@ UISpinnerStyle MakeSpinnerStyle(const UITheme& t) {
     s.focusRing   = t.focusRing;
     return s;
 }
+
+UISliderStyle MakeSliderStyle(const UITheme& t) {
+    UISliderStyle s;
+    s.track     = t.sliderTrackColor;
+    s.thumb     = t.sliderThumbColor;
+    s.thumbDrag = UIHelpers::AdjustBrightness(s.thumb, +18);
+    s.focusRing = t.focusRing;
+    return s;
+}

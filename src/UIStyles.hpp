@@ -122,6 +122,14 @@ struct UISpinnerStyle {
     SDL_Color focusRing{};
 };
 
+struct UISliderStyle {
+    int trackH = 6;
+    SDL_Color track{};
+    SDL_Color thumb{};
+    SDL_Color thumbDrag{};
+    SDL_Color focusRing{};
+};
+
 UITextFieldStyle MakeTextFieldStyle(const UITheme& t);
 UITextAreaStyle MakeTextAreaStyle(const UITheme& t);
 UIButtonStyle MakeButtonStyle(const UITheme& t);
@@ -130,3 +138,4 @@ UIGroupBoxStyle MakeGroupBoxStyle(const UITheme& t);
 UIRadioStyle MakeRadioStyle(const UITheme& t);
 UIComboBoxStyle MakeComboBoxStyle(const UITheme& t);
 UISpinnerStyle MakeSpinnerStyle(const UITheme& t);
+UISliderStyle MakeSliderStyle(const UITheme& t);
