@@ -130,6 +130,10 @@ struct UISliderStyle {
     SDL_Color focusRing{};
 };
 
+struct UILabelStyle {
+    SDL_Color fg;
+};
+
 UITextFieldStyle MakeTextFieldStyle(const UITheme& t);
 UITextAreaStyle MakeTextAreaStyle(const UITheme& t);
 UIButtonStyle MakeButtonStyle(const UITheme& t);
@@ -139,3 +143,4 @@ UIRadioStyle MakeRadioStyle(const UITheme& t);
 UIComboBoxStyle MakeComboBoxStyle(const UITheme& t);
 UISpinnerStyle MakeSpinnerStyle(const UITheme& t);
 UISliderStyle MakeSliderStyle(const UITheme& t);
+UILabelStyle MakeLabelStyle(const UITheme& th);

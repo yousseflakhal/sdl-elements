@@ -139,3 +139,9 @@ UISliderStyle MakeSliderStyle(const UITheme& t) {
     s.focusRing = t.focusRing;
     return s;
 }
+
+UILabelStyle MakeLabelStyle(const UITheme& th) {
+    UILabelStyle st;
+    st.fg = th.textColor;
+    return st;
+}

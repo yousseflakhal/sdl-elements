@@ -1,50 +1,39 @@
 #include "UILabel.hpp"
 #include "UIConfig.hpp"
+#include "UITheme.hpp"
+#include "UIStyles.hpp"
 
 UILabel::UILabel(const std::string& text, int x, int y, int w, int h, TTF_Font* font)
-    : text(text), font(font)
-{
+    : text(text), font(font) {
     bounds = { x, y, w, h };
 }
 
 void UILabel::render(SDL_Renderer* renderer) {
-    TTF_Font* activeFont = font ? font : getThemeFont(getTheme());
-    if (!activeFont) {
-        SDL_Log("UILabel: No valid font to render text.");
-        return;
-    }
+    const UITheme& th = getTheme();
+    auto st = MakeLabelStyle(th);
+    TTF_Font* activeFont = font ? font : getThemeFont(th);
+    if (!activeFont) return;
 
-    const SDL_Color& textColor = (color.a == 0) ? getTheme().textColor : color;
+    SDL_Color txtCol = (color.a != 0) ? color : st.fg;
 
-    SDL_Surface* textSurface = TTF_RenderUTF8_Blended(activeFont, text.c_str(), textColor);
-    if (!textSurface) {
-        SDL_Log("UILabel: Failed to render text surface: %s", TTF_GetError());
-        return;
-    }
-
-    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, textSurface);
-    if (!texture) {
-        SDL_Log("UILabel: Failed to create texture from surface: %s", SDL_GetError());
-        SDL_FreeSurface(textSurface);
-        return;
-    }
+    SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, text.c_str(), txtCol);
+    if (!s) return;
+    SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
 
     SDL_Rect dstRect = {
         bounds.x,
-        bounds.y + (bounds.h - textSurface->h) / 2,
-        textSurface->w,
-        textSurface->h
+        bounds.y + (bounds.h - s->h) / 2,
+        s->w,
+        s->h
     };
 
-    SDL_RenderCopy(renderer, texture, nullptr, &dstRect);
-
-    SDL_FreeSurface(textSurface);
-    SDL_DestroyTexture(texture);
+    SDL_RenderCopy(renderer, t, nullptr, &dstRect);
+    SDL_DestroyTexture(t);
+    SDL_FreeSurface(s);
 }
 
-
-UILabel* UILabel::setColor(SDL_Color newColor) {
-    color = newColor;
+UILabel* UILabel::setColor(SDL_Color c) {
+    color = c;
     return this;
 }
 
