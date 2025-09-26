@@ -4,7 +4,7 @@ static int clampi(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v
 
 static int textWidth(TTF_Font* font, const std::string& s) {
     int w = 0, h = 0;
-    if (font && !s.empty()) TTF_SizeUTF8(font, s.c_str(), &w, &h);
+    if (font && !s.empty()){ TTF_SizeUTF8(font, s.c_str(), &w, &h);}
     return w;
 }
 
@@ -95,7 +95,9 @@ void UITextField::handleEvent(const SDL_Event& e) {
         int i = 0, lastGood = 0, w = 0, h = 0;
         while (i <= n) {
             std::string pref = maskedPrefixForWidth(i);
-            TTF_SizeUTF8(activeFont, pref.c_str(), &w, &h);
+            rebuildGlyphX(activeFont);
+            int w = prefixWidth(pref.size());
+            int h = TTF_FontHeight(activeFont);
             if (w > xLocal) break;
             lastGood = i;
             if (i == n) break;
@@ -105,28 +107,35 @@ void UITextField::handleEvent(const SDL_Event& e) {
     };
     auto ensureCaretVisibleLocal = [&]() {
         if (!activeFont) return;
-        int pad = 8;
+
+        const int pad = 8;
         int innerW = innerR.w - 2 * pad;
         if (innerW < 0) innerW = 0;
-        std::string pref = maskedPrefixForWidth(caret);
-        int w = 0, h = 0;
-        if (!pref.empty()) TTF_SizeUTF8(activeFont, pref.c_str(), &w, &h);
-        int left = scrollX;
-        int right = scrollX + innerW;
-        if (w < left) scrollX = w;
-        else if (w > right) {
-            scrollX = w - innerW;
-            if (scrollX < 0) scrollX = 0;
+
+        rebuildGlyphX(activeFont);
+        const int w = prefixWidth(std::min<size_t>(caret, glyphX.size() ? glyphX.size()-1 : 0));
+
+        const int margin = 2;
+        const int left  = scrollX + margin;
+        const int right = scrollX + innerW - margin;
+
+        if (w < left) {
+            scrollX = std::max(0, w - margin);
+        } else if (w > right) {
+            scrollX = std::max(0, w - innerW + margin);
         }
+
+        const int contentW = glyphX.empty() ? 0 : glyphX.back();
+        const int maxScroll = std::max(0, contentW - innerW);
+        if (scrollX > maxScroll) scrollX = maxScroll;
     };
     auto updateImeRect = [&]() {
         if (!activeFont) return;
-        int pad = 8;
-        int cursorH = TTF_FontHeight(activeFont);
+        const int pad = 8;
+        const int cursorH = TTF_FontHeight(activeFont);
 
-        std::string pref = maskedPrefixForWidth(caret);
-        int w = 0, h = 0;
-        if (!pref.empty()) TTF_SizeUTF8(activeFont, pref.c_str(), &w, &h);
+        rebuildGlyphX(activeFont);
+        int wCaret = prefixWidth(std::min<size_t>(caret, glyphX.size() ? glyphX.size()-1 : 0));
 
         if (!preedit.empty()) {
             auto isContB = [](unsigned char c){ return (c & 0xC0) == 0x80; };
@@ -141,12 +150,12 @@ void UITextField::handleEvent(const SDL_Event& e) {
                     [&](unsigned char ch){ return !isContB(ch); }), '*')
                 : preedit.substr(0, preByte);
 
-            int wPre = 0; 
+            int wPre = 0, h = 0;
             if (!preSub.empty()) TTF_SizeUTF8(activeFont, preSub.c_str(), &wPre, &h);
-            w += wPre;
+            wCaret += wPre;
         }
 
-        SDL_Rect r{ innerR.x + pad + w - scrollX, innerR.y + (innerR.h - cursorH) / 2, 1, cursorH };
+        SDL_Rect r{ innerR.x + pad + wCaret - scrollX, innerR.y + (innerR.h - cursorH) / 2, 1, cursorH };
         SDL_SetTextInputRect(&r);
     };
     auto deleteSelection = [&]() {
@@ -474,6 +483,7 @@ void UITextField::render(SDL_Renderer* renderer) {
     }
 
     SDL_Rect dst = bounds;
+    rebuildGlyphX(activeFont);
 
     if (effBorderPx > 0) {
         UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, effRadius, borderNow);
@@ -520,8 +530,8 @@ void UITextField::render(SDL_Renderer* renderer) {
                     const std::string& full = linkedText.get();
                     std::string left = (inputType == InputType::PASSWORD) ? std::string(a, '*') : full.substr(0, a);
                     std::string mid  = (inputType == InputType::PASSWORD) ? std::string(b - a, '*') : full.substr(a, b - a);
-                    int leftW = textWidth(activeFont, left);
-                    int midW  = textWidth(activeFont, mid);
+                    int leftW = prefixWidth(a);
+                    int midW  = prefixWidth(b) - prefixWidth(a);
 
                     SDL_SetRenderDrawColor(renderer, st.selectionBg.r, st.selectionBg.g, st.selectionBg.b, st.selectionBg.a);
                     SDL_Rect selRect{ textRect.x + leftW, textRect.y, midW, textSurface->h };
@@ -595,7 +605,7 @@ void UITextField::render(SDL_Renderer* renderer) {
             ? std::string(caret, '*')
             : full.substr(0, clampi(caret, 0, (int)full.size()));
 
-        int wPrefix = textWidth(activeFont, prefixMeasure);
+        int wPrefix = prefixWidth(std::min<size_t>(caret, glyphX.size() ? glyphX.size()-1 : 0));
         cursorX = dst.x + 8 + wPrefix - scrollX;
     }
 
@@ -608,5 +618,17 @@ void UITextField::render(SDL_Renderer* renderer) {
     SDL_RenderSetClipRect(renderer, nullptr);
 }
 
+void UITextField::rebuildGlyphX(TTF_Font* f) {
+    const std::string& s = linkedText.get();
+    if (measuredTextCache == s && !glyphX.empty()) return;
 
+    glyphX.assign(s.size() + 1, 0);
+    int w = 0, h = 0;
+    for (size_t i = 1; i <= s.size(); ++i) {
+        std::string sub = s.substr(0, i);
+        TTF_SizeUTF8(f, sub.c_str(), &w, &h);
+        glyphX[i] = w;
+    }
+    measuredTextCache = s;
+}
 

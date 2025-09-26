@@ -70,4 +70,12 @@ private:
     int preeditCursor = 0;
     int lastClickX = 0, lastClickY = 0;
     int clickCount = 0;
+    mutable std::vector<int> glyphX;
+    mutable std::string measuredTextCache;
+    void rebuildGlyphX(TTF_Font* f);
+    int  prefixWidth(size_t i) const {
+        if (glyphX.empty()) return 0;
+        if (i >= glyphX.size()) return glyphX.back();
+        return glyphX[i];
+    }
 };
