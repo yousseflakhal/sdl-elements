@@ -395,20 +395,18 @@ std::vector<std::string> UITextArea::wrapTextToLines(const std::string& text, TT
 void UITextArea::render(SDL_Renderer* renderer) {
     TTF_Font* fnt = font ? font : (getTheme().font ? getTheme().font : UIConfig::getDefaultFont());
     if (!fnt) return;
-
     const UITheme& th = getTheme();
     auto st = MakeTextAreaStyle(th);
 
-    int effRadius = (cornerRadius > 0 ? cornerRadius : st.radius);
-    int effBorderPx = (borderPx > 0 ? borderPx : st.borderPx);
+    SDL_Rect dst = bounds;
+    const int effRadius   = st.radius;
+    const int effBorderPx = st.borderPx;
 
     if (focused) {
-        UIHelpers::StrokeRoundedRectOutside(renderer, bounds, effRadius, effBorderPx + 1, st.borderFocus, st.bg);
+        UIHelpers::StrokeRoundedRectOutside(renderer, dst, effRadius, effBorderPx + 1, st.borderFocus, st.bg);
     }
-
-    SDL_Rect dst = bounds;
+    SDL_Color borderNow = focused ? st.borderFocus : st.border;
     if (effBorderPx > 0) {
-        SDL_Color borderNow = focused ? st.borderFocus : (hovered ? st.borderHover : st.border);
         UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, effRadius, borderNow);
         SDL_Rect inner = { dst.x + effBorderPx, dst.y + effBorderPx, dst.w - 2*effBorderPx, dst.h - 2*effBorderPx };
         UIHelpers::FillRoundedRect(renderer, inner.x, inner.y, inner.w, inner.h, std::max(0, effRadius - effBorderPx), st.bg);
@@ -421,72 +419,66 @@ void UITextArea::render(SDL_Renderer* renderer) {
     SDL_RenderSetClipRect(renderer, &clip);
 
     const bool showPlaceholder = linkedText.get().empty() && !focused && !placeholder.empty();
-    std::string txt = showPlaceholder ? placeholder : linkedText.get();
-    SDL_Color drawCol = showPlaceholder ? st.placeholder : st.fg;
-
     const int lh = TTF_FontHeight(fnt);
     const int innerX = dst.x + paddingPx;
     const int innerY = dst.y + paddingPx;
 
-    auto lines = wrapTextToLines(txt, fnt, dst.w - 2*paddingPx);
+    if (showPlaceholder) {
+        SDL_Surface* s = TTF_RenderUTF8_Blended(fnt, placeholder.c_str(), st.placeholder);
+        if (s) {
+            SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
+            SDL_Rect tr{ innerX, innerY + (lh - s->h)/2, s->w, s->h };
+            SDL_RenderCopy(renderer, t, nullptr, &tr);
+            SDL_DestroyTexture(t);
+            SDL_FreeSurface(s);
+        }
+        contentHeight = float(lh);
+        scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, std::max(0.0f, contentHeight - float(dst.h)));
+        SDL_RenderSetClipRect(renderer, nullptr);
+        if (contentHeight > dst.h) renderScrollbar(renderer);
+        return;
+    }
+
+    rebuildLayout(fnt, dst.w - 2*paddingPx);
     contentHeight = float(std::max(1, (int)lines.size()) * lh);
     scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, std::max(0.0f, contentHeight - float(dst.h)));
 
     size_t selA = 0, selB = 0;
-    bool drawSelection = hasSelection() && !showPlaceholder;
+    bool drawSelection = hasSelection();
     if (drawSelection) { std::tie(selA, selB) = selectionRange(); }
 
     int y = innerY - (int)scrollOffsetY;
-    size_t baseIndex = 0;
-    for (const auto& line : lines) {
+    for (size_t li = 0; li < lines.size(); ++li) {
+        const auto& line = lines[li];
+
         if (drawSelection) {
-            size_t L = (selA <= baseIndex) ? 0 : (selA - baseIndex);
-            size_t R = (selB <= baseIndex) ? 0 : (selB - baseIndex);
-            L = std::min(L, line.size());
-            R = std::min(R, line.size());
-            if (R > L) {
-                int wLeft=0,h=0, wMid=0;
-                std::string left = line.substr(0, L);
-                std::string mid  = line.substr(L, R-L);
-                if (!left.empty()) TTF_SizeUTF8(fnt, left.c_str(), &wLeft, &h);
-                if (!mid.empty())  TTF_SizeUTF8(fnt, mid.c_str(),  &wMid,  &h);
-                SDL_SetRenderDrawColor(renderer, st.selectionBg.r, st.selectionBg.g, st.selectionBg.b, st.selectionBg.a);
+            size_t Lg = std::max(selA, lineStart[li]);
+            size_t Rg = std::min(selB, lineStart[li] + line.size());
+            if (Rg > Lg) {
+                size_t Lcol = Lg - lineStart[li];
+                size_t Rcol = Rg - lineStart[li];
+                int wLeft = prefixX[li][(int)Lcol];
+                int wMid  = prefixX[li][(int)Rcol] - prefixX[li][(int)Lcol];
+                SDL_SetRenderDrawColor(renderer, th.selectionBg.r, th.selectionBg.g, th.selectionBg.b, th.selectionBg.a);
                 SDL_Rect selR{ innerX + wLeft, y, wMid, lh };
                 SDL_RenderFillRect(renderer, &selR);
             }
         }
 
         if (!line.empty()) {
-            SDL_Surface* s = TTF_RenderUTF8_Blended(fnt, line.c_str(), drawCol);
+            SDL_Surface* s = TTF_RenderUTF8_Blended(fnt, line.c_str(), st.fg);
             if (s) {
                 SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
-                SDL_Rect dstText{ innerX, y + (lh - s->h)/2, s->w, s->h };
-                SDL_RenderCopy(renderer, t, nullptr, &dstText);
+                SDL_Rect tr{ innerX, y + (lh - s->h)/2, s->w, s->h };
+                SDL_RenderCopy(renderer, t, nullptr, &tr);
                 SDL_DestroyTexture(t);
                 SDL_FreeSurface(s);
             }
         }
         y += lh;
-        baseIndex += line.size();
     }
 
-    if (focused && imeActive && !imeText.empty()) {
-        int onScreenY = cursorY - (int)scrollOffsetY;
-        onScreenY = std::clamp(onScreenY, dst.y, dst.y + dst.h - lh);
-        SDL_Surface* s = TTF_RenderUTF8_Blended(fnt, imeText.c_str(), st.fg);
-        if (s) {
-            SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
-            SDL_Rect compDst{ cursorX, onScreenY + (lh - s->h)/2, s->w, s->h };
-            SDL_RenderCopy(renderer, t, nullptr, &compDst);
-            SDL_SetRenderDrawColor(renderer, st.fg.r, st.fg.g, st.fg.b, st.fg.a);
-            SDL_Rect ul{ compDst.x, compDst.y + compDst.h - 1, compDst.w, 1 };
-            SDL_RenderFillRect(renderer, &ul);
-            SDL_DestroyTexture(t);
-            SDL_FreeSurface(s);
-        }
-    }
-
-    if (focused && cursorVisible && !showPlaceholder && !hasSelection()) {
+    if (focused && cursorVisible && !hasSelection()) {
         int onScreenY = cursorY - (int)scrollOffsetY;
         onScreenY = std::clamp(onScreenY, dst.y, dst.y + dst.h - lh);
         SDL_SetRenderDrawColor(renderer, st.caret.r, st.caret.g, st.caret.b, st.caret.a);
@@ -495,35 +487,35 @@ void UITextArea::render(SDL_Renderer* renderer) {
     }
 
     SDL_RenderSetClipRect(renderer, nullptr);
-
     if (contentHeight > dst.h) renderScrollbar(renderer);
 }
 
 
 
 
+
 void UITextArea::updateCursorPosition() {
     TTF_Font* fnt = font ? font : UIConfig::getDefaultFont();
+    if (!fnt) return;
+
+    const int maxWidth = bounds.w - 2*paddingPx;
+    rebuildLayout(fnt, maxWidth);
+
     int lh = TTF_FontHeight(fnt);
-    std::string before = linkedText.get().substr(0, cursorPos);
-    auto lines = wrapTextToLines(before, fnt, bounds.w - 2*paddingPx);
-    int caretLine = int(lines.size()) - 1;
-    const std::string& last = lines.empty() ? "" : lines.back();
-    int w = 0;
-    if (!last.empty()) {
-        TTF_SizeUTF8(fnt, last.c_str(), &w, nullptr);
-    }
-    cursorX = bounds.x + paddingPx + w;
-    cursorY = bounds.y + paddingPx + caretLine * lh;
+    int li = lineOfIndex(cursorPos);
+    int x  = xAtIndex(cursorPos);
+
+    cursorX = bounds.x + paddingPx + x;
+    cursorY = bounds.y + paddingPx + li * lh;
+
     float top = float(cursorY - bounds.y);
     float bottom = top + lh;
-    if (top < scrollOffsetY) {
-        scrollOffsetY = top;
-    } else if (bottom > scrollOffsetY + bounds.h) {
-        scrollOffsetY = bottom - bounds.h;
-    }
+    if (top < scrollOffsetY) scrollOffsetY = top;
+    else if (bottom > scrollOffsetY + bounds.h) scrollOffsetY = bottom - bounds.h;
+
     scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, std::max(0.0f, contentHeight - float(bounds.h)));
 }
+
 
 SDL_Rect UITextArea::getScrollbarRect() const {
     const int W = 10;
@@ -557,35 +549,29 @@ size_t UITextArea::indexFromMouse(int mx, int my) const {
     TTF_Font* fnt = font ? font : UIConfig::getDefaultFont();
     if (!fnt) return cursorPos;
 
+    const int maxWidth = bounds.w - 2*paddingPx;
+    rebuildLayout(fnt, maxWidth);
+
     int lh = TTF_FontHeight(fnt);
     const int innerX = bounds.x + paddingPx;
     const int innerY = bounds.y + paddingPx;
 
     int yLocal = my - innerY + (int)scrollOffsetY;
-    int lineIdx = std::max(0, yLocal / std::max(1, lh));
+    int lineIdx = std::clamp(yLocal / std::max(1, lh), 0, (int)std::max<size_t>(1, lines.size()) - 1);
 
-    auto lines = wrapTextToLines(linkedText.get(), fnt, bounds.w - 2*paddingPx);
-
-    if (lines.empty()) return 0;
-    if (lineIdx >= (int)lines.size()) lineIdx = (int)lines.size() - 1;
-
-    const std::string& line = lines[lineIdx];
     int xLocal = mx - innerX; if (xLocal < 0) xLocal = 0;
 
-    size_t best = 0;
-    int w=0, h=0;
-    for (size_t i = 0; i <= line.size(); ++i) {
-        std::string s = line.substr(0, i);
-        TTF_SizeUTF8(fnt, s.c_str(), &w, &h);
-        if (w <= xLocal) { best = i; }
-        else break;
+    const auto& P = prefixX[lineIdx];
+    int lo = 0, hi = (int)P.size() - 1, best = 0;
+    while (lo <= hi) {
+        int mid = (lo + hi) / 2;
+        if (P[mid] <= xLocal) { best = mid; lo = mid + 1; }
+        else hi = mid - 1;
     }
 
-    size_t idx = 0;
-    for (int i = 0; i < lineIdx; ++i) idx += lines[i].size();
-    idx += best;
-    return idx;
+    return lineStart[lineIdx] + (size_t)best;
 }
+
 
 void UITextArea::setIMERectAtCaret() {
     TTF_Font* fnt = font ? font : UIConfig::getDefaultFont();
@@ -615,4 +601,61 @@ void UITextArea::setSelection(size_t a, size_t b) {
     selectionStart  = (a == b) ? 0 : a;
     selectionEnd    = (a == b) ? 0 : b;
     selectionActive = (b > a);
+}
+
+void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {
+    const std::string& full = linkedText.get();
+    if (cacheFont == fnt && cacheWidthPx == maxWidthPx && cacheText == full && !lines.empty())
+        return;
+
+    cacheFont = fnt;
+    cacheWidthPx = maxWidthPx;
+    cacheText = full;
+
+    lines = wrapTextToLines(full.empty() ? std::string() : full, fnt, maxWidthPx);
+    lineStart.clear();
+    prefixX.clear();
+
+    size_t cursor = 0, n = full.size();
+    for (const auto& ln : lines) {
+        lineStart.push_back(cursor);
+        cursor += ln.size();
+    }
+
+    prefixX.resize(lines.size());
+    int h = 0;
+    for (size_t li = 0; li < lines.size(); ++li) {
+        const std::string& L = lines[li];
+        auto& P = prefixX[li];
+        P.assign(L.size() + 1, 0);
+        int w = 0;
+        for (size_t i = 1; i <= L.size(); ++i) {
+            std::string sub = L.substr(0, i);
+            TTF_SizeUTF8(fnt, sub.c_str(), &w, &h);
+            P[i] = w;
+        }
+    }
+}
+
+int UITextArea::lineOfIndex(size_t pos) const {
+    if (lines.empty()) return 0;
+    int lo = 0, hi = (int)lineStart.size() - 1, ans = 0;
+    while (lo <= hi) {
+        int mid = (lo + hi) / 2;
+        size_t st = lineStart[mid];
+        size_t en = st + lines[mid].size();
+        if (pos < st) hi = mid - 1;
+        else if (pos > en) lo = mid + 1;
+        else { ans = mid; break; }
+        ans = std::clamp(lo, 0, (int)lineStart.size() - 1);
+    }
+    return ans;
+}
+
+int UITextArea::xAtIndex(size_t pos) const {
+    if (lines.empty()) return 0;
+    int li = lineOfIndex(pos);
+    size_t st = lineStart[li];
+    size_t col = (pos > st) ? std::min(pos - st, lines[li].size()) : 0;
+    return prefixX[li][col];
 }

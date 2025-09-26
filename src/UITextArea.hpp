@@ -54,6 +54,9 @@ public:
 
 private:
     std::vector<std::string> wrapTextToLines(const std::string& text, TTF_Font* font, int maxWidth) const ;
+    void rebuildLayout(TTF_Font* fnt, int maxWidthPx) const;
+    int lineOfIndex(size_t pos) const;
+    int xAtIndex(size_t pos) const;
     std::string label;
     std::reference_wrapper<std::string> linkedText;
     std::string placeholder;
@@ -91,4 +94,10 @@ private:
     int clickCount = 0;
     int lastClickX = -10000;
     int lastClickY = -10000;
+    mutable std::string      cacheText;
+    mutable int              cacheWidthPx = -1;
+    mutable TTF_Font*        cacheFont    = nullptr;
+    mutable std::vector<std::string> lines;
+    mutable std::vector<size_t>       lineStart;
+    mutable std::vector<std::vector<int>> prefixX;
 };
