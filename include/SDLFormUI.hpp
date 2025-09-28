@@ -282,6 +282,13 @@ public:
     int getPadFromTheme() const {
         return MakePopupStyle(getTheme()).pad;
     }
+    void centerInRenderer(SDL_Renderer* r) {
+        if (!r) return;
+        int rw = 0, rh = 0;
+        if (SDL_GetRendererOutputSize(r, &rw, &rh) == 0) {
+            setBounds((rw - bounds.w) / 2, (rh - bounds.h) / 2, bounds.w, bounds.h);
+        }
+    }
 
     std::vector<std::shared_ptr<UIElement>> children;
 
@@ -301,12 +308,15 @@ public:
     void handleEvent(const SDL_Event& e) override;
 
     void close();
+    void setBounds(int x, int y, int w, int h) override;
+
 
 private:
     std::string title;
     std::string message;
     std::function<void()> onOk;
     std::function<void()> onCancel;
+    void layoutButtons();
 
     std::shared_ptr<UIButton> okButton;
     std::shared_ptr<UIButton> cancelButton;
@@ -1167,39 +1177,21 @@ UIDialog::UIDialog(const std::string& title,
                    const std::string& message,
                    std::function<void()> onOk,
                    std::function<void()> onCancel)
-    : UIPopup((800 - 400) / 2, (600 - 200) / 2, 400, 200),
+    : UIPopup(0, 0, 400, 200),
       title(title), message(message), onOk(onOk), onCancel(onCancel)
 {
-    const int dialogWidth = 400;
-    const int dialogHeight = 200;
-    bounds = {
-        (800 - dialogWidth) / 2,
-        (600 - dialogHeight) / 2,
-        dialogWidth,
-        dialogHeight
-    };
-
     TTF_Font* font = UIConfig::getDefaultFont();
-    int btnW = 100, btnH = 40, spacing = 20;
-    int btnY = bounds.y + bounds.h - btnH - spacing;
-    int okX = bounds.x + bounds.w / 2 - btnW - spacing / 2;
-    int cancelX = bounds.x + bounds.w / 2 + spacing / 2;
 
-    okButton = std::make_shared<UIButton>("OK", okX, btnY, btnW, btnH, font);
-    cancelButton = std::make_shared<UIButton>("Cancel", cancelX, btnY, btnW, btnH, font);
+    okButton     = std::make_shared<UIButton>("OK",     0, 0, 100, 40, font);
+    cancelButton = std::make_shared<UIButton>("Cancel", 0, 0, 100, 40, font);
 
-    okButton->setOnClick([this, onOk]() {
-        if (onOk) onOk();
-        close();
-    });
-
-    cancelButton->setOnClick([this, onCancel]() {
-        if (onCancel) onCancel();
-        close();
-    });
+    okButton->setOnClick([this, onOk]() { if (onOk) onOk(); close(); });
+    cancelButton->setOnClick([this, onCancel]() { if (onCancel) onCancel(); close(); });
 
     addChild(okButton);
     addChild(cancelButton);
+
+    layoutButtons();
 }
 
 void UIDialog::render(SDL_Renderer* renderer) {
@@ -1252,6 +1244,26 @@ void UIDialog::handleEvent(const SDL_Event& e) {
 
 void UIDialog::close() {
     visible = false;
+}
+
+void UIDialog::setBounds(int x, int y, int w, int h) {
+    UIElement::setBounds(x, y, w, h);
+    layoutButtons();
+}
+
+void UIDialog::layoutButtons() {
+    if (!okButton || !cancelButton) return;
+
+    const auto pst = MakePopupStyle(getTheme());
+    const int btnW = 100, btnH = 40;
+    const int gap  = pst.pad / 2;
+
+    const int btnY = bounds.y + bounds.h - pst.pad - btnH;
+    const int okX     = bounds.x + (bounds.w - (btnW*2 + gap)) / 2;
+    const int cancelX = okX + btnW + gap;
+
+    okButton->setBounds(okX,     btnY, btnW, btnH);
+    cancelButton->setBounds(cancelX, btnY, btnW, btnH);
 }
 
 

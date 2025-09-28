@@ -19,12 +19,15 @@ public:
     void handleEvent(const SDL_Event& e) override;
 
     void close();
+    void setBounds(int x, int y, int w, int h) override;
+
 
 private:
     std::string title;
     std::string message;
     std::function<void()> onOk;
     std::function<void()> onCancel;
+    void layoutButtons();
 
     std::shared_ptr<UIButton> okButton;
     std::shared_ptr<UIButton> cancelButton;

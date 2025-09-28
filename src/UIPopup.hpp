@@ -14,6 +14,13 @@ public:
     int getPadFromTheme() const {
         return MakePopupStyle(getTheme()).pad;
     }
+    void centerInRenderer(SDL_Renderer* r) {
+        if (!r) return;
+        int rw = 0, rh = 0;
+        if (SDL_GetRendererOutputSize(r, &rw, &rh) == 0) {
+            setBounds((rw - bounds.w) / 2, (rh - bounds.h) / 2, bounds.w, bounds.h);
+        }
+    }
 
     std::vector<std::shared_ptr<UIElement>> children;
     
