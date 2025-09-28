@@ -836,6 +836,7 @@ private:
 class UIManager {
 public:
     enum ShortcutScope { Global=0, WhenNoTextEditing=1, ModalOnly=2 };
+    ~UIManager() noexcept;
 
     void initCursors();
     void cleanupCursors();
@@ -883,8 +884,11 @@ private:
         std::function<void()> cb;
     };
     std::vector<Shortcut> shortcuts_;
+    bool cursorsReady = false;
 
     bool pendingPopupClose = false;
+    void ensureCursorsInit_();
+    void cleanupCursors_();
 };
 
 
@@ -3831,6 +3835,7 @@ static void sendFocusEvent(UIElement* el, int code) {
     el->handleEvent(ev);
 }
 
+UIManager::~UIManager() { cleanupCursors_(); }
 
 void UIManager::addElement(std::shared_ptr<UIElement> el) {
     elements.push_back(el);
@@ -3843,16 +3848,26 @@ void UIManager::showPopup(std::shared_ptr<UIPopup> popup) {
 std::shared_ptr<UIPopup> UIManager::GetActivePopup() { return activePopup; }
 void UIManager::closePopup() { pendingPopupClose = true; }
 
-void UIManager::initCursors() {
+void UIManager::initCursors()    { ensureCursorsInit_(); }
+void UIManager::cleanupCursors() { cleanupCursors_(); }
+
+void UIManager::ensureCursorsInit_() {
+    if (cursorsReady) return;
+    if ((SDL_WasInit(SDL_INIT_VIDEO) & SDL_INIT_VIDEO) == 0) return;
+
     arrowCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
     handCursor  = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND);
     ibeamCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_IBEAM);
-    SDL_SetCursor(arrowCursor);
+
+    if (arrowCursor) SDL_SetCursor(arrowCursor);
+    cursorsReady = true;
 }
-void UIManager::cleanupCursors() {
-    SDL_FreeCursor(arrowCursor);
-    SDL_FreeCursor(handCursor);
-    SDL_FreeCursor(ibeamCursor);
+
+void UIManager::cleanupCursors_() {
+    if (arrowCursor) { SDL_FreeCursor(arrowCursor); arrowCursor = nullptr; }
+    if (handCursor)  { SDL_FreeCursor(handCursor);  handCursor  = nullptr; }
+    if (ibeamCursor) { SDL_FreeCursor(ibeamCursor); ibeamCursor = nullptr; }
+    cursorsReady = false;
 }
 
 void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_Cursor*& cursorToUse) {
@@ -3961,6 +3976,7 @@ UIElement* UIManager::hitTestTopMost_(int x, int y) {
 /* ==== Event routing ==== */
 
 void UIManager::handleEvent(const SDL_Event& e) {
+    if (e.type == SDL_MOUSEMOTION) ensureCursorsInit_();
     if (activePopup) { activePopup->handleEvent(e); return; }
     if (activeModal_) { activeModal_->handleEvent(e); return; }
 
@@ -4004,6 +4020,7 @@ void UIManager::handleEvent(const SDL_Event& e) {
 
 
 void UIManager::update(float dt) {
+    ensureCursorsInit_();
     if (pendingPopupClose) {
         activePopup.reset();
         pendingPopupClose = false;

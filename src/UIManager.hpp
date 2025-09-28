@@ -17,6 +17,7 @@
 class UIManager {
 public:
     enum ShortcutScope { Global=0, WhenNoTextEditing=1, ModalOnly=2 };
+    ~UIManager() noexcept;
 
     void initCursors();
     void cleanupCursors();
@@ -64,6 +65,9 @@ private:
         std::function<void()> cb;
     };
     std::vector<Shortcut> shortcuts_;
+    bool cursorsReady = false;
 
     bool pendingPopupClose = false;
+    void ensureCursorsInit_();
+    void cleanupCursors_();
 };
