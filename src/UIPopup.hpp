@@ -11,6 +11,9 @@ public:
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
+    int getPadFromTheme() const {
+        return MakePopupStyle(getTheme()).pad;
+    }
 
     std::vector<std::shared_ptr<UIElement>> children;
     

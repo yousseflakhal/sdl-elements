@@ -39,9 +39,12 @@ void UIManager::addElement(std::shared_ptr<UIElement> el) {
     elements.push_back(el);
     if (el && el->isFocusable()) registerElement(el.get(), true);
 }
-void UIManager::showPopup(std::shared_ptr<UIPopup> popup) { activePopup = popup; }
+void UIManager::showPopup(std::shared_ptr<UIPopup> popup) { 
+    activePopup = popup;
+    pendingPopupClose = false;
+ }
 std::shared_ptr<UIPopup> UIManager::GetActivePopup() { return activePopup; }
-void UIManager::closePopup() { activePopup = nullptr; }
+void UIManager::closePopup() { pendingPopupClose = true; }
 
 void UIManager::initCursors() {
     arrowCursor = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW);
@@ -204,6 +207,10 @@ void UIManager::handleEvent(const SDL_Event& e) {
 
 
 void UIManager::update(float dt) {
+    if (pendingPopupClose) {
+        activePopup.reset();
+        pendingPopupClose = false;
+    }
     if (activePopup && !activePopup->visible) activePopup = nullptr;
 
     SDL_Cursor* cursorToUse = arrowCursor;

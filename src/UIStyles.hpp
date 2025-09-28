@@ -134,6 +134,15 @@ struct UILabelStyle {
     SDL_Color fg;
 };
 
+struct PopupStyle {
+    SDL_Color bg;
+    SDL_Color border;
+    SDL_Color borderFocus;
+    int       radius;
+    int       borderPx;
+    int       pad;
+};
+
 UITextFieldStyle MakeTextFieldStyle(const UITheme& t);
 UITextAreaStyle MakeTextAreaStyle(const UITheme& t);
 UIButtonStyle MakeButtonStyle(const UITheme& t);
@@ -144,3 +153,4 @@ UIComboBoxStyle MakeComboBoxStyle(const UITheme& t);
 UISpinnerStyle MakeSpinnerStyle(const UITheme& t);
 UISliderStyle MakeSliderStyle(const UITheme& t);
 UILabelStyle MakeLabelStyle(const UITheme& th);
+PopupStyle MakePopupStyle(const UITheme& th);

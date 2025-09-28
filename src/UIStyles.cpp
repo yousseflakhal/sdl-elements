@@ -145,3 +145,14 @@ UILabelStyle MakeLabelStyle(const UITheme& th) {
     st.fg = th.textColor;
     return st;
 }
+
+PopupStyle MakePopupStyle(const UITheme& th) {
+    PopupStyle st;
+    st.bg          = UIHelpers::RGBA(th.backgroundColor.r, th.backgroundColor.g, th.backgroundColor.b, 245);
+    st.border      = th.borderColor;
+    st.borderFocus = th.focusRing;
+    st.radius      = th.radiusMd;
+    st.borderPx    = th.borderThin;
+    st.pad         = th.padLg;
+    return st;
+}

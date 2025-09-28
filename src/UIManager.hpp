@@ -64,4 +64,6 @@ private:
         std::function<void()> cb;
     };
     std::vector<Shortcut> shortcuts_;
+
+    bool pendingPopupClose = false;
 };

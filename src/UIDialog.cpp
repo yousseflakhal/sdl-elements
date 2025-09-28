@@ -43,46 +43,39 @@ UIDialog::UIDialog(const std::string& title,
 }
 
 void UIDialog::render(SDL_Renderer* renderer) {
-    const UITheme& theme = getTheme();
+    UIPopup::render(renderer);
+
+    const UITheme& th = getTheme();
+    const auto lst = MakeLabelStyle(th);
+    const auto pst = MakePopupStyle(th);
     TTF_Font* font = UIConfig::getDefaultFont();
     if (!font) return;
 
-    SDL_SetRenderDrawColor(renderer, theme.backgroundColor.r, theme.backgroundColor.g, theme.backgroundColor.b, theme.backgroundColor.a);
-    SDL_RenderFillRect(renderer, &bounds);
+    int x = bounds.x + pst.pad;
+    int y = bounds.y + pst.pad;
 
-    SDL_SetRenderDrawColor(renderer, theme.borderColor.r, theme.borderColor.g, theme.borderColor.b, theme.borderColor.a);
-    SDL_RenderDrawRect(renderer, &bounds);
-
-    SDL_Surface* titleSurf = TTF_RenderUTF8_Blended(font, title.c_str(), theme.textColor);
-    SDL_Surface* msgSurf = TTF_RenderUTF8_Blended(font, message.c_str(), theme.textColor);
-
-    if (titleSurf) {
-        SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, titleSurf);
-        SDL_Rect titleRect = {
-            bounds.x + 20,
-            bounds.y + 20,
-            titleSurf->w,
-            titleSurf->h
-        };
-        SDL_RenderCopy(renderer, tex, nullptr, &titleRect);
-        SDL_FreeSurface(titleSurf);
-        SDL_DestroyTexture(tex);
+    if (!title.empty()) {
+        SDL_Surface* s = TTF_RenderUTF8_Blended(font, title.c_str(), lst.fg);
+        if (s) {
+            SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
+            SDL_Rect dst{ x, y, s->w, s->h };
+            SDL_RenderCopy(renderer, t, nullptr, &dst);
+            y += s->h + (pst.pad / 2);
+            SDL_DestroyTexture(t);
+            SDL_FreeSurface(s);
+        }
     }
 
-    if (msgSurf) {
-        SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, msgSurf);
-        SDL_Rect msgRect = {
-            bounds.x + 20,
-            bounds.y + 70,
-            msgSurf->w,
-            msgSurf->h
-        };
-        SDL_RenderCopy(renderer, tex, nullptr, &msgRect);
-        SDL_FreeSurface(msgSurf);
-        SDL_DestroyTexture(tex);
+    if (!message.empty()) {
+        SDL_Surface* s = TTF_RenderUTF8_Blended(font, message.c_str(), lst.fg);
+        if (s) {
+            SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
+            SDL_Rect dst{ x, y, s->w, s->h };
+            SDL_RenderCopy(renderer, t, nullptr, &dst);
+            SDL_DestroyTexture(t);
+            SDL_FreeSurface(s);
+        }
     }
-
-    UIPopup::render(renderer);
 }
 
 void UIDialog::handleEvent(const SDL_Event& e) {
