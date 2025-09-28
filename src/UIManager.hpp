@@ -70,4 +70,6 @@ private:
     bool pendingPopupClose = false;
     void ensureCursorsInit_();
     void cleanupCursors_();
+    std::vector<UIElement*> savedFocusOrder_;
+    int savedFocusedIndex_ = -1;
 };

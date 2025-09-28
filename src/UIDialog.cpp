@@ -69,6 +69,12 @@ void UIDialog::handleEvent(const SDL_Event& e) {
         close();
         return;
     }
+    if (e.type == SDL_KEYDOWN &&
+        (e.key.keysym.sym == SDLK_RETURN || e.key.keysym.sym == SDLK_KP_ENTER)) {
+        if (onOk) onOk();
+        close();
+        return;
+    }
     UIPopup::handleEvent(e);
 }
 

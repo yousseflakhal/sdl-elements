@@ -889,6 +889,8 @@ private:
     bool pendingPopupClose = false;
     void ensureCursorsInit_();
     void cleanupCursors_();
+    std::vector<UIElement*> savedFocusOrder_;
+    int savedFocusedIndex_ = -1;
 };
 
 
@@ -1240,6 +1242,12 @@ void UIDialog::handleEvent(const SDL_Event& e) {
         ignoreNextClick = false;
     }
     if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) {
+        close();
+        return;
+    }
+    if (e.type == SDL_KEYDOWN &&
+        (e.key.keysym.sym == SDLK_RETURN || e.key.keysym.sym == SDLK_KP_ENTER)) {
+        if (onOk) onOk();
         close();
         return;
     }
@@ -3842,9 +3850,20 @@ void UIManager::addElement(std::shared_ptr<UIElement> el) {
     if (el && el->isFocusable()) registerElement(el.get(), true);
 }
 void UIManager::showPopup(std::shared_ptr<UIPopup> popup) {
-    activePopup = popup;
-    pendingPopupClose = false;
- }
+    activePopup = std::move(popup);
+
+    savedFocusOrder_  = focusOrder_;
+    savedFocusedIndex_ = focusedIndex_;
+
+    focusOrder_.clear();
+    if (activePopup) {
+        for (auto& ch : activePopup->children) {
+            if (ch && ch->isFocusable()) focusOrder_.push_back(ch.get());
+        }
+    }
+    if (!focusOrder_.empty()) setFocusedIndex_(0);
+    else clearFocus();
+}
 std::shared_ptr<UIPopup> UIManager::GetActivePopup() { return activePopup; }
 void UIManager::closePopup() { pendingPopupClose = true; }
 
@@ -3912,8 +3931,6 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
     }
 }
 
-/* ==== New focus/capture/shortcut API ==== */
-
 void UIManager::registerElement(UIElement* e, bool focusable) {
     if (e && focusable) focusOrder_.push_back(e);
 }
@@ -3949,8 +3966,6 @@ void UIManager::registerShortcut(SDL_Keycode key, Uint16 mods, ShortcutScope sco
     shortcuts_.push_back({key, mods, (int)scope, std::move(cb)});
 }
 
-/* ==== Private helpers now as member functions (fixes “inaccessible” errors) ==== */
-
 bool UIManager::tryShortcuts_(const SDL_Event& e) {
     if (e.type != SDL_KEYDOWN) return false;
     const auto sym = e.key.keysym.sym;
@@ -3973,11 +3988,17 @@ UIElement* UIManager::hitTestTopMost_(int x, int y) {
     return nullptr;
 }
 
-/* ==== Event routing ==== */
-
 void UIManager::handleEvent(const SDL_Event& e) {
     if (e.type == SDL_MOUSEMOTION) ensureCursorsInit_();
-    if (activePopup) { activePopup->handleEvent(e); return; }
+    if (activePopup) {
+        if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_TAB) {
+            const bool shift = (SDL_GetModState() & KMOD_SHIFT) != 0;
+            if (shift) focusPrev(); else focusNext();
+            return;
+        }
+        activePopup->handleEvent(e);
+        return;
+    }
     if (activeModal_) { activeModal_->handleEvent(e); return; }
 
     if (isMouseEvent(e) && mouseCaptured_) { mouseCaptured_->handleEvent(e); return; }
@@ -4023,9 +4044,19 @@ void UIManager::update(float dt) {
     ensureCursorsInit_();
     if (pendingPopupClose) {
         activePopup.reset();
+        setFocusOrder(savedFocusOrder_);
+        if (savedFocusedIndex_ >= 0) setFocusedIndex_(savedFocusedIndex_); else clearFocus();
+        savedFocusOrder_.clear();
+        savedFocusedIndex_ = -1;
         pendingPopupClose = false;
     }
-    if (activePopup && !activePopup->visible) activePopup = nullptr;
+    if (activePopup && !activePopup->visible) {
+        activePopup.reset();
+        setFocusOrder(savedFocusOrder_);
+        if (savedFocusedIndex_ >= 0) setFocusedIndex_(savedFocusedIndex_); else clearFocus();
+        savedFocusOrder_.clear();
+        savedFocusedIndex_ = -1;
+    }
 
     SDL_Cursor* cursorToUse = arrowCursor;
 
