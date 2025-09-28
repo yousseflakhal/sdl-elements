@@ -256,8 +256,13 @@ void UIManager::render(SDL_Renderer* renderer) {
     if (activePopup && activePopup->visible) {
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);
-        SDL_Rect fullscreen = { 0, 0, 800, 600 };
-        SDL_RenderFillRect(renderer, &fullscreen);
+
+        int rw = 0, rh = 0;
+        if (SDL_GetRendererOutputSize(renderer, &rw, &rh) == 0) {
+            SDL_Rect fullscreen = { 0, 0, rw, rh };
+            SDL_RenderFillRect(renderer, &fullscreen);
+        }
+
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
         activePopup->render(renderer);
     }
