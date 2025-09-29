@@ -3197,10 +3197,26 @@ void UITextArea::handleEvent(const SDL_Event& e) {
                 linkedText.get().erase(cursorPos - 1, 1);
                 cursorPos--;
             }
-        } else if (e.key.keysym.sym == SDLK_RETURN) {
-            if (linkedText.get().length() < size_t(maxLength)) {
-                linkedText.get().insert(cursorPos, "\n");
-                cursorPos++;
+        } else if (e.key.keysym.sym == SDLK_RETURN || e.key.keysym.sym == SDLK_KP_ENTER) {
+            if (hasSelection()) {
+                auto [a, b] = selRange();
+                linkedText.get().erase(a, b - a);
+                cursorPos = a;
+                clearSelection();
+            }
+            size_t maxLen = (maxLength > 0) ? (size_t)maxLength : SIZE_MAX;
+            if (linkedText.get().size() < maxLen) {
+                linkedText.get().insert(cursorPos, 1, '\n');
+                cursorPos += 1;
+            }
+        } else if (e.key.keysym.sym == SDLK_DELETE) {
+            if (hasSelection()) {
+                auto [a,b] = selRange();
+                linkedText.get().erase(a, b - a);
+                cursorPos = a;
+                clearSelection();
+            } else if (cursorPos < linkedText.get().size()) {
+                linkedText.get().erase(cursorPos, 1);
             }
         }
 
