@@ -100,4 +100,7 @@ private:
     mutable std::vector<std::string> lines;
     mutable std::vector<size_t>       lineStart;
     mutable std::vector<std::vector<int>> prefixX;
+    mutable std::string cacheTextNoNL;
+    mutable std::vector<size_t> mapOrigToNoNL;
+    mutable std::vector<size_t> mapNoNLToOrig;
 };
