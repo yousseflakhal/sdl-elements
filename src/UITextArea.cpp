@@ -18,9 +18,11 @@ void UITextArea::setPlaceholder(const std::string& text) {
 
 void UITextArea::handleEvent(const SDL_Event& e) {
     if (e.type == SDL_USEREVENT) {
-        if (e.user.code == 0xF001) { if (!focused) { focused = true; SDL_StartTextInput(); } return; }
+        if (e.user.code == 0xF001) { if (!focused) { focused = true; SDL_StartTextInput();preferredXpx = -1; preferredColumn = -1; } return; }
         if (e.user.code == 0xF002) { if (focused) { focused = false; SDL_StopTextInput(); clearSelection(); }
             imeText.clear(); imeStart = imeLength = 0; imeActive = false;
+            preferredXpx    = -1;
+            preferredColumn = -1;
             return;
         }
     }
@@ -60,7 +62,10 @@ void UITextArea::handleEvent(const SDL_Event& e) {
             if (clickCount == 3) {
                 selectAll();
                 cursorPos = s.size();
-                updateCursorPosition(); setIMERectAtCaret();
+                preferredColumn = -1;
+                preferredXpx    = -1;
+                updateCursorPosition();
+                setIMERectAtCaret();
                 SDL_StartTextInput();
                 lastBlinkTime = SDL_GetTicks(); cursorVisible = true;
                 selectingMouse = false;
@@ -82,6 +87,8 @@ void UITextArea::handleEvent(const SDL_Event& e) {
                 }
                 setSelection((size_t)L, (size_t)R);
                 cursorPos = (size_t)R;
+                preferredColumn = -1;
+                preferredXpx    = -1;
                 updateCursorPosition(); setIMERectAtCaret();
                 SDL_StartTextInput();
                 lastBlinkTime = SDL_GetTicks(); cursorVisible = true;
@@ -92,9 +99,13 @@ void UITextArea::handleEvent(const SDL_Event& e) {
             if (shift && wasFocused) {
                 if (!hasSelection()) selectAnchor = cursorPos;
                 cursorPos = idx;
+                preferredColumn = -1;
+                preferredXpx    = -1;
                 setSelection(std::min(selectAnchor, cursorPos), std::max(selectAnchor, cursorPos));
             } else {
                 cursorPos = idx;
+                preferredColumn = -1;
+                preferredXpx    = -1;
                 clearSelection();
                 selectAnchor = cursorPos;
                 selectingMouse = true;
@@ -105,6 +116,8 @@ void UITextArea::handleEvent(const SDL_Event& e) {
         } else if (wasFocused && !focused) {
             SDL_StopTextInput();
             clearSelection();
+            preferredXpx    = -1;
+            preferredColumn = -1;
         }
 
         SDL_Rect sb = getScrollbarRect();
@@ -144,6 +157,8 @@ void UITextArea::handleEvent(const SDL_Event& e) {
             size_t idx = indexFromMouse(e.motion.x, e.motion.y);
             cursorPos = idx;
             setSelection(std::min(selectAnchor, cursorPos), std::max(selectAnchor, cursorPos));
+            preferredColumn = -1;
+            preferredXpx    = -1;
             updateCursorPosition();
             setIMERectAtCaret();
             lastBlinkTime = SDL_GetTicks();
@@ -198,12 +213,16 @@ void UITextArea::handleEvent(const SDL_Event& e) {
                 auto [a,b] = selRange();
                 linkedText.get().erase(a, b - a);
                 cursorPos = a;
+                preferredColumn = -1;
+                preferredXpx    = -1;
                 clearSelection();
             }
             if (room > 0) {
                 if (in.size() > room) in.resize(room);
                 linkedText.get().insert(cursorPos, in);
                 cursorPos += in.size();
+                preferredColumn = -1;
+                preferredXpx    = -1;
             }
         }
         updateCursorPosition();
@@ -219,32 +238,46 @@ void UITextArea::handleEvent(const SDL_Event& e) {
                 auto [a,b] = selRange();
                 linkedText.get().erase(a, b - a);
                 cursorPos = a;
+                preferredColumn = -1;
+                preferredXpx    = -1;
                 clearSelection();
             } else if (cursorPos > 0) {
                 linkedText.get().erase(cursorPos - 1, 1);
                 cursorPos--;
             }
+            preferredColumn = -1;
+            preferredXpx    = -1;
         } else if (e.key.keysym.sym == SDLK_RETURN || e.key.keysym.sym == SDLK_KP_ENTER) {
             if (hasSelection()) {
                 auto [a, b] = selRange();
                 linkedText.get().erase(a, b - a);
                 cursorPos = a;
+                preferredColumn = -1;
+                preferredXpx    = -1;
                 clearSelection();
             }
             size_t maxLen = (maxLength > 0) ? (size_t)maxLength : SIZE_MAX;
             if (linkedText.get().size() < maxLen) {
                 linkedText.get().insert(cursorPos, 1, '\n');
                 cursorPos += 1;
+                preferredColumn = -1;
+                preferredXpx    = -1;
             }
+            preferredColumn = -1;
+            preferredXpx    = -1;
         } else if (e.key.keysym.sym == SDLK_DELETE) {
             if (hasSelection()) {
                 auto [a,b] = selRange();
                 linkedText.get().erase(a, b - a);
                 cursorPos = a;
+                preferredColumn = -1;
+                preferredXpx    = -1;
                 clearSelection();
             } else if (cursorPos < linkedText.get().size()) {
                 linkedText.get().erase(cursorPos, 1);
             }
+            preferredColumn = -1;
+            preferredXpx    = -1;
         }
 
         const bool ctrl  = (e.key.keysym.mod & KMOD_CTRL)  != 0;
@@ -277,6 +310,8 @@ void UITextArea::handleEvent(const SDL_Event& e) {
                 clearSelection();
                 selectAnchor = cursorPos;
             }
+            preferredColumn = -1;
+            preferredXpx    = -1;
             lastBlinkTime = SDL_GetTicks();
             cursorVisible = true;
             updateCursorPosition();
@@ -296,6 +331,8 @@ void UITextArea::handleEvent(const SDL_Event& e) {
                 clearSelection();
                 selectAnchor = cursorPos;
             }
+            preferredColumn = -1;
+            preferredXpx    = -1;
             lastBlinkTime = SDL_GetTicks();
             cursorVisible = true;
             updateCursorPosition();
@@ -305,6 +342,8 @@ void UITextArea::handleEvent(const SDL_Event& e) {
 
         if (ctrl && e.key.keysym.sym == SDLK_a) {
             selectAll();
+            preferredColumn = -1;
+            preferredXpx    = -1;
             updateCursorPosition(); setIMERectAtCaret();
             lastBlinkTime = SDL_GetTicks(); cursorVisible = true;
             return;
@@ -324,6 +363,8 @@ void UITextArea::handleEvent(const SDL_Event& e) {
                 SDL_SetClipboardText(clip.c_str());
                 linkedText.get().erase(a, b - a);
                 cursorPos = a;
+                preferredColumn = -1;
+                preferredXpx    = -1;
                 clearSelection();
                 updateCursorPosition(); setIMERectAtCaret();
                 lastBlinkTime = SDL_GetTicks(); cursorVisible = true;
@@ -342,29 +383,133 @@ void UITextArea::handleEvent(const SDL_Event& e) {
                     auto [a,b] = selRange();
                     linkedText.get().erase(a, b - a);
                     cursorPos = a;
+                    preferredColumn = -1;
+                    preferredXpx    = -1;
                     clearSelection();
                 }
                 if (room > 0) {
                     if (paste.size() > room) paste.resize(room);
                     linkedText.get().insert(cursorPos, paste);
                     cursorPos += paste.size();
+                    preferredColumn = -1;
+                    preferredXpx    = -1;
                     updateCursorPosition(); setIMERectAtCaret();
                     lastBlinkTime = SDL_GetTicks(); cursorVisible = true;
                 }
             }
             return;
         }
+        
+        if (e.key.keysym.sym == SDLK_UP || e.key.keysym.sym == SDLK_DOWN) {
+            const bool goDown    = (e.key.keysym.sym == SDLK_DOWN);
+            const bool shiftHeld = (e.key.keysym.mod & KMOD_SHIFT) != 0;
+
+            TTF_Font* fnt = font ? font : UIConfig::getDefaultFont();
+            const auto st = MakeTextAreaStyle(getTheme());
+            const int borderPx = st.borderPx;
+            const int innerX0  = bounds.x + borderPx + paddingPx;
+            const int innerW   = std::max(0, bounds.w - 2*borderPx - 2*paddingPx);
+
+            rebuildLayout(fnt, innerW);
+
+            const std::string& full = linkedText.get();
+            const size_t N = full.size();
+            size_t i = std::min(cursorPos, N);
+
+            size_t posNoNL = mapOrigToNoNL[i];
+            int line = lineOfIndex(posNoNL);
+            if (i < N && full[i] == '\n' && line > 0) {
+                line    -= 1;
+                posNoNL  = lineStart[(size_t)line] + lines[(size_t)line].size();
+            } else if (line > 0 && posNoNL == (size_t)lineStart[(size_t)line] && i > 0 && full[i-1] != '\n') {
+                line    -= 1;
+                posNoNL  = lineStart[(size_t)line] + lines[(size_t)line].size();
+            }
+            size_t col = posNoNL - lineStart[(size_t)line];
+
+            if (preferredXpx < 0) {
+                preferredXpx = std::max(0, cursorX - innerX0);
+                if (preferredColumn < 0) preferredColumn = (int)col;
+            }
+
+            int targetLine = line + (goDown ? 1 : -1);
+            size_t newPos = cursorPos;
+
+            auto mapEndOfVisualLineToOrig = [&](int vLine)->size_t {
+                const size_t L = lines[(size_t)vLine].size();
+                if (L == 0) {
+                    size_t boundary = lineStart[(size_t)vLine];
+                    return (boundary < mapNoNLToOrig.size()) ? mapNoNLToOrig[boundary] : N;
+                }
+                const size_t lastCharNoNL = lineStart[(size_t)vLine] + (L - 1);
+                const size_t lastCharOrig = mapNoNLToOrig[lastCharNoNL];
+
+                const size_t boundaryNoNL = lineStart[(size_t)vLine] + L;
+                if (boundaryNoNL < mapNoNLToOrig.size()) {
+                    size_t boundaryOrig = mapNoNLToOrig[boundaryNoNL];
+                    if (boundaryOrig < N && full[boundaryOrig] == '\n') {
+                        return boundaryOrig;
+                    }
+                }
+                return std::min(lastCharOrig + 1, N);
+            };
+
+            if (targetLine >= 0 && targetLine < (int)lines.size()) {
+                const auto& P = prefixX[(size_t)targetLine];
+
+                size_t lo = 0, hi = P.size() - 1;
+                while (lo < hi) {
+                    size_t mid = (lo + hi) / 2;
+                    if (P[mid] < preferredXpx) lo = mid + 1;
+                    else hi = mid;
+                }
+                size_t targetCol = (lo > 0 && std::abs(P[lo] - preferredXpx) > std::abs(P[lo-1] - preferredXpx)) ? lo - 1 : lo;
+                if (targetCol > lines[(size_t)targetLine].size()) targetCol = lines[(size_t)targetLine].size();
+
+                if (targetCol == lines[(size_t)targetLine].size()) {
+                    newPos = mapEndOfVisualLineToOrig(targetLine);
+                } else {
+                    const size_t targetNoNL = lineStart[(size_t)targetLine] + targetCol;
+                    newPos = (targetNoNL >= mapNoNLToOrig.size()) ? N : mapNoNLToOrig[targetNoNL];
+                }
+            } else {
+                newPos = (targetLine < 0) ? 0 : N;
+            }
+
+            if (shiftHeld) {
+                if (!hasSelection()) selectAnchor = cursorPos;
+                cursorPos = newPos;
+                setSelection(std::min(selectAnchor, cursorPos), std::max(selectAnchor, cursorPos));
+            } else {
+                cursorPos = newPos;
+                clearSelection();
+                selectAnchor = cursorPos;
+            }
+
+            lastBlinkTime = SDL_GetTicks();
+            cursorVisible = true;
+            updateCursorPosition();
+            setIMERectAtCaret();
+            preferredXpx = std::max<int>(0, static_cast<int>(cursorX) - static_cast<int>(innerX0));
+            {
+                const size_t N  = linkedText.get().size();
+                const size_t i2 = std::min(cursorPos, N);
+                const size_t p2 = mapOrigToNoNL[i2];
+                const int    l2 = lineOfIndex(p2);
+                const size_t st = (size_t)lineStart[(size_t)l2];
+                const size_t col2 = std::min(p2 - st, lines[(size_t)l2].size());
+                preferredColumn = (int)col2;
+            }
+            return;
+        }
 
         lastBlinkTime = SDL_GetTicks();
         cursorVisible = true;
-        updateCursorPosition(); setIMERectAtCaret();
+        updateCursorPosition();
+        setIMERectAtCaret();
         return;
     }
 }
-
-
-
-
 
 void UITextArea::update(float) {
     int mx, my; SDL_GetMouseState(&mx, &my);
@@ -383,6 +528,8 @@ void UITextArea::update(float) {
     } else {
         cursorVisible = false;
         lastBlinkTime = SDL_GetTicks();
+        preferredXpx    = -1;
+        preferredColumn = -1;
     }
     TTF_Font* fnt = font ? font : UIConfig::getDefaultFont();
     const auto st = MakeTextAreaStyle(getTheme());
@@ -542,45 +689,28 @@ void UITextArea::render(SDL_Renderer* renderer) {
     if (focused && cursorVisible && !hasSelection()) {
         const std::string& full = linkedText.get();
         const size_t N = full.size();
-        const size_t cursorIndex = std::min(cursorPos, N);
+        const size_t i = std::min(cursorPos, N);
 
-        int visualLine = 0;
-        size_t visualCol = 0;
-        size_t charsCounted = 0;
-        bool found = false;
+        size_t p = mapOrigToNoNL[i];
+        int li   = lineOfIndex(p);
+        size_t col = 0;
 
-        for (size_t li = 0; li < lines.size() && !found; ++li) {
-            const auto& line = lines[li];
-            size_t lineLength = line.size();
-            
-            if (cursorIndex >= charsCounted && cursorIndex <= charsCounted + lineLength) {
-                visualLine = li;
-                visualCol = cursorIndex - charsCounted;
-                found = true;
-                break;
-            }
-            
-            charsCounted += lineLength;
-            
-            if (charsCounted < N && full[charsCounted] == '\n') {
-                if (cursorIndex == charsCounted) {
-                    visualLine = li;
-                    visualCol = lineLength;
-                    found = true;
-                    break;
-                }
-                charsCounted++;
-            }
+        if (i < N && full[i] == '\n' && li > 0) {
+            li = li - 1;
+            col = lines[(size_t)li].size();
+        } 
+        else if (li > 0 && p == (size_t)lineStart[(size_t)li] && i > 0 && full[i-1] != '\n') {
+            li  = li - 1;
+            col = lines[(size_t)li].size();
+        } 
+        else {
+            size_t st = (size_t)lineStart[(size_t)li];
+            col = std::min(p - st, lines[(size_t)li].size());
         }
 
-        if (!found) {
-            visualLine = (int)lines.size() - 1;
-            visualCol = lines.back().size();
-        }
-
-        const int cx = innerX + prefixX[visualLine][visualCol];
         const int lh = TTF_FontHeight(fnt);
-        int cy = innerY + visualLine * lh - (int)scrollOffsetY;
+        const int cx = innerX + prefixX[(size_t)li][(size_t)col];
+        int cy       = innerY + li * lh - (int)scrollOffsetY;
 
         const int minY = dst.y + paddingPx;
         const int maxY = dst.y + dst.h - paddingPx - lh;
@@ -613,48 +743,25 @@ void UITextArea::updateCursorPosition() {
     rebuildLayout(fnt, innerW);
 
     const std::string& full = linkedText.get();
-    const int lh = TTF_FontHeight(fnt);
     const size_t N = full.size();
-    const size_t cursorIndex = std::min(cursorPos, N);
+    const int lh = TTF_FontHeight(fnt);
 
-    int visualLine = 0;
-    size_t visualCol = 0;
-    size_t charsCounted = 0;
-    bool found = false;
+    size_t i = std::min(cursorPos, N);
+    size_t p = mapOrigToNoNL[i];
+    int li   = lineOfIndex(p);
+    size_t col;
 
-    for (size_t li = 0; li < lines.size() && !found; ++li) {
-        const auto& line = lines[li];
-        size_t lineLength = line.size();
-        
-        if (cursorIndex >= charsCounted && cursorIndex <= charsCounted + lineLength) {
-            visualLine = li;
-            visualCol = cursorIndex - charsCounted;
-            found = true;
-            break;
-        }
-        
-        charsCounted += lineLength;
-        
-        if (charsCounted < N && full[charsCounted] == '\n') {
-            if (cursorIndex == charsCounted) {
-                visualLine = li;
-                visualCol = lineLength;
-                found = true;
-                break;
-            }
-            charsCounted++;
-        }
+    if (i < N && full[i] == '\n' && li > 0) {
+        li  -= 1; col = lines[(size_t)li].size();
+    } else if (li > 0 && p == (size_t)lineStart[(size_t)li] && i > 0 && full[i-1] != '\n') {
+        li  -= 1; col = lines[(size_t)li].size();
+    } else {
+        size_t st = (size_t)lineStart[(size_t)li];
+        col = std::min(p - st, lines[(size_t)li].size());
     }
 
-    if (!found) {
-        visualLine = (int)lines.size() - 1;
-        visualCol = lines.back().size();
-    }
-
-    int x = prefixX[visualLine][visualCol];
-
-    cursorX = innerX0 + x;
-    cursorY = innerY0 + visualLine * lh;
+    cursorX = innerX0 + prefixX[(size_t)li][(size_t)col];
+    cursorY = innerY0 + li * lh;
 
     const float layoutH = float(std::max<size_t>(1, lines.size())) * float(lh);
     contentHeight = layoutH;
@@ -662,10 +769,9 @@ void UITextArea::updateCursorPosition() {
     float top = float(cursorY - innerY0);
     float bot = top + lh;
     if (top < scrollOffsetY) scrollOffsetY = top;
-    else if (bot > scrollOffsetY + viewH) scrollOffsetY = bot - viewH;
+    else if (bot > scrollOffsetY + viewH)  scrollOffsetY = bot - viewH;
 
     scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, std::max(0.0f, layoutH - float(viewH)));
-    if (scrollOffsetY < 0) scrollOffsetY = 0;
 }
 
 
@@ -784,83 +890,99 @@ void UITextArea::setSelection(size_t a, size_t b) {
 
 void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {
     const std::string& full = linkedText.get();
-
     if (cacheFont == fnt && cacheWidthPx == maxWidthPx && cacheText == full && !lines.empty())
         return;
 
-    cacheFont   = fnt;
-    cacheWidthPx= maxWidthPx;
-    cacheText   = full;
+    cacheFont = fnt; cacheWidthPx = maxWidthPx; cacheText = full;
 
     lines.clear();
     lineStart.clear();
     prefixX.clear();
-    mapOrigToNoNL.clear();
+
+    mapOrigToNoNL.assign(full.size() + 1, 0);
     mapNoNLToOrig.clear();
 
-    if (full.empty()) {
-        lines.push_back("");
-        lineStart.push_back(0);
-        prefixX.push_back({0});
-        mapOrigToNoNL.push_back(0);
-        mapNoNLToOrig.push_back(0);
-        return;
-    }
-
-    std::string currentLine;
-    size_t currentOrigPos = 0;
-    mapOrigToNoNL.resize(full.size() + 1);
-    mapNoNLToOrig.clear();
-    
     size_t noNLIndex = 0;
-    
-    for (size_t i = 0; i <= full.size(); ++i) {
-        char c = (i < full.size()) ? full[i] : '\0';
-        
-        if (c == '\n' || i == full.size()) {
-            std::vector<std::string> wrapped = wrapTextToLines(currentLine, fnt, maxWidthPx);
-            for (const auto& wrappedLine : wrapped) {
-                lines.push_back(wrappedLine);
-                lineStart.push_back(noNLIndex);
-                
+
+    std::string para;
+    size_t paraStartOrig = 0;
+
+    auto ensure_size = [&](size_t want){
+        if (mapNoNLToOrig.size() <= want) mapNoNLToOrig.resize(want + 1);
+    };
+
+    auto flushPara = [&](size_t end_i){
+        auto wrapped = wrapTextToLines(para, fnt, maxWidthPx);
+
+        size_t offsetInPara = 0;
+        if (wrapped.empty()) {
+            lines.push_back("");
+            lineStart.push_back(noNLIndex);
+            prefixX.emplace_back(1, 0);
+
+            ensure_size(noNLIndex);
+            mapNoNLToOrig[noNLIndex] = paraStartOrig + offsetInPara;
+        } else {
+            for (const std::string& wline : wrapped) {
+                const size_t L = wline.size();
+                const size_t noNLLineStart = noNLIndex;
+
+                lines.push_back(wline);
+                lineStart.push_back(noNLLineStart);
+
                 auto& P = prefixX.emplace_back();
-                P.assign(wrappedLine.size() + 1, 0);
-                
-                int w, h;
-                for (size_t j = 1; j <= wrappedLine.size(); ++j) {
-                    std::string sub = wrappedLine.substr(0, j);
+                P.assign(L + 1, 0);
+                int w=0,h=0;
+                for (size_t j = 1; j <= L; ++j) {
+                    std::string sub = wline.substr(0, j);
                     TTF_SizeUTF8(fnt, sub.c_str(), &w, &h);
                     P[j] = w;
                 }
-                
-                for (size_t j = 0; j < wrappedLine.size(); ++j) {
-                    size_t origPos = currentOrigPos - currentLine.size() + j;
-                    if (origPos < full.size()) {
-                        mapOrigToNoNL[origPos] = noNLIndex + j;
-                        mapNoNLToOrig.push_back(origPos);
-                    }
+
+                for (size_t j = 0; j < L; ++j) {
+                    size_t origPos = paraStartOrig + offsetInPara + j;
+                    mapOrigToNoNL[origPos] = noNLLineStart + j;
                 }
-                
-                noNLIndex += wrappedLine.size();
+
+                ensure_size(noNLLineStart + L);
+                for (size_t j = 0; j < L; ++j) {
+                    size_t origPos = paraStartOrig + offsetInPara + j;
+                    mapNoNLToOrig[noNLLineStart + j] = origPos;
+                }
+
+                ensure_size(noNLLineStart + L);
+                mapNoNLToOrig[noNLLineStart + L] = paraStartOrig + offsetInPara + L;
+
+                noNLIndex    += L;
+                offsetInPara += L;
             }
-            
-            if (c == '\n' && i < full.size()) {
-                mapOrigToNoNL[i] = noNLIndex;
-            }
-            
-            currentLine.clear();
-            currentOrigPos = i + 1;
+        }
+
+        if (end_i < full.size() && full[end_i] == '\n') {
+            mapOrigToNoNL[end_i] = noNLIndex;
+            ensure_size(noNLIndex);
+            mapNoNLToOrig[noNLIndex] = end_i;
+        }
+    };
+
+    for (size_t i = 0; i <= full.size(); ++i) {
+        const bool atEnd = (i == full.size());
+        const char c = atEnd ? '\n' : full[i];
+        if (c == '\n') {
+            flushPara(i);
+            para.clear();
+            paraStartOrig = i + 1;
         } else {
-            currentLine += c;
-            currentOrigPos = i + 1;
+            if (para.empty()) paraStartOrig = i;
+            para.push_back(c);
         }
     }
 
     mapOrigToNoNL[full.size()] = noNLIndex;
-    if (noNLIndex >= mapNoNLToOrig.size()) {
-        mapNoNLToOrig.push_back(full.size());
-    }
+    if (mapNoNLToOrig.size() <= noNLIndex) mapNoNLToOrig.resize(noNLIndex + 1);
+    mapNoNLToOrig[noNLIndex] = full.size();
 }
+
 
 
 int UITextArea::lineOfIndex(size_t pos) const {

@@ -94,6 +94,8 @@ private:
     int clickCount = 0;
     int lastClickX = -10000;
     int lastClickY = -10000;
+    int preferredColumn = -1;
+    int preferredXpx    = -1;
     mutable std::string      cacheText;
     mutable int              cacheWidthPx = -1;
     mutable TTF_Font*        cacheFont    = nullptr;
