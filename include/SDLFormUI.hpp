@@ -3398,7 +3398,6 @@ void UITextArea::handleEvent(const SDL_Event& e) {
             const size_t N = full.size();
             size_t i = std::min(cursorPos, N);
 
-            // Map caret -> (visual line, col) with the same normalization you use elsewhere
             size_t posNoNL = mapOrigToNoNL[i];
             int line = lineOfIndex(posNoNL);
             if (i < N && full[i] == '\n' && line > 0) {
@@ -3410,17 +3409,13 @@ void UITextArea::handleEvent(const SDL_Event& e) {
             }
             size_t col = posNoNL - lineStart[(size_t)line];
 
-            // IMPORTANT: initialize goal X from the **rendered caret**, not from maps.
             if (preferredXpx < 0) {
-                // cursorX is absolute; store local x relative to innerX0
                 preferredXpx = std::max(0, cursorX - innerX0);
-                // keep preferredColumn as a secondary hint if you want
                 if (preferredColumn < 0) preferredColumn = (int)col;
             }
 
-            // One line up/down
             int targetLine = line + (goDown ? 1 : -1);
-            size_t newPos = cursorPos; // fallback
+            size_t newPos = cursorPos;
 
             auto mapEndOfVisualLineToOrig = [&](int vLine)->size_t {
                 const size_t L = lines[(size_t)vLine].size();
@@ -3431,23 +3426,19 @@ void UITextArea::handleEvent(const SDL_Event& e) {
                 const size_t lastCharNoNL = lineStart[(size_t)vLine] + (L - 1);
                 const size_t lastCharOrig = mapNoNLToOrig[lastCharNoNL];
 
-                // Boundary cell (column == L)
                 const size_t boundaryNoNL = lineStart[(size_t)vLine] + L;
                 if (boundaryNoNL < mapNoNLToOrig.size()) {
                     size_t boundaryOrig = mapNoNLToOrig[boundaryNoNL];
                     if (boundaryOrig < N && full[boundaryOrig] == '\n') {
-                        // hard wrap: caret sits on the newline
                         return boundaryOrig;
                     }
                 }
-                // soft wrap: visually at end -> place after the last char
                 return std::min(lastCharOrig + 1, N);
             };
 
             if (targetLine >= 0 && targetLine < (int)lines.size()) {
-                const auto& P = prefixX[(size_t)targetLine]; // prefix widths (size = L+1)
+                const auto& P = prefixX[(size_t)targetLine];
 
-                // Find closest column to preferredXpx (binary search for first >=, then pick nearer)
                 size_t lo = 0, hi = P.size() - 1;
                 while (lo < hi) {
                     size_t mid = (lo + hi) / 2;
@@ -3458,7 +3449,6 @@ void UITextArea::handleEvent(const SDL_Event& e) {
                 if (targetCol > lines[(size_t)targetLine].size()) targetCol = lines[(size_t)targetLine].size();
 
                 if (targetCol == lines[(size_t)targetLine].size()) {
-                    // End of visual line: avoid ambiguous boundary
                     newPos = mapEndOfVisualLineToOrig(targetLine);
                 } else {
                     const size_t targetNoNL = lineStart[(size_t)targetLine] + targetCol;
@@ -3468,7 +3458,6 @@ void UITextArea::handleEvent(const SDL_Event& e) {
                 newPos = (targetLine < 0) ? 0 : N;
             }
 
-            // Selection handling
             if (shiftHeld) {
                 if (!hasSelection()) selectAnchor = cursorPos;
                 cursorPos = newPos;
@@ -3479,7 +3468,6 @@ void UITextArea::handleEvent(const SDL_Event& e) {
                 selectAnchor = cursorPos;
             }
 
-            // Keep preferredXpx as-is across vertical presses.
             lastBlinkTime = SDL_GetTicks();
             cursorVisible = true;
             updateCursorPosition();
@@ -3667,6 +3655,16 @@ void UITextArea::render(SDL_Renderer* renderer) {
             }
         }
 
+        if (drawSelection && line.empty()) {
+            const size_t boundaryNoNL = lineStart[li];
+            if (selA <= boundaryNoNL && boundaryNoNL < selB) {
+                int tickW = std::max(2, lh / 6);
+                SDL_SetRenderDrawColor(renderer, th.selectionBg.r, th.selectionBg.g, th.selectionBg.b, th.selectionBg.a);
+                SDL_Rect tiny{ innerX, y, tickW, lh };
+                SDL_RenderFillRect(renderer, &tiny);
+            }
+        }
+
         if (!line.empty()) {
             SDL_Surface* s = TTF_RenderUTF8_Blended(fnt, line.c_str(), st.fg);
             if (s) {
@@ -3689,12 +3687,10 @@ void UITextArea::render(SDL_Renderer* renderer) {
         int li   = lineOfIndex(p);
         size_t col = 0;
 
-        // hard newline -> previous visual line end
         if (i < N && full[i] == '\n' && li > 0) {
             li = li - 1;
             col = lines[(size_t)li].size();
         }
-        // soft wrap start -> previous visual line end
         else if (li > 0 && p == (size_t)lineStart[(size_t)li] && i > 0 && full[i-1] != '\n') {
             li  = li - 1;
             col = lines[(size_t)li].size();
@@ -3747,7 +3743,6 @@ void UITextArea::updateCursorPosition() {
     int li   = lineOfIndex(p);
     size_t col;
 
-    // Same normalization used in render() and ↑/↓
     if (i < N && full[i] == '\n' && li > 0) {
         li  -= 1; col = lines[(size_t)li].size();
     } else if (li > 0 && p == (size_t)lineStart[(size_t)li] && i > 0 && full[i-1] != '\n') {
@@ -3896,9 +3891,8 @@ void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {
     lineStart.clear();
     prefixX.clear();
 
-    // forward & reverse maps
     mapOrigToNoNL.assign(full.size() + 1, 0);
-    mapNoNLToOrig.clear();           // we'll resize and write by index
+    mapNoNLToOrig.clear();
 
     size_t noNLIndex = 0;
 
@@ -3909,7 +3903,7 @@ void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {
         if (mapNoNLToOrig.size() <= want) mapNoNLToOrig.resize(want + 1);
     };
 
-    auto flushPara = [&](size_t end_i /* index of '\n' or full.size() */){
+    auto flushPara = [&](size_t end_i){
         auto wrapped = wrapTextToLines(para, fnt, maxWidthPx);
 
         size_t offsetInPara = 0;
@@ -3918,9 +3912,8 @@ void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {
             lineStart.push_back(noNLIndex);
             prefixX.emplace_back(1, 0);
 
-            // boundary map at line end (noNLIndex)
             ensure_size(noNLIndex);
-            mapNoNLToOrig[noNLIndex] = paraStartOrig + offsetInPara; // OK for empty
+            mapNoNLToOrig[noNLIndex] = paraStartOrig + offsetInPara;
         } else {
             for (const std::string& wline : wrapped) {
                 const size_t L = wline.size();
@@ -3929,7 +3922,6 @@ void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {
                 lines.push_back(wline);
                 lineStart.push_back(noNLLineStart);
 
-                // prefix widths
                 auto& P = prefixX.emplace_back();
                 P.assign(L + 1, 0);
                 int w=0,h=0;
@@ -3939,21 +3931,17 @@ void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {
                     P[j] = w;
                 }
 
-                // forward map: original -> noNL
                 for (size_t j = 0; j < L; ++j) {
                     size_t origPos = paraStartOrig + offsetInPara + j;
                     mapOrigToNoNL[origPos] = noNLLineStart + j;
                 }
 
-                // reverse map for chars
                 ensure_size(noNLLineStart + L);
                 for (size_t j = 0; j < L; ++j) {
                     size_t origPos = paraStartOrig + offsetInPara + j;
                     mapNoNLToOrig[noNLLineStart + j] = origPos;
                 }
 
-                // reverse map for the **end-of-visual-line column**
-                // (soft wrap: next char; hard wrap handled below)
                 ensure_size(noNLLineStart + L);
                 mapNoNLToOrig[noNLLineStart + L] = paraStartOrig + offsetInPara + L;
 
@@ -3962,11 +3950,10 @@ void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {
             }
         }
 
-        // If this was a **real newline**, make its boundary map to the newline index
         if (end_i < full.size() && full[end_i] == '\n') {
-            mapOrigToNoNL[end_i] = noNLIndex;      // caret on '\n' sits at end-of-visual-line
+            mapOrigToNoNL[end_i] = noNLIndex;
             ensure_size(noNLIndex);
-            mapNoNLToOrig[noNLIndex] = end_i;      // noNL boundary -> original '\n'
+            mapNoNLToOrig[noNLIndex] = end_i;
         }
     };
 
@@ -3983,7 +3970,6 @@ void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {
         }
     }
 
-    // final end position
     mapOrigToNoNL[full.size()] = noNLIndex;
     if (mapNoNLToOrig.size() <= noNLIndex) mapNoNLToOrig.resize(noNLIndex + 1);
     mapNoNLToOrig[noNLIndex] = full.size();

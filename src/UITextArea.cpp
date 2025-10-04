@@ -673,6 +673,16 @@ void UITextArea::render(SDL_Renderer* renderer) {
             }
         }
 
+        if (drawSelection && line.empty()) {
+            const size_t boundaryNoNL = lineStart[li];
+            if (selA <= boundaryNoNL && boundaryNoNL < selB) {
+                int tickW = std::max(2, lh / 6);
+                SDL_SetRenderDrawColor(renderer, th.selectionBg.r, th.selectionBg.g, th.selectionBg.b, th.selectionBg.a);
+                SDL_Rect tiny{ innerX, y, tickW, lh };
+                SDL_RenderFillRect(renderer, &tiny);
+            }
+        }
+
         if (!line.empty()) {
             SDL_Surface* s = TTF_RenderUTF8_Blended(fnt, line.c_str(), st.fg);
             if (s) {
