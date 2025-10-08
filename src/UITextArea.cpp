@@ -19,10 +19,18 @@ void UITextArea::setPlaceholder(const std::string& text) {
 void UITextArea::handleEvent(const SDL_Event& e) {
     if (e.type == SDL_USEREVENT) {
         if (e.user.code == 0xF001) { if (!focused) { focused = true; SDL_StartTextInput();preferredXpx = -1; preferredColumn = -1; } return; }
-        if (e.user.code == 0xF002) { if (focused) { focused = false; SDL_StopTextInput(); clearSelection(); }
+        if (e.user.code == 0xF002) {
+            if (focused) {
+                focused = false;
+                SDL_StopTextInput();
+                clearSelection();
+            }
+            if (selectingMouse) {
+                SDL_CaptureMouse(SDL_FALSE);
+                selectingMouse = false;
+            }
             imeText.clear(); imeStart = imeLength = 0; imeActive = false;
-            preferredXpx    = -1;
-            preferredColumn = -1;
+            preferredXpx = -1; preferredColumn = -1;
             return;
         }
     }
@@ -113,9 +121,15 @@ void UITextArea::handleEvent(const SDL_Event& e) {
             updateCursorPosition(); setIMERectAtCaret();
             SDL_StartTextInput();
             lastBlinkTime = SDL_GetTicks(); cursorVisible = true;
+            selectingMouse = true;
+            SDL_CaptureMouse(SDL_TRUE);
         } else if (wasFocused && !focused) {
             SDL_StopTextInput();
             clearSelection();
+            if (selectingMouse) {
+                SDL_CaptureMouse(SDL_FALSE);
+                selectingMouse = false;
+            }
             preferredXpx    = -1;
             preferredColumn = -1;
         }
@@ -138,7 +152,10 @@ void UITextArea::handleEvent(const SDL_Event& e) {
 
     if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT) {
         scrollbarDragging = false;
-        selectingMouse = false;
+        if (selectingMouse) {
+            SDL_CaptureMouse(SDL_FALSE);
+            selectingMouse = false;
+        }
         return;
     }
 
@@ -540,6 +557,36 @@ void UITextArea::update(float) {
     contentHeight = float(std::max<size_t>(1, lines.size())) * float(TTF_FontHeight(fnt));
     scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, std::max(0.0f, contentHeight - float(viewH)));
     if (focused) setIMERectAtCaret();
+
+        if (focused && selectingMouse) {
+        const int borderPx = st.borderPx;
+        const int innerX0  = bounds.x + borderPx + paddingPx;
+        const int innerY0  = bounds.y + borderPx + paddingPx;
+        const int innerH   = std::max(0, bounds.h - 2*borderPx - 2*paddingPx);
+        const int lh       = TTF_FontHeight(fnt);
+
+        if (my < innerY0 || my >= innerY0 + innerH) {
+            int dist = (my < innerY0) ? (innerY0 - my)
+                                      : (my - (innerY0 + innerH - 1));
+            float step = std::max(1.0f, dist * 0.25f);
+            float maxScroll = std::max(0.0f, contentHeight - float(innerH));
+            if (my < innerY0)  scrollOffsetY = std::max(0.0f, scrollOffsetY - step);
+            else               scrollOffsetY = std::min(maxScroll, scrollOffsetY + step);
+        }
+
+        int yForHit = std::clamp(my, innerY0, innerY0 + innerH - 1);
+
+        size_t idx = indexFromMouse(mx, yForHit);
+        cursorPos = idx;
+        setSelection(std::min(selectAnchor, cursorPos), std::max(selectAnchor, cursorPos));
+
+        preferredColumn = -1;
+        preferredXpx    = -1;
+        updateCursorPosition();
+        setIMERectAtCaret();
+        lastBlinkTime = SDL_GetTicks();
+        cursorVisible = true;
+    }
 }
 
 
