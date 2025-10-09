@@ -171,7 +171,14 @@ void UITextArea::handleEvent(const SDL_Event& e) {
         }
 
         if (selectingMouse && focused) {
-            size_t idx = indexFromMouse(e.motion.x, e.motion.y);
+            const auto st = MakeTextAreaStyle(getTheme());
+            const int borderPx = st.borderPx;
+            const int innerY0  = bounds.y + borderPx + paddingPx;
+            const int innerH   = std::max(0, bounds.h - 2*borderPx - 2*paddingPx);
+
+            int yForHit = std::clamp(e.motion.y, innerY0, innerY0 + innerH - 1);
+            size_t idx  = indexFromMouse(e.motion.x, yForHit);
+
             cursorPos = idx;
             setSelection(std::min(selectAnchor, cursorPos), std::max(selectAnchor, cursorPos));
             preferredColumn = -1;
@@ -180,6 +187,7 @@ void UITextArea::handleEvent(const SDL_Event& e) {
             setIMERectAtCaret();
             lastBlinkTime = SDL_GetTicks();
             cursorVisible = true;
+            return;
         }
         const auto st = MakeTextAreaStyle(getTheme());
         const int viewH = std::max(0, bounds.h - 2*st.borderPx - 2*paddingPx);
@@ -698,9 +706,13 @@ void UITextArea::render(SDL_Renderer* renderer) {
     contentHeight = float(std::max(1, (int)lines.size()) * lh);
     scrollOffsetY = std::clamp(scrollOffsetY, 0.0f,  std::max(0.0f, contentHeight - float(viewH)));
 
-    size_t selA = 0, selB = 0;
+    size_t selA_orig = 0, selB_orig = 0;
     bool drawSelection = hasSelection();
-    if (drawSelection) { std::tie(selA, selB) = selectionRange(); }
+    if (drawSelection) { std::tie(selA_orig, selB_orig) = selectionRange(); }
+
+    const size_t N = linkedText.get().size();
+    size_t selA = mapOrigToNoNL[std::min(selA_orig, N)];
+    size_t selB = mapOrigToNoNL[std::min(selB_orig, N)];
 
     int y = innerY - (int)scrollOffsetY;
     for (size_t li = 0; li < lines.size(); ++li) {
@@ -717,6 +729,15 @@ void UITextArea::render(SDL_Renderer* renderer) {
                 SDL_SetRenderDrawColor(renderer, th.selectionBg.r, th.selectionBg.g, th.selectionBg.b, th.selectionBg.a);
                 SDL_Rect selR{ innerX + wLeft, y, wMid, lh };
                 SDL_RenderFillRect(renderer, &selR);
+            }
+            if (drawSelection && line.empty()) {
+                const size_t boundaryNoNL = lineStart[li];
+                if (selA <= boundaryNoNL && boundaryNoNL < selB) {
+                    int tickW = std::max(2, lh / 6);
+                    SDL_SetRenderDrawColor(renderer, th.selectionBg.r, th.selectionBg.g, th.selectionBg.b, th.selectionBg.a);
+                    SDL_Rect tiny{ innerX, y, tickW, lh };
+                    SDL_RenderFillRect(renderer, &tiny);
+                }
             }
         }
 
@@ -882,18 +903,22 @@ size_t UITextArea::indexFromMouse(int mx, int my) const {
     int yLocal = my - innerY0 + (int)scrollOffsetY;
     int lineIdx = std::clamp(yLocal / std::max(1, lh), 0, (int)lines.size() - 1);
 
-    int xLocal = mx - innerX0; 
+    int xLocal = mx - innerX0;
+    xLocal = std::clamp(xLocal, 0, std::max(0, innerW - 1));
     if (xLocal < 0) xLocal = 0;
 
     const auto& P = prefixX[lineIdx];
     const auto& line = lines[lineIdx];
     
     int bestCol = 0;
-    for (size_t i = 0; i <= line.size(); ++i) {
-        if (P[i] <= xLocal) {
-            bestCol = i;
+    if (!P.empty()) {
+        if (xLocal >= P.back()) {
+            bestCol = (int)line.size();
         } else {
-            break;
+            auto it = std::lower_bound(P.begin(), P.end(), xLocal);
+            size_t hi = size_t(it - P.begin());
+            size_t lo = (hi == 0) ? 0 : (hi - 1);
+            bestCol = (xLocal - P[lo] <= P[hi] - xLocal) ? (int)lo : (int)hi;
         }
     }
 
