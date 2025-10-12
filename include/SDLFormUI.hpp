@@ -3086,7 +3086,7 @@ void UITextArea::handleEvent(const SDL_Event& e) {
                 return;
             }
 
-            if (shift && wasFocused) {
+            if (shift) {
                 if (!hasSelection()) selectAnchor = cursorPos;
                 cursorPos = idx;
                 preferredColumn = -1;
@@ -3313,17 +3313,18 @@ void UITextArea::handleEvent(const SDL_Event& e) {
         size_t col = (li >= 0 && !lines.empty()) ? (posNoNL - lineStart[(size_t)li]) : 0;
 
         if (e.key.keysym.sym == SDLK_LEFT) {
-            if (cursorPos > 0) {
-                cursorPos--;
-            }
+            size_t newPos = (cursorPos > 0) ? cursorPos - 1 : cursorPos;
 
             if (shift) {
                 if (!hasSelection()) selectAnchor = cursorPos;
+                cursorPos = newPos;
                 setSelection(std::min(selectAnchor, cursorPos), std::max(selectAnchor, cursorPos));
             } else {
+                cursorPos = newPos;
                 clearSelection();
                 selectAnchor = cursorPos;
             }
+
             preferredColumn = -1;
             preferredXpx    = -1;
             lastBlinkTime = SDL_GetTicks();
@@ -3334,17 +3335,18 @@ void UITextArea::handleEvent(const SDL_Event& e) {
         }
 
         if (e.key.keysym.sym == SDLK_RIGHT) {
-            if (cursorPos < linkedText.get().size()) {
-                cursorPos++;
-            }
+            size_t newPos = std::min(cursorPos + 1, linkedText.get().size());
 
             if (shift) {
                 if (!hasSelection()) selectAnchor = cursorPos;
+                cursorPos = newPos;
                 setSelection(std::min(selectAnchor, cursorPos), std::max(selectAnchor, cursorPos));
             } else {
+                cursorPos = newPos;
                 clearSelection();
                 selectAnchor = cursorPos;
             }
+
             preferredColumn = -1;
             preferredXpx    = -1;
             lastBlinkTime = SDL_GetTicks();
