@@ -179,14 +179,21 @@ void UITextArea::handleEvent(const SDL_Event& e) {
             int yForHit = std::clamp(e.motion.y, innerY0, innerY0 + innerH - 1);
             size_t idx  = indexFromMouse(e.motion.x, yForHit);
 
-            cursorPos = idx;
-            setSelection(std::min(selectAnchor, cursorPos), std::max(selectAnchor, cursorPos));
-            preferredColumn = -1;
-            preferredXpx    = -1;
-            updateCursorPosition();
-            setIMERectAtCaret();
-            lastBlinkTime = SDL_GetTicks();
-            cursorVisible = true;
+            const std::string& full = linkedText.get();
+            
+            size_t start = (idx > 10) ? idx - 10 : 0;
+            size_t end = std::min(idx + 10, full.size());
+
+            if (idx != cursorPos) {
+                cursorPos = idx;
+                setSelection(std::min(selectAnchor, cursorPos), std::max(selectAnchor, cursorPos));
+                preferredColumn = -1;
+                preferredXpx    = -1;
+                updateCursorPosition();
+                setIMERectAtCaret();
+                lastBlinkTime = SDL_GetTicks();
+                cursorVisible = true;
+            }
             return;
         }
         const auto st = MakeTextAreaStyle(getTheme());
@@ -426,77 +433,71 @@ void UITextArea::handleEvent(const SDL_Event& e) {
         }
         
         if (e.key.keysym.sym == SDLK_UP || e.key.keysym.sym == SDLK_DOWN) {
-            const bool goDown    = (e.key.keysym.sym == SDLK_DOWN);
+            const bool goDown = (e.key.keysym.sym == SDLK_DOWN);
             const bool shiftHeld = (e.key.keysym.mod & KMOD_SHIFT) != 0;
-
-            TTF_Font* fnt = font ? font : UIConfig::getDefaultFont();
-            const auto st = MakeTextAreaStyle(getTheme());
-            const int borderPx = st.borderPx;
-            const int innerX0  = bounds.x + borderPx + paddingPx;
-            const int innerW   = std::max(0, bounds.w - 2*borderPx - 2*paddingPx);
-
-            rebuildLayout(fnt, innerW);
 
             const std::string& full = linkedText.get();
             const size_t N = full.size();
             size_t i = std::min(cursorPos, N);
-
-            size_t posNoNL = mapOrigToNoNL[i];
-            int line = lineOfIndex(posNoNL);
-            if (i < N && full[i] == '\n' && line > 0) {
-                line    -= 1;
-                posNoNL  = lineStart[(size_t)line] + lines[(size_t)line].size();
-            } else if (line > 0 && posNoNL == (size_t)lineStart[(size_t)line] && i > 0 && full[i-1] != '\n') {
-                line    -= 1;
-                posNoNL  = lineStart[(size_t)line] + lines[(size_t)line].size();
+            
+            int currentLine = 0;
+            size_t currentCol = 0;
+            size_t charsCounted = 0;
+            bool found = false;
+            
+            for (size_t li = 0; li < lines.size() && !found; ++li) {
+                const auto& line = lines[li];
+                size_t lineLength = line.size();
+                
+                if (i >= charsCounted && i <= charsCounted + lineLength) {
+                    currentLine = li;
+                    currentCol = i - charsCounted;
+                    found = true;
+                    break;
+                }
+                charsCounted += lineLength;
+                
+                if (charsCounted < N && full[charsCounted] == '\n') {
+                    if (i == charsCounted) {
+                        currentLine = li;
+                        currentCol = lineLength;
+                        found = true;
+                        break;
+                    }
+                    charsCounted++;
+                }
             }
-            size_t col = posNoNL - lineStart[(size_t)line];
-
-            if (preferredXpx < 0) {
-                preferredXpx = std::max(0, cursorX - innerX0);
-                if (preferredColumn < 0) preferredColumn = (int)col;
+            
+            if (!found) {
+                currentLine = (int)lines.size() - 1;
+                currentCol = lines.back().size();
             }
 
-            int targetLine = line + (goDown ? 1 : -1);
+            if (preferredColumn < 0) {
+                preferredColumn = (int)currentCol;
+            }
+
+            int targetLine = currentLine + (goDown ? 1 : -1);
             size_t newPos = cursorPos;
 
-            auto mapEndOfVisualLineToOrig = [&](int vLine)->size_t {
-                const size_t L = lines[(size_t)vLine].size();
-                if (L == 0) {
-                    size_t boundary = lineStart[(size_t)vLine];
-                    return (boundary < mapNoNLToOrig.size()) ? mapNoNLToOrig[boundary] : N;
+            if (targetLine >= 0 && targetLine < (int)lines.size()) {
+                const std::string& targetLineText = lines[targetLine];
+                
+                size_t targetCol = (size_t)preferredColumn;
+                if (targetCol > targetLineText.size()) {
+                    targetCol = targetLineText.size();
                 }
-                const size_t lastCharNoNL = lineStart[(size_t)vLine] + (L - 1);
-                const size_t lastCharOrig = mapNoNLToOrig[lastCharNoNL];
-
-                const size_t boundaryNoNL = lineStart[(size_t)vLine] + L;
-                if (boundaryNoNL < mapNoNLToOrig.size()) {
-                    size_t boundaryOrig = mapNoNLToOrig[boundaryNoNL];
-                    if (boundaryOrig < N && full[boundaryOrig] == '\n') {
-                        return boundaryOrig;
+                
+                charsCounted = 0;
+                for (int li = 0; li < targetLine; ++li) {
+                    charsCounted += lines[li].size();
+                    if (charsCounted < N && full[charsCounted] == '\n') {
+                        charsCounted++;
                     }
                 }
-                return std::min(lastCharOrig + 1, N);
-            };
-
-            if (targetLine >= 0 && targetLine < (int)lines.size()) {
-                const auto& P = prefixX[(size_t)targetLine];
-
-                size_t lo = 0, hi = P.size() - 1;
-                while (lo < hi) {
-                    size_t mid = (lo + hi) / 2;
-                    if (P[mid] < preferredXpx) lo = mid + 1;
-                    else hi = mid;
-                }
-                size_t targetCol = (lo > 0 && std::abs(P[lo] - preferredXpx) > std::abs(P[lo-1] - preferredXpx)) ? lo - 1 : lo;
-                if (targetCol > lines[(size_t)targetLine].size()) targetCol = lines[(size_t)targetLine].size();
-
-                if (targetCol == lines[(size_t)targetLine].size()) {
-                    newPos = mapEndOfVisualLineToOrig(targetLine);
-                } else {
-                    const size_t targetNoNL = lineStart[(size_t)targetLine] + targetCol;
-                    newPos = (targetNoNL >= mapNoNLToOrig.size()) ? N : mapNoNLToOrig[targetNoNL];
-                }
+                
+                newPos = charsCounted + targetCol;
+                if (newPos > N) newPos = N;
             } else {
                 newPos = (targetLine < 0) ? 0 : N;
             }
@@ -515,16 +516,36 @@ void UITextArea::handleEvent(const SDL_Event& e) {
             cursorVisible = true;
             updateCursorPosition();
             setIMERectAtCaret();
-            preferredXpx = std::max<int>(0, static_cast<int>(cursorX) - static_cast<int>(innerX0));
-            {
-                const size_t N  = linkedText.get().size();
-                const size_t i2 = std::min(cursorPos, N);
-                const size_t p2 = mapOrigToNoNL[i2];
-                const int    l2 = lineOfIndex(p2);
-                const size_t st = (size_t)lineStart[(size_t)l2];
-                const size_t col2 = std::min(p2 - st, lines[(size_t)l2].size());
-                preferredColumn = (int)col2;
+            
+            i = std::min(cursorPos, N);
+            charsCounted = 0;
+            found = false;
+            
+            for (size_t li = 0; li < lines.size() && !found; ++li) {
+                const auto& line = lines[li];
+                size_t lineLength = line.size();
+                
+                if (i >= charsCounted && i <= charsCounted + lineLength) {
+                    preferredColumn = (int)(i - charsCounted);
+                    found = true;
+                    break;
+                }
+                charsCounted += lineLength;
+                
+                if (charsCounted < N && full[charsCounted] == '\n') {
+                    if (i == charsCounted) {
+                        preferredColumn = (int)lineLength;
+                        found = true;
+                        break;
+                    }
+                    charsCounted++;
+                }
             }
+            
+            if (!found && !lines.empty()) {
+                preferredColumn = (int)lines.back().size();
+            }
+            
             return;
         }
 
@@ -684,6 +705,7 @@ void UITextArea::render(SDL_Renderer* renderer) {
     const int lh = TTF_FontHeight(fnt);
     const int innerX = dst.x + paddingPx;
     const int innerY = dst.y + paddingPx;
+    const int innerW = std::max(0, dst.w - 2*paddingPx);
     const int viewH = std::max(0, dst.h - 2*paddingPx);
 
     if (showPlaceholder) {
@@ -702,15 +724,17 @@ void UITextArea::render(SDL_Renderer* renderer) {
         return;
     }
 
-    rebuildLayout(fnt, dst.w - 2*paddingPx);
+    rebuildLayout(fnt, innerW);
     contentHeight = float(std::max(1, (int)lines.size()) * lh);
     scrollOffsetY = std::clamp(scrollOffsetY, 0.0f,  std::max(0.0f, contentHeight - float(viewH)));
+
+    const std::string& full = linkedText.get();
 
     size_t selA_orig = 0, selB_orig = 0;
     bool drawSelection = hasSelection();
     if (drawSelection) { std::tie(selA_orig, selB_orig) = selectionRange(); }
 
-    const size_t N = linkedText.get().size();
+    const size_t N = full.size();
     size_t selA = mapOrigToNoNL[std::min(selA_orig, N)];
     size_t selB = mapOrigToNoNL[std::min(selB_orig, N)];
 
@@ -730,24 +754,27 @@ void UITextArea::render(SDL_Renderer* renderer) {
                 SDL_Rect selR{ innerX + wLeft, y, wMid, lh };
                 SDL_RenderFillRect(renderer, &selR);
             }
+            
             if (drawSelection && line.empty()) {
                 const size_t boundaryNoNL = lineStart[li];
-                if (selA <= boundaryNoNL && boundaryNoNL < selB) {
-                    int tickW = std::max(2, lh / 6);
-                    SDL_SetRenderDrawColor(renderer, th.selectionBg.r, th.selectionBg.g, th.selectionBg.b, th.selectionBg.a);
-                    SDL_Rect tiny{ innerX, y, tickW, lh };
-                    SDL_RenderFillRect(renderer, &tiny);
+                
+                bool isLineSelected = false;
+                
+                if (boundaryNoNL < mapNoNLToOrig.size()) {
+                    size_t newlinePos = mapNoNLToOrig[boundaryNoNL];
+                    if (newlinePos < full.size() && full[newlinePos] == '\n') {
+                        isLineSelected = (selA_orig <= newlinePos && newlinePos < selB_orig);
+                    } else {
+                        isLineSelected = (selA_orig <= newlinePos && newlinePos <= selB_orig);
+                    }
                 }
-            }
-        }
-
-        if (drawSelection && line.empty()) {
-            const size_t boundaryNoNL = lineStart[li];
-            if (selA <= boundaryNoNL && boundaryNoNL < selB) {
-                int tickW = std::max(2, lh / 6);
-                SDL_SetRenderDrawColor(renderer, th.selectionBg.r, th.selectionBg.g, th.selectionBg.b, th.selectionBg.a);
-                SDL_Rect tiny{ innerX, y, tickW, lh };
-                SDL_RenderFillRect(renderer, &tiny);
+                
+                if (isLineSelected) {
+                    int tickW = std::max(2, lh / 8);
+                    SDL_SetRenderDrawColor(renderer, th.selectionBg.r, th.selectionBg.g, th.selectionBg.b, th.selectionBg.a);
+                    SDL_Rect tickRect{ innerX, y, tickW, lh };
+                    SDL_RenderFillRect(renderer, &tickRect);
+                }
             }
         }
 
@@ -765,30 +792,61 @@ void UITextArea::render(SDL_Renderer* renderer) {
     }
 
     if (focused && cursorVisible && !hasSelection()) {
-        const std::string& full = linkedText.get();
         const size_t N = full.size();
         const size_t i = std::min(cursorPos, N);
 
-        size_t p = mapOrigToNoNL[i];
-        int li   = lineOfIndex(p);
-        size_t col = 0;
-
-        if (i < N && full[i] == '\n' && li > 0) {
-            li = li - 1;
-            col = lines[(size_t)li].size();
-        } 
-        else if (li > 0 && p == (size_t)lineStart[(size_t)li] && i > 0 && full[i-1] != '\n') {
-            li  = li - 1;
-            col = lines[(size_t)li].size();
-        } 
-        else {
-            size_t st = (size_t)lineStart[(size_t)li];
-            col = std::min(p - st, lines[(size_t)li].size());
+        int visualLine = 0;
+        size_t charsCounted = 0;
+        bool found = false;
+        
+        for (size_t li = 0; li < lines.size() && !found; ++li) {
+            const auto& line = lines[li];
+            size_t lineLength = line.size();
+            
+            if (i >= charsCounted && i <= charsCounted + lineLength) {
+                visualLine = li;
+                found = true;
+                break;
+            }
+            charsCounted += lineLength;
+            
+            if (charsCounted < N && full[charsCounted] == '\n') {
+                if (i == charsCounted) {
+                    visualLine = li;
+                    found = true;
+                    break;
+                }
+                charsCounted++;
+            }
         }
 
+        if (!found) {
+            visualLine = (int)lines.size() - 1;
+        }
+
+        size_t visualCol = 0;
+        if (visualLine < (int)lines.size()) {
+            size_t lineStartPos = 0;
+            charsCounted = 0;
+            
+            for (int li = 0; li < visualLine; ++li) {
+                charsCounted += lines[li].size();
+                if (charsCounted < N && full[charsCounted] == '\n') {
+                    charsCounted++;
+                }
+            }
+            
+            lineStartPos = charsCounted;
+            visualCol = i - lineStartPos;
+            
+            if (visualCol > lines[visualLine].size()) {
+                visualCol = lines[visualLine].size();
+            }
+        }
+
+        const int cx = innerX + prefixX[visualLine][visualCol];
         const int lh = TTF_FontHeight(fnt);
-        const int cx = innerX + prefixX[(size_t)li][(size_t)col];
-        int cy       = innerY + li * lh - (int)scrollOffsetY;
+        int cy = innerY + visualLine * lh - (int)scrollOffsetY;
 
         const int minY = dst.y + paddingPx;
         const int maxY = dst.y + dst.h - paddingPx - lh;
@@ -825,21 +883,58 @@ void UITextArea::updateCursorPosition() {
     const int lh = TTF_FontHeight(fnt);
 
     size_t i = std::min(cursorPos, N);
-    size_t p = mapOrigToNoNL[i];
-    int li   = lineOfIndex(p);
-    size_t col;
-
-    if (i < N && full[i] == '\n' && li > 0) {
-        li  -= 1; col = lines[(size_t)li].size();
-    } else if (li > 0 && p == (size_t)lineStart[(size_t)li] && i > 0 && full[i-1] != '\n') {
-        li  -= 1; col = lines[(size_t)li].size();
-    } else {
-        size_t st = (size_t)lineStart[(size_t)li];
-        col = std::min(p - st, lines[(size_t)li].size());
+    
+    int visualLine = 0;
+    size_t charsCounted = 0;
+    bool found = false;
+    
+    for (size_t li = 0; li < lines.size() && !found; ++li) {
+        const auto& line = lines[li];
+        size_t lineLength = line.size();
+        
+        if (i >= charsCounted && i <= charsCounted + lineLength) {
+            visualLine = li;
+            found = true;
+            break;
+        }
+        charsCounted += lineLength;
+        
+        if (charsCounted < N && full[charsCounted] == '\n') {
+            if (i == charsCounted) {
+                visualLine = li;
+                found = true;
+                break;
+            }
+            charsCounted++;
+        }
     }
 
-    cursorX = innerX0 + prefixX[(size_t)li][(size_t)col];
-    cursorY = innerY0 + li * lh;
+    if (!found) {
+        visualLine = (int)lines.size() - 1;
+    }
+
+    size_t visualCol = 0;
+    if (visualLine < (int)lines.size()) {
+        size_t lineStartPos = 0;
+        charsCounted = 0;
+        
+        for (int li = 0; li < visualLine; ++li) {
+            charsCounted += lines[li].size();
+            if (charsCounted < N && full[charsCounted] == '\n') {
+                charsCounted++;
+            }
+        }
+        
+        lineStartPos = charsCounted;
+        visualCol = i - lineStartPos;
+        
+        if (visualCol > lines[visualLine].size()) {
+            visualCol = lines[visualLine].size();
+        }
+    }
+
+    cursorX = innerX0 + prefixX[visualLine][visualCol];
+    cursorY = innerY0 + visualLine * lh;
 
     const float layoutH = float(std::max<size_t>(1, lines.size())) * float(lh);
     contentHeight = layoutH;
@@ -851,7 +946,6 @@ void UITextArea::updateCursorPosition() {
 
     scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, std::max(0.0f, layoutH - float(viewH)));
 }
-
 
 
 
@@ -899,16 +993,23 @@ size_t UITextArea::indexFromMouse(int mx, int my) const {
     rebuildLayout(fnt, innerW);
 
     const int lh = TTF_FontHeight(fnt);
+    const std::string& full = linkedText.get();
 
     int yLocal = my - innerY0 + (int)scrollOffsetY;
-    int lineIdx = std::clamp(yLocal / std::max(1, lh), 0, (int)lines.size() - 1);
+    int visualLine = std::clamp(yLocal / std::max(1, lh), 0, (int)lines.size() - 1);
+
+
+    if (lines[visualLine].empty()) {
+        size_t noNLPos = lineStart[visualLine];
+        size_t result = (noNLPos < mapNoNLToOrig.size()) ? mapNoNLToOrig[noNLPos] : full.size();
+        return result;
+    }
 
     int xLocal = mx - innerX0;
     xLocal = std::clamp(xLocal, 0, std::max(0, innerW - 1));
-    if (xLocal < 0) xLocal = 0;
 
-    const auto& P = prefixX[lineIdx];
-    const auto& line = lines[lineIdx];
+    const auto& P = prefixX[visualLine];
+    const auto& line = lines[visualLine];
     
     int bestCol = 0;
     if (!P.empty()) {
@@ -922,15 +1023,14 @@ size_t UITextArea::indexFromMouse(int mx, int my) const {
         }
     }
 
-    size_t noNLPos = lineStart[lineIdx] + bestCol;
+    size_t noNLPos = lineStart[visualLine] + bestCol;
     
     if (noNLPos < mapNoNLToOrig.size()) {
         return mapNoNLToOrig[noNLPos];
     } else {
-        return linkedText.get().size();
+        return full.size();
     }
 }
-
 
 
 void UITextArea::setIMERectAtCaret() {
@@ -1003,7 +1103,16 @@ void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {
             prefixX.emplace_back(1, 0);
 
             ensure_size(noNLIndex);
-            mapNoNLToOrig[noNLIndex] = paraStartOrig + offsetInPara;
+            
+            if (end_i < full.size() && full[end_i] == '\n') {
+                mapOrigToNoNL[end_i] = noNLIndex;
+                mapNoNLToOrig[noNLIndex] = end_i;
+            } else {
+                mapNoNLToOrig[noNLIndex] = end_i;
+            }
+            
+            noNLIndex += 1;
+            
         } else {
             for (const std::string& wline : wrapped) {
                 const size_t L = wline.size();
@@ -1038,12 +1147,11 @@ void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {
                 noNLIndex    += L;
                 offsetInPara += L;
             }
-        }
-
-        if (end_i < full.size() && full[end_i] == '\n') {
-            mapOrigToNoNL[end_i] = noNLIndex;
-            ensure_size(noNLIndex);
-            mapNoNLToOrig[noNLIndex] = end_i;
+            
+            if (end_i < full.size() && full[end_i] == '\n') {
+                mapOrigToNoNL[end_i] = noNLIndex;
+                noNLIndex += 1;
+            }
         }
     };
 
@@ -1064,6 +1172,7 @@ void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {
     if (mapNoNLToOrig.size() <= noNLIndex) mapNoNLToOrig.resize(noNLIndex + 1);
     mapNoNLToOrig[noNLIndex] = full.size();
 }
+
 
 
 
