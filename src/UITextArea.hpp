@@ -105,4 +105,29 @@ private:
     mutable std::string cacheTextNoNL;
     mutable std::vector<size_t> mapOrigToNoNL;
     mutable std::vector<size_t> mapNoNLToOrig;
+    struct EditRec {
+        size_t pos = 0;
+        std::string before;
+        std::string after;
+
+        size_t cursorBefore = 0, selABefore = 0, selBBefore = 0;
+        size_t cursorAfter  = 0, selAAfter  = 0, selBAfter  = 0;
+
+        enum Kind { Typing, Backspace, DeleteKey, Paste, Cut, Replace } kind = Replace;
+        Uint32 time = 0;
+    };
+
+    std::vector<EditRec> undoStack;
+    std::vector<EditRec> redoStack;
+    Uint32 coalesceMs = 500;
+    bool historyEnabled = true;
+
+    void undo();
+    void redo();
+    void clearRedo();
+    void pushEdit(EditRec e, bool tryCoalesce);
+    void applyReplaceNoHistory(size_t a, size_t b, std::string_view repl,
+                            size_t newCursor, size_t newSelA, size_t newSelB);
+    void replaceRange(size_t a, size_t b, std::string_view repl, EditRec::Kind kind,
+                    bool tryCoalesce);
 };
