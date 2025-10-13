@@ -23,6 +23,10 @@ public:
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
+    void undo();
+    void redo();
+    void enableHistory(bool on) { historyEnabled = on; }
+    void clearHistory() { undoStack.clear(); redoStack.clear(); }
     std::function<void(const std::string&)> onSubmit;
     UITextField* setOnSubmit(std::function<void(const std::string&)> cb) {
         onSubmit = std::move(cb);
@@ -45,6 +49,26 @@ public:
     
 
 private:
+    struct EditRec {
+        enum Kind { Typing, Backspace, DeleteKey, Cut, Paste } kind;
+        size_t pos{};
+        std::string before, after;
+        size_t cursorBefore{}, cursorAfter{};
+        int selABefore{-1}, selBBefore{-1};
+        int selAAfter{-1},  selBAfter{-1};
+        Uint32 time{};
+    };
+
+    void clearRedo();
+    void pushEdit(EditRec e, bool tryCoalesce);
+    void replaceRange(size_t a, size_t b, std::string_view repl, EditRec::Kind kind, bool tryCoalesce);
+    void applyReplaceNoHistory(size_t a, size_t b, std::string_view repl,
+                           size_t newCursor, int newSelA, int newSelB);
+
+    std::vector<EditRec> undoStack;
+    std::vector<EditRec> redoStack;
+    bool   historyEnabled{true};
+    Uint32 coalesceMs{350};
     std::string label;
     std::reference_wrapper<std::string> linkedText;
     int maxLength = 32;

@@ -521,6 +521,10 @@ public:
     void handleEvent(const SDL_Event& e) override;
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
+    void undo();
+    void redo();
+    void enableHistory(bool on) { historyEnabled = on; }
+    void clearHistory() { undoStack.clear(); redoStack.clear(); }
     std::function<void(const std::string&)> onSubmit;
     UITextField* setOnSubmit(std::function<void(const std::string&)> cb) {
         onSubmit = std::move(cb);
@@ -543,6 +547,26 @@ public:
 
 
 private:
+    struct EditRec {
+        enum Kind { Typing, Backspace, DeleteKey, Cut, Paste } kind;
+        size_t pos{};
+        std::string before, after;
+        size_t cursorBefore{}, cursorAfter{};
+        int selABefore{-1}, selBBefore{-1};
+        int selAAfter{-1},  selBAfter{-1};
+        Uint32 time{};
+    };
+
+    void clearRedo();
+    void pushEdit(EditRec e, bool tryCoalesce);
+    void replaceRange(size_t a, size_t b, std::string_view repl, EditRec::Kind kind, bool tryCoalesce);
+    void applyReplaceNoHistory(size_t a, size_t b, std::string_view repl,
+                           size_t newCursor, int newSelA, int newSelB);
+
+    std::vector<EditRec> undoStack;
+    std::vector<EditRec> redoStack;
+    bool   historyEnabled{true};
+    Uint32 coalesceMs{350};
     std::string label;
     std::reference_wrapper<std::string> linkedText;
     int maxLength = 32;
@@ -1897,6 +1921,128 @@ void UICheckbox::render(SDL_Renderer* renderer) {
 }
 
 
+void UITextField::clearRedo() { redoStack.clear(); }
+
+static inline bool hasSelRangeInt(const int a, const int b) { return b > a; }
+
+void UITextField::applyReplaceNoHistory(size_t a, size_t b, std::string_view repl,
+                                        size_t newCursor, int newSelA, int newSelB) {
+    auto& txt = linkedText.get();
+    a = std::min(a, txt.size());
+    b = std::min(b, txt.size());
+    if (b < a) std::swap(a, b);
+
+    txt.replace(a, b - a, repl);
+
+    caret = (int)std::min(newCursor, txt.size());
+
+    if (hasSelRangeInt((int)newSelA, (int)newSelB)) {
+        selAnchor = (int)newSelA;
+        caret     = (int)newSelB;
+    } else {
+        clearSelection();
+    }
+
+    cursorVisible   = true;
+    lastBlinkTicks  = SDL_GetTicks();
+}
+
+void UITextField::pushEdit(EditRec e, bool tryCoalesce) {
+    clearRedo();
+
+    if (tryCoalesce && !undoStack.empty()) {
+        EditRec& p = undoStack.back();
+
+        if (e.kind == EditRec::Typing && p.kind == EditRec::Typing &&
+            p.pos + p.after.size() == e.pos && p.before.empty() && e.before.empty() &&
+            (e.time - p.time) <= coalesceMs)
+        {
+            p.after        += e.after;
+            p.cursorAfter   = e.cursorAfter;
+            p.selAAfter     = e.selAAfter;
+            p.selBAfter     = e.selBAfter;
+            p.time          = e.time;
+            return;
+        }
+
+        if (e.kind == EditRec::Backspace && p.kind == EditRec::Backspace &&
+            e.pos + e.before.size() == p.pos && e.after.empty() && p.after.empty() &&
+            (e.time - p.time) <= coalesceMs)
+        {
+            p.pos         = e.pos;
+            p.before      = e.before + p.before;
+            p.cursorAfter = e.cursorAfter;
+            p.selAAfter   = e.selAAfter;
+            p.selBAfter   = e.selBAfter;
+            p.time        = e.time;
+            return;
+        }
+    }
+
+    undoStack.push_back(std::move(e));
+}
+
+void UITextField::replaceRange(size_t a, size_t b, std::string_view repl, EditRec::Kind kind,
+                               bool tryCoalesce) {
+    auto& txt = linkedText.get();
+    a = std::min(a, txt.size());
+    b = std::min(b, txt.size());
+    if (b < a) std::swap(a, b);
+
+    EditRec e;
+    e.pos          = a;
+    e.before       = txt.substr(a, b - a);
+    e.after        = std::string(repl);
+    e.cursorBefore = (size_t)caret;
+
+    if (hasSelection()) {
+        auto [sa, sb] = selRange();
+        e.selABefore = sa; e.selBBefore = sb;
+    } else {
+        e.selABefore = caret; e.selBBefore = caret;
+    }
+    e.kind = kind;
+    e.time = SDL_GetTicks();
+
+    const size_t newCursor = a + e.after.size();
+
+    applyReplaceNoHistory(a, b, repl, newCursor, newCursor, newCursor);
+
+    e.cursorAfter = (size_t)caret;
+    if (hasSelection()) {
+        auto [sa, sb] = selRange();
+        e.selAAfter = sa; e.selBAfter = sb;
+    } else {
+        e.selAAfter = caret; e.selBAfter = caret;
+    }
+
+    if (historyEnabled) pushEdit(std::move(e), tryCoalesce);
+}
+
+void UITextField::undo()
+{
+    if (undoStack.empty()) return;
+    EditRec e = undoStack.back(); undoStack.pop_back();
+
+    size_t a = e.pos;
+    size_t b = e.pos + e.after.size();
+
+    redoStack.push_back(e);
+    applyReplaceNoHistory(a, b, e.before, e.cursorBefore, e.selABefore, e.selBBefore);
+}
+
+void UITextField::redo()
+{
+    if (redoStack.empty()) return;
+    EditRec e = redoStack.back(); redoStack.pop_back();
+
+    size_t a = e.pos;
+    size_t b = e.pos + e.before.size();
+
+    undoStack.push_back(e);
+    applyReplaceNoHistory(a, b, e.after, e.cursorAfter, e.selAAfter, e.selBAfter);
+}
+
 static int clampi(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
 static int textWidth(TTF_Font* font, const std::string& s) {
@@ -2055,6 +2201,12 @@ void UITextField::handleEvent(const SDL_Event& e) {
         SDL_Rect r{ innerR.x + pad + wCaret - scrollX, innerR.y + (innerR.h - cursorH) / 2, 1, cursorH };
         SDL_SetTextInputRect(&r);
     };
+    auto postEditAdjust = [&](){
+        ensureCaretVisibleLocal();
+        updateImeRect();
+        cursorVisible  = true;
+        lastBlinkTicks = SDL_GetTicks();
+    };
     auto deleteSelection = [&]() {
         if (!hasSelection()) return false;
         auto [a, b] = selRange();
@@ -2199,8 +2351,15 @@ void UITextField::handleEvent(const SDL_Event& e) {
         case SDL_KEYDOWN: {
             if (!focused) break;
             SDL_Keycode key = e.key.keysym.sym;
-            bool ctrl  = (e.key.keysym.mod & KMOD_CTRL)  != 0;
-            bool shift = (e.key.keysym.mod & KMOD_SHIFT) != 0;
+            bool ctrl  = (e.key.keysym.mod & KMOD_CTRL) != 0;
+            bool gui   = (e.key.keysym.mod & KMOD_GUI)  != 0;
+            bool shift = (e.key.keysym.mod & KMOD_SHIFT)!= 0;
+
+            if ((ctrl && e.key.keysym.sym == SDLK_z && !shift) ||
+                (gui  && e.key.keysym.sym == SDLK_z && !shift)) { undo(); postEditAdjust(); return; }
+
+            if ((ctrl && (e.key.keysym.sym == SDLK_y || (shift && e.key.keysym.sym == SDLK_z))) ||
+                (gui  && (shift && e.key.keysym.sym == SDLK_z))) { redo(); postEditAdjust(); return; }
 
             if (ctrl && (key == SDLK_a)) {
                 selAnchor = 0;
@@ -2217,21 +2376,34 @@ void UITextField::handleEvent(const SDL_Event& e) {
                 }
                 return;
             }
-            if (ctrl && (key == SDLK_x)) {
+            if (ctrl && e.key.keysym.sym == SDLK_x) {
                 if (hasSelection()) {
-                    auto [a, b] = selRange();
-                    if (b < a) std::swap(a, b);
-                    SDL_SetClipboardText(textRef.substr(a, b - a).c_str());
-                    deleteSelection();
-                    ensureCaretVisibleLocal();
-                    updateImeRect();
+                    auto [a,b] = selRange();
+                    SDL_SetClipboardText(linkedText.get().substr(a, b-a).c_str());
+                    replaceRange((size_t)a, (size_t)b, "", EditRec::Cut, false);
+                    postEditAdjust();
                 }
                 return;
             }
-            if (ctrl && (key == SDLK_v)) {
+            if (ctrl && e.key.keysym.sym == SDLK_v) {
                 if (SDL_HasClipboardText()) {
-                    char* clip = SDL_GetClipboardText();
-                    if (clip) { insertTextAtCaret(clip); SDL_free(clip); }
+                    char* txt = SDL_GetClipboardText();
+                    if (txt) {
+                        std::string paste = txt; SDL_free(txt);
+
+                        const auto& cur = linkedText.get();
+                        size_t a = hasSelection() ? (size_t)selRange().first  : (size_t)caret;
+                        size_t b = hasSelection() ? (size_t)selRange().second : (size_t)caret;
+
+                        size_t maxLen = (maxLength > 0) ? (size_t)maxLength : SIZE_MAX;
+                        size_t room   = (cur.size() - (b - a) < maxLen) ? (maxLen - (cur.size() - (b - a))) : 0;
+
+                        if (room > 0) {
+                            if (paste.size() > room) paste.resize(room);
+                            replaceRange(a, b, paste, EditRec::Paste, false);
+                            postEditAdjust();
+                        }
+                    }
                 }
                 return;
             }
@@ -2253,48 +2425,71 @@ void UITextField::handleEvent(const SDL_Event& e) {
                 else { clearSelection(); selAnchor = caret; }
                 ensureCaretVisibleLocal(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return;
             }
-            if (key == SDLK_BACKSPACE) {
-                if (ctrl) {
+            if (e.key.keysym.sym == SDLK_BACKSPACE) {
+                auto& s = linkedText.get();
+                if (hasSelection()) {
+                    auto [a,b] = selRange();
+                    replaceRange((size_t)a, (size_t)b, "", EditRec::Backspace, false);
+                } else if (ctrl) {
+                    auto prevCP = [&](int i){ if (i<=0) return 0; i--; while(i>0 && ((unsigned char)s[i]&0xC0)==0x80) i--; return i; };
                     int L = caret;
-                    while (L > 0 && !std::isalnum((unsigned char)textRef[L-1]) && textRef[L-1] != '_') {
-                        L = prevCP(textRef, L);
-                    }
-                    while (L > 0 && (std::isalnum((unsigned char)textRef[L-1]) || textRef[L-1] == '_')) {
-                        L = prevCP(textRef, L);
-                    }
-                    if (L < caret) { textRef.erase(L, caret - L); caret = L; }
-                } else if (!deleteSelection()) {
-                    if (caret > 0) { int p = prevCP(textRef, caret); textRef.erase(p, caret - p); caret = p; }
+                    while (L > 0 && !std::isalnum((unsigned char)s[L-1]) && s[L-1] != '_') L = prevCP(L);
+                    while (L > 0 && (std::isalnum((unsigned char)s[L-1]) || s[L-1] == '_')) L = prevCP(L);
+                    if (L < caret) replaceRange((size_t)L, (size_t)caret, "", EditRec::Backspace, true);
+                } else if (caret > 0) {
+                    auto prevCP = [&](int i){ if (i<=0) return 0; i--; while(i>0 && ((unsigned char)s[i]&0xC0)==0x80) i--; return i; };
+                    int p = prevCP(caret);
+                    replaceRange((size_t)p, (size_t)caret, "", EditRec::Backspace, true);
                 }
-                ensureCaretVisibleLocal(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return;
+                postEditAdjust();
+                return;
             }
 
-            if (key == SDLK_DELETE) {
-                if (ctrl) {
-                    int R = caret, n = (int)textRef.size();
-                    while (R < n && !std::isalnum((unsigned char)textRef[R]) && textRef[R] != '_') {
-                        R = nextCP(textRef, R);
-                    }
-                    while (R < n && (std::isalnum((unsigned char)textRef[R]) || textRef[R] == '_')) {
-                        R = nextCP(textRef, R);
-                    }
-                    if (R > caret) { textRef.erase(caret, R - caret); }
-                } else if (!deleteSelection()) {
-                    if (caret < (int)textRef.size()) { int n2 = nextCP(textRef, caret); textRef.erase(caret, n2 - caret); }
+            if (e.key.keysym.sym == SDLK_DELETE) {
+                auto& s = linkedText.get();
+                if (hasSelection()) {
+                    auto [a,b] = selRange();
+                    replaceRange((size_t)a, (size_t)b, "", EditRec::DeleteKey, false);
+                } else if (ctrl) {
+                    auto nextCP = [&](int i){ int n=(int)s.size(); if (i>=n) return n; i++; while(i<n && ((unsigned char)s[i]&0xC0)==0x80) i++; return i; };
+                    int R = caret, n = (int)s.size();
+                    while (R < n && !std::isalnum((unsigned char)s[R]) && s[R] != '_') R = nextCP(R);
+                    while (R < n && (std::isalnum((unsigned char)s[R]) || s[R] == '_')) R = nextCP(R);
+                    if (R > caret) replaceRange((size_t)caret, (size_t)R, "", EditRec::DeleteKey, true);
+                } else if (caret < (int)s.size()) {
+                    auto nextCP = [&](int i){ int n=(int)s.size(); if (i>=n) return n; i++; while(i<n && ((unsigned char)s[i]&0xC0)==0x80) i++; return i; };
+                    int n2 = nextCP(caret);
+                    replaceRange((size_t)caret, (size_t)n2, "", EditRec::DeleteKey, true);
                 }
-                ensureCaretVisibleLocal(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return;
+                postEditAdjust();
+                return;
             }
-            if (key == SDLK_RETURN || key == SDLK_KP_ENTER) { if (onSubmit) onSubmit(textRef); return; }
         } break;
-
         case SDL_TEXTINPUT: {
             if (!focused) break;
-            insertTextAtCaret(e.text.text);
-            lastInputTicks = SDL_GetTicks();
-            cursorVisible  = true;
-            lastBlinkTicks = lastInputTicks;
+
+            std::string in = e.text.text;
+            bool valid = true;
+            switch (inputType) {
+                case InputType::NUMERIC: valid = std::all_of(in.begin(), in.end(), ::isdigit); break;
+                case InputType::EMAIL:   valid = std::all_of(in.begin(), in.end(), [](char c){ return std::isalnum((unsigned char)c) || c=='@'||c=='.'||c=='-'||c=='_';}); break;
+                default: break;
+            }
+            if (valid && !in.empty()) {
+                const auto& cur = linkedText.get();
+                size_t a = hasSelection() ? (size_t)selRange().first  : (size_t)caret;
+                size_t b = hasSelection() ? (size_t)selRange().second : (size_t)caret;
+
+                size_t maxLen = (maxLength > 0) ? (size_t)maxLength : SIZE_MAX;
+                size_t room   = (cur.size() - (b - a) < maxLen) ? (maxLen - (cur.size() - (b - a))) : 0;
+                if (room > 0) {
+                    if (in.size() > room) in.resize(room);
+                    replaceRange(a, b, in, EditRec::Typing, true);
+                    postEditAdjust();
+                }
+            }
             return;
-        } break;
+        }
 
         case SDL_TEXTEDITING: {
             if (!focused) break;
