@@ -3477,6 +3477,14 @@ void UITextArea::handleEvent(const SDL_Event& e) {
     }
 
     if (e.type == SDL_MOUSEMOTION) {
+        if (selectingMouse && !(e.motion.state & SDL_BUTTON_LMASK)) {
+            SDL_CaptureMouse(SDL_FALSE);
+            selectingMouse = false;
+            return;
+        }
+        if (scrollbarDragging && !(e.motion.state & SDL_BUTTON_LMASK)) {
+            scrollbarDragging = false;
+        }
         if (scrollbarDragging) {
             int dy = e.motion.y - scrollbarDragStartY;
             const auto st = MakeTextAreaStyle(getTheme());
@@ -3769,7 +3777,18 @@ void UITextArea::update(float) {
     scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, std::max(0.0f, contentHeight - float(viewH)));
     if (focused) setIMERectAtCaret();
 
-        if (focused && selectingMouse) {
+    {
+        Uint32 btns = SDL_GetMouseState(nullptr, nullptr);
+        if (selectingMouse && !(btns & SDL_BUTTON(SDL_BUTTON_LEFT))) {
+            SDL_CaptureMouse(SDL_FALSE);
+            selectingMouse = false;
+        }
+        if (scrollbarDragging && !(btns & SDL_BUTTON(SDL_BUTTON_LEFT))) {
+            scrollbarDragging = false;
+        }
+    }
+
+    if (focused && selectingMouse) {
         const int borderPx = st.borderPx;
         const int innerX0  = bounds.x + borderPx + paddingPx;
         const int innerY0  = bounds.y + borderPx + paddingPx;
