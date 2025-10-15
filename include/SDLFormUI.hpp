@@ -22,6 +22,10 @@ enum class InputType {
 };
 
 
+enum class StyleId { Classic, Minimal /*, Material*/ };
+enum class ThemeId { Light, Dark /*, HighContrast*/ };
+
+
 struct UIConfig;
 
 struct UITheme {
@@ -35,16 +39,8 @@ struct UITheme {
     SDL_Color sliderTrackColor  = {80,80,80,255};
     SDL_Color sliderThumbColor  = {180,180,255,255};
     SDL_Color checkboxTickColor = {255,255,255,255};
-
     SDL_Color focusRing         = {13,110,253,178};
     SDL_Color selectionBg       = {0,120,215,120};
-
-    int radiusSm = 6;
-    int radiusMd = 10;
-    int radiusLg = 16;
-    int borderThin = 1;
-    int borderThick = 2;
-    int padSm = 6, padMd = 10, padLg = 16;
 
     TTF_Font* font = nullptr;
 
@@ -64,13 +60,15 @@ struct UITheme {
     };
 };
 
-UITheme MakeBootstrapLight();
-UITheme MakeBootstrapDark();
+UITheme MakeLightTheme();
+UITheme MakeDarkTheme();
 
 TTF_Font* getThemeFont(const UITheme& theme);
 
 
+struct UIStyle;
 struct UITheme;
+
 class UIConfig {
 public:
     // NOTE: SDLFormUI does NOT take ownership. Caller must manage the lifetime (TTF_CloseFont).
@@ -79,26 +77,43 @@ public:
 
     static void setTheme(const UITheme& theme);
     static const UITheme& getTheme();
+
+    static void setStyle(const UIStyle& style);
+    static const UIStyle& getStyle();
+
+    static void setStyle(StyleId id);
+    static void setTheme(ThemeId id);
+    static void setLook(StyleId style, ThemeId theme);
+
+    static void setStyle(std::string_view name);
+    static void setTheme(std::string_view name);
+    static void setLook(std::string_view styleName,
+                        std::string_view themeName);
+
+    using StyleFactory = UIStyle(*)();
+    using ThemeFactory = UITheme(*)();
+    static void registerStyle(std::string_view name, StyleFactory f);
+    static void registerTheme(std::string_view name, ThemeFactory f);
+
     static TTF_Font** getDefaultFontPtr();
 
 private:
     static TTF_Font* defaultFont;
-    static UITheme defaultTheme;
+    static UITheme   defaultTheme;
+
+    static UIStyle   defaultStyle;
 };
 
 
 struct UITextFieldStyle {
     int radius      = 10;
     int borderPx    = 1;
-
     SDL_Color bg{};
     SDL_Color fg{};
     SDL_Color placeholder{};
-
     SDL_Color border{};
     SDL_Color borderHover{};
     SDL_Color borderFocus{};
-
     SDL_Color selectionBg{};
     SDL_Color caret{};
 };
@@ -106,15 +121,12 @@ struct UITextFieldStyle {
 struct UITextAreaStyle {
     int radius   = 10;
     int borderPx = 1;
-
     SDL_Color bg{};
     SDL_Color fg{};
     SDL_Color placeholder{};
-
     SDL_Color border{};
     SDL_Color borderHover{};
     SDL_Color borderFocus{};
-
     SDL_Color selectionBg{};
     SDL_Color caret{};
 };
@@ -122,7 +134,6 @@ struct UITextAreaStyle {
 struct UIButtonStyle {
     int radius   = 10;
     int borderPx = 1;
-
     SDL_Color text{};
     SDL_Color border{};
     SDL_Color borderFocus{};
@@ -133,7 +144,6 @@ struct UICheckboxStyle {
     int radius    = 4;
     int borderPx  = 1;
     int spacingPx = 8;
-
     SDL_Color text{};
     SDL_Color boxBg{};
     SDL_Color border{};
@@ -147,7 +157,6 @@ struct UIGroupBoxStyle {
     int  borderPx  = 1;
     int  titlePadX = 8;
     int  titlePadY = 2;
-
     SDL_Color title;
     SDL_Color border;
     SDL_Color bg;
@@ -159,7 +168,6 @@ struct UIRadioStyle {
     int borderThickness = 2;
     int spacingPx       = 12;
     int gapTextPx       = 18;
-
     SDL_Color text{};
     SDL_Color border{};
     SDL_Color borderHover{};
@@ -171,7 +179,6 @@ struct UIComboBoxStyle {
     int radius   = 10;
     int borderPx = 1;
     int padX     = 10;
-
     SDL_Color fieldBg{};
     SDL_Color fieldFg{};
     SDL_Color placeholder{};
@@ -179,10 +186,8 @@ struct UIComboBoxStyle {
     SDL_Color borderHover{};
     SDL_Color borderFocus{};
     SDL_Color caret;
-
     SDL_Color menuBg{};
     SDL_Color menuBorder{};
-
     SDL_Color itemFg{};
     SDL_Color itemHoverBg{};
     SDL_Color itemSelectedBg{};
@@ -193,16 +198,13 @@ struct UISpinnerStyle {
     int radius   = 10;
     int borderPx = 1;
     int padX     = 10;
-
     SDL_Color fieldBg{};
     SDL_Color fieldBorder{};
     SDL_Color text{};
-
     SDL_Color btnBg{};
     SDL_Color btnBgHover{};
     SDL_Color btnBorder{};
     SDL_Color btnGlyph{};
-
     SDL_Color focusRing{};
 };
 
@@ -227,17 +229,42 @@ struct PopupStyle {
     int       pad;
 };
 
+UITextFieldStyle MakeTextFieldStyle(const UITheme& t, const UIStyle& s);
+UITextAreaStyle  MakeTextAreaStyle (const UITheme& t, const UIStyle& s);
+UIButtonStyle    MakeButtonStyle   (const UITheme& t, const UIStyle& s);
+UICheckboxStyle  MakeCheckboxStyle (const UITheme& t, const UIStyle& s);
+UIGroupBoxStyle  MakeGroupBoxStyle (const UITheme& t, const UIStyle& s);
+UIRadioStyle     MakeRadioStyle    (const UITheme& t, const UIStyle& s);
+UIComboBoxStyle  MakeComboBoxStyle (const UITheme& t, const UIStyle& s);
+UISpinnerStyle   MakeSpinnerStyle  (const UITheme& t, const UIStyle& s);
+UISliderStyle    MakeSliderStyle   (const UITheme& t);
+UILabelStyle     MakeLabelStyle    (const UITheme& th);
+PopupStyle       MakePopupStyle    (const UITheme& th, const UIStyle& s);
+
 UITextFieldStyle MakeTextFieldStyle(const UITheme& t);
-UITextAreaStyle MakeTextAreaStyle(const UITheme& t);
-UIButtonStyle MakeButtonStyle(const UITheme& t);
-UICheckboxStyle MakeCheckboxStyle(const UITheme& t);
-UIGroupBoxStyle MakeGroupBoxStyle(const UITheme& t);
-UIRadioStyle MakeRadioStyle(const UITheme& t);
-UIComboBoxStyle MakeComboBoxStyle(const UITheme& t);
-UISpinnerStyle MakeSpinnerStyle(const UITheme& t);
-UISliderStyle MakeSliderStyle(const UITheme& t);
-UILabelStyle MakeLabelStyle(const UITheme& th);
-PopupStyle MakePopupStyle(const UITheme& th);
+UITextAreaStyle  MakeTextAreaStyle (const UITheme& t);
+UIButtonStyle    MakeButtonStyle   (const UITheme& t);
+UICheckboxStyle  MakeCheckboxStyle (const UITheme& t);
+UIGroupBoxStyle  MakeGroupBoxStyle (const UITheme& t);
+UIRadioStyle     MakeRadioStyle    (const UITheme& t);
+UIComboBoxStyle  MakeComboBoxStyle (const UITheme& t);
+UISpinnerStyle   MakeSpinnerStyle  (const UITheme& t);
+PopupStyle       MakePopupStyle    (const UITheme& th);
+
+
+struct UIStyle {
+    int radiusSm   = 6;
+    int radiusMd   = 10;
+    int radiusLg   = 16;
+    int borderThin = 1;
+    int borderThick= 2;
+    int padSm      = 6;
+    int padMd      = 10;
+    int padLg      = 16;
+};
+
+UIStyle MakeClassicStyle();
+UIStyle MakeMinimalStyle();
 
 
 class UIElement {
@@ -983,9 +1010,8 @@ TTF_Font* getThemeFont(const UITheme& theme) {
     return theme.font ? theme.font : UIConfig::getDefaultFont();
 }
 
-UITheme MakeBootstrapLight() {
+UITheme MakeLightTheme() {
     UITheme t;
-
     t.backgroundColor   = {255,255,255,255};
     t.textColor         = {33,37,41,255};
     t.placeholderColor  = {160,160,160,255};
@@ -993,125 +1019,173 @@ UITheme MakeBootstrapLight() {
     t.borderHoverColor  = {173,181,189,255};
     t.focusRing         = {13,110,253,178};
     t.selectionBg       = {0,120,215,120};
-
     t.sliderTrackColor  = {222,226,230,255};
     t.sliderThumbColor  = {13,110,253,255};
     t.checkboxTickColor = {13,110,253,255};
-
     t.cursorColor       = {33,37,41,255};
-
-    t.radiusSm = 6;  t.radiusMd = 10;  t.radiusLg = 16;
-    t.borderThin = 1; t.borderThick = 2;
-    t.padSm = 6; t.padMd = 10; t.padLg = 16;
-
     t.font = nullptr;
     return t;
 }
 
-UITheme MakeBootstrapDark() {
+UITheme MakeDarkTheme() {
     UITheme th;
-
-    th.backgroundColor   = { 18, 18, 20, 255 };
-    th.hoverColor        = { 28, 28, 32, 255 };
-    th.borderColor       = { 60, 60, 66, 255 };
+    th.backgroundColor   = {18,18,20,255};
+    th.hoverColor        = {28,28,32,255};
+    th.borderColor       = {60,60,66,255};
     th.borderHoverColor  = {108,117,125,255};
-
     th.textColor         = {222,226,230,255};
     th.placeholderColor  = {134,142,150,255};
     th.cursorColor       = {255,255,255,255};
-
-    th.selectionBg       = { 13,110,253,120 };
-    th.focusRing         = { 13,110,253,178 };
-
-    th.sliderTrackColor  = { 44, 44, 50, 255 };
+    th.selectionBg       = {13,110,253,120};
+    th.focusRing         = {13,110,253,178};
+    th.sliderTrackColor  = {44,44,50,255};
     th.sliderThumbColor  = {108,117,125,255};
     th.checkboxTickColor = {255,255,255,255};
-
-    th.radiusSm = 6; th.radiusMd = 10; th.radiusLg = 16;
-    th.borderThin = 1; th.borderThick = 2;
-    th.padSm = 6; th.padMd = 10; th.padLg = 16;
-
     return th;
 }
 
 
 TTF_Font* UIConfig::defaultFont = nullptr;
-UITheme UIConfig::defaultTheme;
+UITheme   UIConfig::defaultTheme;
+UIStyle   UIConfig::defaultStyle = MakeClassicStyle();
 
-void UIConfig::setDefaultFont(TTF_Font* font) {
-    defaultFont = font;
+static UIStyle styleFromEnum(StyleId id) {
+    switch (id) {
+        case StyleId::Classic: return MakeClassicStyle();
+        case StyleId::Minimal: return MakeMinimalStyle();
+    }
+    return MakeClassicStyle();
 }
 
-TTF_Font* UIConfig::getDefaultFont() {
-    return defaultFont;
+static UITheme themeFromEnum(ThemeId id) {
+    switch (id) {
+        case ThemeId::Light: return MakeLightTheme();
+        case ThemeId::Dark:  return MakeDarkTheme();
+    }
+    return MakeLightTheme();
 }
 
-void UIConfig::setTheme(const UITheme& theme) {
-    defaultTheme = theme;
+struct NoThrowHash {
+    size_t operator()(const std::string& s) const noexcept {
+        return std::hash<std::string>{}(s);
+    }
+};
+struct NoThrowEq {
+    bool operator()(const std::string& a, const std::string& b) const noexcept {
+        return a == b;
+    }
+};
+
+static std::unordered_map<std::string, UIConfig::StyleFactory, NoThrowHash, NoThrowEq> gStyleReg = {
+    {"classic", &MakeClassicStyle},
+    {"minimal", &MakeMinimalStyle},
+};
+
+static std::unordered_map<std::string, UIConfig::ThemeFactory, NoThrowHash, NoThrowEq> gThemeReg = {
+    {"light",  &MakeLightTheme},
+    {"dark",   &MakeDarkTheme},
+    {"classic-light",  &MakeLightTheme},
+    {"classic-dark",   &MakeDarkTheme},
+    {"bootstrap-light",&MakeLightTheme},
+    {"bootstrap-dark", &MakeDarkTheme},
+};
+
+static std::string lower(std::string_view s) {
+    std::string out(s);
+    std::transform(out.begin(), out.end(), out.begin(),
+                   [](unsigned char c){ return std::tolower(c); });
+    return out;
 }
 
-const UITheme& UIConfig::getTheme() {
-    return defaultTheme;
+void UIConfig::setDefaultFont(TTF_Font* font) { defaultFont = font; }
+TTF_Font* UIConfig::getDefaultFont() { return defaultFont; }
+TTF_Font** UIConfig::getDefaultFontPtr() { return &defaultFont; }
+
+void UIConfig::setTheme(const UITheme& theme) { defaultTheme = theme; }
+const UITheme& UIConfig::getTheme() { return defaultTheme; }
+
+void UIConfig::setStyle(const UIStyle& style) { defaultStyle = style; }
+const UIStyle& UIConfig::getStyle() { return defaultStyle; }
+
+void UIConfig::setStyle(StyleId id) { setStyle(styleFromEnum(id)); }
+void UIConfig::setTheme(ThemeId id) { setTheme(themeFromEnum(id)); }
+void UIConfig::setLook(StyleId s, ThemeId t) {
+    setStyle(styleFromEnum(s));
+    setTheme(themeFromEnum(t));
 }
 
-TTF_Font** UIConfig::getDefaultFontPtr() {
-    return &defaultFont;
+void UIConfig::setStyle(std::string_view name) {
+    auto key = lower(name);
+    if (auto it = gStyleReg.find(key); it != gStyleReg.end())
+        setStyle(it->second());
+}
+
+void UIConfig::setTheme(std::string_view name) {
+    auto key = lower(name);
+    if (auto it = gThemeReg.find(key); it != gThemeReg.end())
+        setTheme(it->second());
+}
+
+void UIConfig::setLook(std::string_view styleName, std::string_view themeName) {
+    setStyle(styleName);
+    setTheme(themeName);
+}
+
+void UIConfig::registerStyle(std::string_view name, StyleFactory f) {
+    gStyleReg[lower(name)] = f;
+}
+
+void UIConfig::registerTheme(std::string_view name, ThemeFactory f) {
+    gThemeReg[lower(name)] = f;
 }
 
 
-UITextFieldStyle MakeTextFieldStyle(const UITheme& t) {
+UITextFieldStyle MakeTextFieldStyle(const UITheme& t, const UIStyle& ds) {
     UITextFieldStyle s;
-    s.radius       = t.radiusMd;
-    s.borderPx     = t.borderThin;
-
+    s.radius       = ds.radiusMd;
+    s.borderPx     = ds.borderThin;
     s.bg           = t.backgroundColor;
     s.fg           = t.textColor;
     s.placeholder  = t.placeholderColor;
-
     s.border       = t.borderColor;
     s.borderHover  = t.borderHoverColor;
     s.borderFocus  = t.focusRing;
-
     s.selectionBg  = t.selectionBg;
     s.caret        = t.cursorColor;
     return s;
 }
 
-UITextAreaStyle MakeTextAreaStyle(const UITheme& t) {
+UITextAreaStyle MakeTextAreaStyle(const UITheme& t, const UIStyle& ds) {
     UITextAreaStyle s;
-    s.radius       = t.radiusMd;
-    s.borderPx     = t.borderThin;
-
+    s.radius       = ds.radiusMd;
+    s.borderPx     = ds.borderThin;
     s.bg           = t.backgroundColor;
     s.fg           = t.textColor;
     s.placeholder  = t.placeholderColor;
-
     s.border       = t.borderColor;
     s.borderHover  = t.borderHoverColor;
     s.borderFocus  = t.focusRing;
-
     s.selectionBg  = t.selectionBg;
     s.caret        = t.cursorColor;
     return s;
 }
 
-UIButtonStyle MakeButtonStyle(const UITheme& t) {
+UIButtonStyle MakeButtonStyle(const UITheme& t, const UIStyle& ds) {
     UIButtonStyle s;
-    s.radius      = t.radiusMd;
-    s.borderPx    = t.borderThin;
+    s.radius      = ds.radiusMd;
+    s.borderPx    = ds.borderThin;
     s.text        = t.textColor;
     s.border      = t.borderColor;
     s.borderFocus = t.focusRing;
     return s;
 }
 
-UICheckboxStyle MakeCheckboxStyle(const UITheme& t) {
+UICheckboxStyle MakeCheckboxStyle(const UITheme& t, const UIStyle& ds) {
     UICheckboxStyle s;
     s.boxSize     = 18;
-    s.radius      = std::min(t.radiusSm, 6);
-    s.borderPx    = t.borderThin;
+    s.radius      = std::min(ds.radiusSm, 6);
+    s.borderPx    = ds.borderThin;
     s.spacingPx   = 8;
-
     s.text        = t.textColor;
     s.boxBg       = t.backgroundColor;
     s.border      = t.borderColor;
@@ -1121,24 +1195,23 @@ UICheckboxStyle MakeCheckboxStyle(const UITheme& t) {
     return s;
 }
 
-UIGroupBoxStyle MakeGroupBoxStyle(const UITheme& t) {
+UIGroupBoxStyle MakeGroupBoxStyle(const UITheme& t, const UIStyle& ds) {
     UIGroupBoxStyle s;
-    s.radius   = t.radiusMd;
-    s.borderPx = t.borderThin;
+    s.radius   = ds.radiusMd;
+    s.borderPx = ds.borderThin;
     s.title    = t.textColor;
     s.border   = t.borderColor;
     s.bg       = {0,0,0,0};
     return s;
 }
 
-UIRadioStyle MakeRadioStyle(const UITheme& t) {
+UIRadioStyle MakeRadioStyle(const UITheme& t, const UIStyle& ds) {
     UIRadioStyle s;
-    s.outerRadius     = std::max(7, t.radiusSm);
+    s.outerRadius     = std::max(7, ds.radiusSm);
     s.ringThickness   = std::max(3, s.outerRadius / 3);
-    s.borderThickness = std::max(1, t.borderThin);
+    s.borderThickness = std::max(1, ds.borderThin);
     s.spacingPx       = 12;
     s.gapTextPx       = 18;
-
     s.text        = t.textColor;
     s.border      = t.borderColor;
     s.borderHover = t.borderHoverColor;
@@ -1147,12 +1220,11 @@ UIRadioStyle MakeRadioStyle(const UITheme& t) {
     return s;
 }
 
-UIComboBoxStyle MakeComboBoxStyle(const UITheme& t) {
+UIComboBoxStyle MakeComboBoxStyle(const UITheme& t, const UIStyle& ds) {
     UIComboBoxStyle s;
-    s.radius    = t.radiusMd;
-    s.borderPx  = t.borderThin;
-    s.padX      = t.padMd;
-
+    s.radius    = ds.radiusMd;
+    s.borderPx  = ds.borderThin;
+    s.padX      = ds.padMd;
     s.fieldBg   = t.backgroundColor;
     s.fieldFg   = t.textColor;
     s.placeholder = t.placeholderColor;
@@ -1160,10 +1232,8 @@ UIComboBoxStyle MakeComboBoxStyle(const UITheme& t) {
     s.borderHover = t.borderHoverColor;
     s.borderFocus = t.focusRing;
     s.caret     = t.textColor;
-
     s.menuBg    = t.backgroundColor;
     s.menuBorder= t.borderColor;
-
     s.itemFg        = t.textColor;
     s.itemHoverBg   = UIHelpers::PickHoverColor(t.backgroundColor);
     s.itemSelectedBg= UIHelpers::Darken(t.backgroundColor, 8);
@@ -1171,21 +1241,18 @@ UIComboBoxStyle MakeComboBoxStyle(const UITheme& t) {
     return s;
 }
 
-UISpinnerStyle MakeSpinnerStyle(const UITheme& t) {
+UISpinnerStyle MakeSpinnerStyle(const UITheme& t, const UIStyle& ds) {
     UISpinnerStyle s;
-    s.radius      = t.radiusMd;
-    s.borderPx    = t.borderThin;
-    s.padX        = t.padMd;
-
+    s.radius      = ds.radiusMd;
+    s.borderPx    = ds.borderThin;
+    s.padX        = ds.padMd;
     s.fieldBg     = t.backgroundColor;
     s.fieldBorder = t.borderColor;
     s.text        = t.textColor;
-
     s.btnBg       = t.backgroundColor;
     s.btnBgHover  = UIHelpers::PickHoverColor(t.backgroundColor);
     s.btnBorder   = t.borderColor;
     s.btnGlyph    = t.textColor;
-
     s.focusRing   = t.focusRing;
     return s;
 }
@@ -1205,15 +1272,53 @@ UILabelStyle MakeLabelStyle(const UITheme& th) {
     return st;
 }
 
-PopupStyle MakePopupStyle(const UITheme& th) {
+PopupStyle MakePopupStyle(const UITheme& th, const UIStyle& ds) {
     PopupStyle st;
     st.bg          = UIHelpers::RGBA(th.backgroundColor.r, th.backgroundColor.g, th.backgroundColor.b, 245);
     st.border      = th.borderColor;
     st.borderFocus = th.focusRing;
-    st.radius      = th.radiusMd;
-    st.borderPx    = th.borderThin;
-    st.pad         = th.padLg;
+    st.radius      = ds.radiusMd;
+    st.borderPx    = ds.borderThin;
+    st.pad         = ds.padLg;
     return st;
+}
+
+
+UITextFieldStyle MakeTextFieldStyle(const UITheme& t) { return MakeTextFieldStyle(t, UIConfig::getStyle()); }
+UITextAreaStyle  MakeTextAreaStyle (const UITheme& t) { return MakeTextAreaStyle (t, UIConfig::getStyle()); }
+UIButtonStyle    MakeButtonStyle   (const UITheme& t) { return MakeButtonStyle   (t, UIConfig::getStyle()); }
+UICheckboxStyle  MakeCheckboxStyle (const UITheme& t) { return MakeCheckboxStyle (t, UIConfig::getStyle()); }
+UIGroupBoxStyle  MakeGroupBoxStyle (const UITheme& t) { return MakeGroupBoxStyle (t, UIConfig::getStyle()); }
+UIRadioStyle     MakeRadioStyle    (const UITheme& t) { return MakeRadioStyle    (t, UIConfig::getStyle()); }
+UIComboBoxStyle  MakeComboBoxStyle (const UITheme& t) { return MakeComboBoxStyle (t, UIConfig::getStyle()); }
+UISpinnerStyle   MakeSpinnerStyle  (const UITheme& t) { return MakeSpinnerStyle  (t, UIConfig::getStyle()); }
+PopupStyle       MakePopupStyle    (const UITheme& th){ return MakePopupStyle    (th, UIConfig::getStyle()); }
+
+
+UIStyle MakeClassicStyle() {
+    UIStyle s;
+    s.radiusSm = 6;
+    s.radiusMd = 10;
+    s.radiusLg = 16;
+    s.borderThin = 1;
+    s.borderThick = 2;
+    s.padSm = 6;
+    s.padMd = 10;
+    s.padLg = 16;
+    return s;
+}
+
+UIStyle MakeMinimalStyle() {
+    UIStyle s;
+    s.radiusSm = 4;
+    s.radiusMd = 6;
+    s.radiusLg = 10;
+    s.borderThin = 1;
+    s.borderThick = 1;
+    s.padSm = 4;
+    s.padMd = 8;
+    s.padLg = 12;
+    return s;
 }
 
 
