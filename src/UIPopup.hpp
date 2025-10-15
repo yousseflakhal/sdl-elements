@@ -12,7 +12,7 @@ public:
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
     int getPadFromTheme() const {
-        return MakePopupStyle(getTheme()).pad;
+        return MakePopupStyle(getTheme(), getStyle()).pad;
     }
     void centerInRenderer(SDL_Renderer* r) {
         if (!r) return;

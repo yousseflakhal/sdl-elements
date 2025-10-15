@@ -144,7 +144,13 @@ PopupStyle MakePopupStyle(const UITheme& th, const UIStyle& ds) {
     return st;
 }
 
-#include "UIConfig.hpp"
+UILabelStyle MakeLabelStyle(const UITheme& th, const UIStyle&) {
+    return MakeLabelStyle(th);
+}
+
+UISliderStyle MakeSliderStyle(const UITheme& t, const UIStyle&) {
+    return MakeSliderStyle(t);
+}
 
 UITextFieldStyle MakeTextFieldStyle(const UITheme& t) { return MakeTextFieldStyle(t, UIConfig::getStyle()); }
 UITextAreaStyle  MakeTextAreaStyle (const UITheme& t) { return MakeTextAreaStyle (t, UIConfig::getStyle()); }

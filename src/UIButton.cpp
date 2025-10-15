@@ -66,7 +66,8 @@ void UIButton::update(float) {
 
 void UIButton::render(SDL_Renderer* renderer) {
     const UITheme& th = getTheme();
-    const auto st = MakeButtonStyle(th);
+    const UIStyle& ds = getStyle();
+    const auto st = MakeButtonStyle(th, ds);
 
     SDL_Color baseBg     = customBgColor   ? *customBgColor   : th.backgroundColor;
     SDL_Color baseText   = customTextColor ? *customTextColor : st.text;

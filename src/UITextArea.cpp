@@ -132,6 +132,8 @@ void UITextArea::setPlaceholder(const std::string& text) {
 }
 
 void UITextArea::handleEvent(const SDL_Event& e) {
+    const UITheme& th = getTheme();
+    const UIStyle& ds = getStyle();
     if (e.type == SDL_USEREVENT) {
         if (e.user.code == 0xF001) { if (!focused) { focused = true; SDL_StartTextInput();preferredXpx = -1; preferredColumn = -1; } return; }
         if (e.user.code == 0xF002) {
@@ -285,7 +287,7 @@ void UITextArea::handleEvent(const SDL_Event& e) {
         }
         if (scrollbarDragging) {
             int dy = e.motion.y - scrollbarDragStartY;
-            const auto st = MakeTextAreaStyle(getTheme());
+            const auto st = MakeTextAreaStyle(th, ds);
             const int viewH = std::max(0, bounds.h - 2*st.borderPx - 2*paddingPx);
             const float maxScroll = std::max(0.0f, contentHeight - float(viewH));
             scrollOffsetY = scrollbarThumbStartOffset + dy * (maxScroll) / float(viewH);
@@ -294,7 +296,7 @@ void UITextArea::handleEvent(const SDL_Event& e) {
         }
 
         if (selectingMouse && focused) {
-            const auto st = MakeTextAreaStyle(getTheme());
+            const auto st = MakeTextAreaStyle(th, ds);
             const int borderPx = st.borderPx;
             const int innerY0  = bounds.y + borderPx + paddingPx;
             const int innerH   = std::max(0, bounds.h - 2*borderPx - 2*paddingPx);
@@ -314,7 +316,7 @@ void UITextArea::handleEvent(const SDL_Event& e) {
             }
             return;
         }
-        const auto st = MakeTextAreaStyle(getTheme());
+        const auto st = MakeTextAreaStyle(th, ds);
         const int viewH = std::max(0, bounds.h - 2*st.borderPx - 2*paddingPx);
         if (contentHeight > bounds.h) {
             SDL_Point p{ e.motion.x, e.motion.y };
@@ -336,7 +338,7 @@ void UITextArea::handleEvent(const SDL_Event& e) {
         if (mx >= bounds.x && mx <= bounds.x + bounds.w && my >= bounds.y && my <= bounds.y + bounds.h) {
             int lh = TTF_FontHeight(font ? font : UIConfig::getDefaultFont());
             scrollOffsetY -= e.wheel.y * lh;
-            const auto st = MakeTextAreaStyle(getTheme());
+            const auto st = MakeTextAreaStyle(th, ds);
             const int viewH = std::max(0, bounds.h - 2*st.borderPx - 2*paddingPx);
             scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, std::max(0.0f, contentHeight - float(viewH)));
             if (focused) setIMERectAtCaret();
@@ -566,7 +568,9 @@ void UITextArea::update(float) {
         preferredColumn = -1;
     }
     TTF_Font* fnt = font ? font : UIConfig::getDefaultFont();
-    const auto st = MakeTextAreaStyle(getTheme());
+    const UITheme& th = getTheme();
+    const UIStyle& ds = getStyle();
+    const auto st = MakeTextAreaStyle(th, ds);
     const int innerW = std::max(0, bounds.w - 2*st.borderPx - 2*paddingPx);
 
     rebuildLayout(fnt, innerW);
@@ -678,7 +682,8 @@ void UITextArea::render(SDL_Renderer* renderer) {
     TTF_Font* fnt = font ? font : (getTheme().font ? getTheme().font : UIConfig::getDefaultFont());
     if (!fnt) return;
     const UITheme& th = getTheme();
-    auto st = MakeTextAreaStyle(th);
+    const UIStyle& ds = getStyle();
+    const auto st = MakeTextAreaStyle(th, ds);
 
     SDL_Rect dst = bounds;
     const int effRadius   = st.radius;
@@ -868,7 +873,9 @@ void UITextArea::updateCursorPosition() {
     TTF_Font* fnt = font ? font : UIConfig::getDefaultFont();
     if (!fnt) return;
 
-    const auto st = MakeTextAreaStyle(getTheme());
+    const UITheme& th = getTheme();
+    const UIStyle& ds = getStyle();
+    const auto st = MakeTextAreaStyle(th, ds);
     const int borderPx = st.borderPx;
     const int innerX0  = bounds.x + borderPx + paddingPx;
     const int innerY0  = bounds.y + borderPx + paddingPx;
@@ -956,8 +963,9 @@ SDL_Rect UITextArea::getScrollbarRect() const {
 
 void UITextArea::renderScrollbar(SDL_Renderer* renderer) {
     const UITheme& theme = getTheme();
+    const UIStyle& ds = getStyle();
     SDL_Rect sb = getScrollbarRect();
-    const auto st = MakeTextAreaStyle(getTheme());
+    const auto st = MakeTextAreaStyle(theme, ds);
     const int viewH = std::max(0, bounds.h - 2*st.borderPx - 2*paddingPx);
     float vr = float(viewH)/contentHeight;
     int th = std::max(int(viewH*vr), 20);
@@ -982,8 +990,9 @@ bool UITextArea::isScrollbarDragging() const {
 size_t UITextArea::indexFromMouse(int mx, int my) const {
     TTF_Font* fnt = font ? font : UIConfig::getDefaultFont();
     if (!fnt) return cursorPos;
-
-    const auto st = MakeTextAreaStyle(getTheme());
+    const UITheme& th = getTheme();
+    const UIStyle& ds = getStyle();
+    const auto st = MakeTextAreaStyle(th, ds);
     const int borderPx = st.borderPx;
     const int innerX0  = bounds.x + borderPx + paddingPx;
     const int innerY0  = bounds.y + borderPx + paddingPx;
@@ -1035,8 +1044,9 @@ size_t UITextArea::indexFromMouse(int mx, int my) const {
 void UITextArea::setIMERectAtCaret() {
     TTF_Font* fnt = font ? font : UIConfig::getDefaultFont();
     if (!fnt) return;
-
-    const auto st = MakeTextAreaStyle(getTheme());
+    const UITheme& th = getTheme();
+    const UIStyle& ds = getStyle();
+    const auto st = MakeTextAreaStyle(th, ds);
     const int borderPx = st.borderPx;
     const int innerX0  = bounds.x + borderPx + paddingPx;
     const int innerY0  = bounds.y + borderPx + paddingPx;

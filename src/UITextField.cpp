@@ -642,7 +642,8 @@ void UITextField::render(SDL_Renderer* renderer) {
     if (!activeFont) return;
 
     const UITheme& th = getTheme();
-    const auto st = MakeTextFieldStyle(th);
+    const UIStyle& ds = getStyle();
+    const auto st = MakeTextFieldStyle(th, ds);
 
     const int effRadius   = (cornerRadius > 0 ? cornerRadius : st.radius);
     const int effBorderPx = (borderPx     > 0 ? borderPx     : st.borderPx);

@@ -27,7 +27,8 @@ void UIGroupBox::update(float dt) {
 
 void UIGroupBox::render(SDL_Renderer* renderer) {
     const UITheme& th = getTheme();
-    const auto st = MakeGroupBoxStyle(th);
+    const UIStyle& ds = getStyle();
+    const auto st = MakeGroupBoxStyle(th, ds);
 
     TTF_Font* fnt = font ? font : (th.font ? th.font : UIConfig::getDefaultFont());
     if (!fnt) return;

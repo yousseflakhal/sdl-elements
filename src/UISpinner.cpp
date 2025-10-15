@@ -82,7 +82,8 @@ void UISpinner::update(float) {
 
 void UISpinner::render(SDL_Renderer* renderer) {
     const UITheme& th = getTheme();
-    const auto st = MakeSpinnerStyle(th);
+    const UIStyle& ds = getStyle();
+    const auto st = MakeSpinnerStyle(th, ds);
     TTF_Font* activeFont = font ? font : (th.font ? th.font : UIConfig::getDefaultFont());
     if (!activeFont) return;
 

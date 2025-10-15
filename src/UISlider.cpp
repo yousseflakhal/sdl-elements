@@ -74,7 +74,8 @@ void UISlider::update(float) {
 
 void UISlider::render(SDL_Renderer* renderer) {
     const UITheme& th = getTheme();
-    const auto st = MakeSliderStyle(th);
+    const UIStyle& ds = getStyle();
+    const auto st = MakeSliderStyle(th, ds);
 
     const int trackH = st.trackH;
     SDL_Rect track = {

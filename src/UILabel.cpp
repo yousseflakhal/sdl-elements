@@ -10,7 +10,8 @@ UILabel::UILabel(const std::string& text, int x, int y, int w, int h, TTF_Font* 
 
 void UILabel::render(SDL_Renderer* renderer) {
     const UITheme& th = getTheme();
-    auto st = MakeLabelStyle(th);
+    const UIStyle& ds = getStyle();
+    const auto st = MakeLabelStyle(th, ds);
     TTF_Font* activeFont = font ? font : getThemeFont(th);
     if (!activeFont) return;
 

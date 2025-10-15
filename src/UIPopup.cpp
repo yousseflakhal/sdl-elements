@@ -23,7 +23,8 @@ void UIPopup::update(float dt) {
 void UIPopup::render(SDL_Renderer* renderer)
 {
     const UITheme& th = getTheme();
-    const PopupStyle st = MakePopupStyle(th);
+    const UIStyle& ds = getStyle();
+    const PopupStyle st = MakePopupStyle(th, ds);
 
     const SDL_Rect r = bounds;
 

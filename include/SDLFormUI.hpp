@@ -237,7 +237,9 @@ UIGroupBoxStyle  MakeGroupBoxStyle (const UITheme& t, const UIStyle& s);
 UIRadioStyle     MakeRadioStyle    (const UITheme& t, const UIStyle& s);
 UIComboBoxStyle  MakeComboBoxStyle (const UITheme& t, const UIStyle& s);
 UISpinnerStyle   MakeSpinnerStyle  (const UITheme& t, const UIStyle& s);
+UISliderStyle    MakeSliderStyle   (const UITheme& t, const UIStyle&);
 UISliderStyle    MakeSliderStyle   (const UITheme& t);
+UILabelStyle     MakeLabelStyle    (const UITheme& th, const UIStyle&);
 UILabelStyle     MakeLabelStyle    (const UITheme& th);
 PopupStyle       MakePopupStyle    (const UITheme& th, const UIStyle& s);
 
@@ -317,7 +319,7 @@ public:
     void update(float dt) override;
     void render(SDL_Renderer* renderer) override;
     int getPadFromTheme() const {
-        return MakePopupStyle(getTheme()).pad;
+        return MakePopupStyle(getTheme(), getStyle()).pad;
     }
     void centerInRenderer(SDL_Renderer* r) {
         if (!r) return;
@@ -1292,6 +1294,13 @@ PopupStyle MakePopupStyle(const UITheme& th, const UIStyle& ds) {
     return st;
 }
 
+UILabelStyle MakeLabelStyle(const UITheme& th, const UIStyle&) {
+    return MakeLabelStyle(th);
+}
+
+UISliderStyle MakeSliderStyle(const UITheme& t, const UIStyle&) {
+    return MakeSliderStyle(t);
+}
 
 UITextFieldStyle MakeTextFieldStyle(const UITheme& t) { return MakeTextFieldStyle(t, UIConfig::getStyle()); }
 UITextAreaStyle  MakeTextAreaStyle (const UITheme& t) { return MakeTextAreaStyle (t, UIConfig::getStyle()); }
@@ -1354,7 +1363,8 @@ void UIPopup::update(float dt) {
 void UIPopup::render(SDL_Renderer* renderer)
 {
     const UITheme& th = getTheme();
-    const PopupStyle st = MakePopupStyle(th);
+    const UIStyle& ds = getStyle();
+    const PopupStyle st = MakePopupStyle(th, ds);
 
     const SDL_Rect r = bounds;
 
@@ -1400,7 +1410,7 @@ void UIDialog::render(SDL_Renderer* renderer) {
 
     const UITheme& th = getTheme();
     const auto lst = MakeLabelStyle(th);
-    const auto pst = MakePopupStyle(th);
+    const auto pst = MakePopupStyle(th, getStyle());
     TTF_Font* font = UIConfig::getDefaultFont();
     if (!font) return;
 
@@ -1461,7 +1471,7 @@ void UIDialog::setBounds(int x, int y, int w, int h) {
 void UIDialog::layoutButtons() {
     if (!okButton || !cancelButton) return;
 
-    const auto pst = MakePopupStyle(getTheme());
+    const auto pst = MakePopupStyle(getTheme(), getStyle());
     const int btnW = 100, btnH = 40;
     const int gap  = pst.pad / 2;
 
@@ -1709,7 +1719,8 @@ void UIRadioButton::update(float) {
 
 void UIRadioButton::render(SDL_Renderer* renderer) {
     const UITheme& th = getTheme();
-    const auto st = MakeRadioStyle(th);
+    const UIStyle& ds = getStyle();
+    const auto st = MakeRadioStyle(th, ds);
 
     TTF_Font* activeFont = font ? font : (th.font ? th.font : UIConfig::getDefaultFont());
     if (!activeFont) return;
@@ -1830,7 +1841,8 @@ void UIButton::update(float) {
 
 void UIButton::render(SDL_Renderer* renderer) {
     const UITheme& th = getTheme();
-    const auto st = MakeButtonStyle(th);
+    const UIStyle& ds = getStyle();
+    const auto st = MakeButtonStyle(th, ds);
 
     SDL_Color baseBg     = customBgColor   ? *customBgColor   : th.backgroundColor;
     SDL_Color baseText   = customTextColor ? *customTextColor : st.text;
@@ -1915,7 +1927,8 @@ UILabel::UILabel(const std::string& text, int x, int y, int w, int h, TTF_Font* 
 
 void UILabel::render(SDL_Renderer* renderer) {
     const UITheme& th = getTheme();
-    auto st = MakeLabelStyle(th);
+    const UIStyle& ds = getStyle();
+    const auto st = MakeLabelStyle(th, ds);
     TTF_Font* activeFont = font ? font : getThemeFont(th);
     if (!activeFont) return;
 
@@ -2001,7 +2014,8 @@ void UICheckbox::update(float) {
 
 void UICheckbox::render(SDL_Renderer* renderer) {
     const UITheme& th = getTheme();
-    const auto st = MakeCheckboxStyle(th);
+    const UIStyle& ds = getStyle();
+    const auto st = MakeCheckboxStyle(th, ds);
 
     TTF_Font* activeFont = font ? font
                                 : (th.font ? th.font : UIConfig::getDefaultFont());
@@ -2704,7 +2718,8 @@ void UITextField::render(SDL_Renderer* renderer) {
     if (!activeFont) return;
 
     const UITheme& th = getTheme();
-    const auto st = MakeTextFieldStyle(th);
+    const UIStyle& ds = getStyle();
+    const auto st = MakeTextFieldStyle(th, ds);
 
     const int effRadius   = (cornerRadius > 0 ? cornerRadius : st.radius);
     const int effBorderPx = (borderPx     > 0 ? borderPx     : st.borderPx);
@@ -3010,7 +3025,8 @@ void UIComboBox::update(float) {
 
 void UIComboBox::render(SDL_Renderer* renderer) {
     const UITheme& th = getTheme();
-    const auto st = MakeComboBoxStyle(th);
+    const UIStyle& ds = getStyle();
+    const auto st = MakeComboBoxStyle(th, ds);
     TTF_Font* activeFont = font ? font : (th.font ? th.font : UIConfig::getDefaultFont());
     if (!activeFont) return;
 
@@ -3188,7 +3204,8 @@ void UISlider::update(float) {
 
 void UISlider::render(SDL_Renderer* renderer) {
     const UITheme& th = getTheme();
-    const auto st = MakeSliderStyle(th);
+    const UIStyle& ds = getStyle();
+    const auto st = MakeSliderStyle(th, ds);
 
     const int trackH = st.trackH;
     SDL_Rect track = {
@@ -3293,7 +3310,8 @@ void UISpinner::update(float) {
 
 void UISpinner::render(SDL_Renderer* renderer) {
     const UITheme& th = getTheme();
-    const auto st = MakeSpinnerStyle(th);
+    const UIStyle& ds = getStyle();
+    const auto st = MakeSpinnerStyle(th, ds);
     TTF_Font* activeFont = font ? font : (th.font ? th.font : UIConfig::getDefaultFont());
     if (!activeFont) return;
 
@@ -3475,6 +3493,8 @@ void UITextArea::setPlaceholder(const std::string& text) {
 }
 
 void UITextArea::handleEvent(const SDL_Event& e) {
+    const UITheme& th = getTheme();
+    const UIStyle& ds = getStyle();
     if (e.type == SDL_USEREVENT) {
         if (e.user.code == 0xF001) { if (!focused) { focused = true; SDL_StartTextInput();preferredXpx = -1; preferredColumn = -1; } return; }
         if (e.user.code == 0xF002) {
@@ -3628,7 +3648,7 @@ void UITextArea::handleEvent(const SDL_Event& e) {
         }
         if (scrollbarDragging) {
             int dy = e.motion.y - scrollbarDragStartY;
-            const auto st = MakeTextAreaStyle(getTheme());
+            const auto st = MakeTextAreaStyle(th, ds);
             const int viewH = std::max(0, bounds.h - 2*st.borderPx - 2*paddingPx);
             const float maxScroll = std::max(0.0f, contentHeight - float(viewH));
             scrollOffsetY = scrollbarThumbStartOffset + dy * (maxScroll) / float(viewH);
@@ -3637,7 +3657,7 @@ void UITextArea::handleEvent(const SDL_Event& e) {
         }
 
         if (selectingMouse && focused) {
-            const auto st = MakeTextAreaStyle(getTheme());
+            const auto st = MakeTextAreaStyle(th, ds);
             const int borderPx = st.borderPx;
             const int innerY0  = bounds.y + borderPx + paddingPx;
             const int innerH   = std::max(0, bounds.h - 2*borderPx - 2*paddingPx);
@@ -3657,7 +3677,7 @@ void UITextArea::handleEvent(const SDL_Event& e) {
             }
             return;
         }
-        const auto st = MakeTextAreaStyle(getTheme());
+        const auto st = MakeTextAreaStyle(th, ds);
         const int viewH = std::max(0, bounds.h - 2*st.borderPx - 2*paddingPx);
         if (contentHeight > bounds.h) {
             SDL_Point p{ e.motion.x, e.motion.y };
@@ -3679,7 +3699,7 @@ void UITextArea::handleEvent(const SDL_Event& e) {
         if (mx >= bounds.x && mx <= bounds.x + bounds.w && my >= bounds.y && my <= bounds.y + bounds.h) {
             int lh = TTF_FontHeight(font ? font : UIConfig::getDefaultFont());
             scrollOffsetY -= e.wheel.y * lh;
-            const auto st = MakeTextAreaStyle(getTheme());
+            const auto st = MakeTextAreaStyle(th, ds);
             const int viewH = std::max(0, bounds.h - 2*st.borderPx - 2*paddingPx);
             scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, std::max(0.0f, contentHeight - float(viewH)));
             if (focused) setIMERectAtCaret();
@@ -3909,7 +3929,9 @@ void UITextArea::update(float) {
         preferredColumn = -1;
     }
     TTF_Font* fnt = font ? font : UIConfig::getDefaultFont();
-    const auto st = MakeTextAreaStyle(getTheme());
+    const UITheme& th = getTheme();
+    const UIStyle& ds = getStyle();
+    const auto st = MakeTextAreaStyle(th, ds);
     const int innerW = std::max(0, bounds.w - 2*st.borderPx - 2*paddingPx);
 
     rebuildLayout(fnt, innerW);
@@ -4021,7 +4043,8 @@ void UITextArea::render(SDL_Renderer* renderer) {
     TTF_Font* fnt = font ? font : (getTheme().font ? getTheme().font : UIConfig::getDefaultFont());
     if (!fnt) return;
     const UITheme& th = getTheme();
-    auto st = MakeTextAreaStyle(th);
+    const UIStyle& ds = getStyle();
+    const auto st = MakeTextAreaStyle(th, ds);
 
     SDL_Rect dst = bounds;
     const int effRadius   = st.radius;
@@ -4211,7 +4234,9 @@ void UITextArea::updateCursorPosition() {
     TTF_Font* fnt = font ? font : UIConfig::getDefaultFont();
     if (!fnt) return;
 
-    const auto st = MakeTextAreaStyle(getTheme());
+    const UITheme& th = getTheme();
+    const UIStyle& ds = getStyle();
+    const auto st = MakeTextAreaStyle(th, ds);
     const int borderPx = st.borderPx;
     const int innerX0  = bounds.x + borderPx + paddingPx;
     const int innerY0  = bounds.y + borderPx + paddingPx;
@@ -4299,8 +4324,9 @@ SDL_Rect UITextArea::getScrollbarRect() const {
 
 void UITextArea::renderScrollbar(SDL_Renderer* renderer) {
     const UITheme& theme = getTheme();
+    const UIStyle& ds = getStyle();
     SDL_Rect sb = getScrollbarRect();
-    const auto st = MakeTextAreaStyle(getTheme());
+    const auto st = MakeTextAreaStyle(theme, ds);
     const int viewH = std::max(0, bounds.h - 2*st.borderPx - 2*paddingPx);
     float vr = float(viewH)/contentHeight;
     int th = std::max(int(viewH*vr), 20);
@@ -4325,8 +4351,9 @@ bool UITextArea::isScrollbarDragging() const {
 size_t UITextArea::indexFromMouse(int mx, int my) const {
     TTF_Font* fnt = font ? font : UIConfig::getDefaultFont();
     if (!fnt) return cursorPos;
-
-    const auto st = MakeTextAreaStyle(getTheme());
+    const UITheme& th = getTheme();
+    const UIStyle& ds = getStyle();
+    const auto st = MakeTextAreaStyle(th, ds);
     const int borderPx = st.borderPx;
     const int innerX0  = bounds.x + borderPx + paddingPx;
     const int innerY0  = bounds.y + borderPx + paddingPx;
@@ -4378,8 +4405,9 @@ size_t UITextArea::indexFromMouse(int mx, int my) const {
 void UITextArea::setIMERectAtCaret() {
     TTF_Font* fnt = font ? font : UIConfig::getDefaultFont();
     if (!fnt) return;
-
-    const auto st = MakeTextAreaStyle(getTheme());
+    const UITheme& th = getTheme();
+    const UIStyle& ds = getStyle();
+    const auto st = MakeTextAreaStyle(th, ds);
     const int borderPx = st.borderPx;
     const int innerX0  = bounds.x + borderPx + paddingPx;
     const int innerY0  = bounds.y + borderPx + paddingPx;
@@ -4574,7 +4602,8 @@ void UIGroupBox::update(float dt) {
 
 void UIGroupBox::render(SDL_Renderer* renderer) {
     const UITheme& th = getTheme();
-    const auto st = MakeGroupBoxStyle(th);
+    const UIStyle& ds = getStyle();
+    const auto st = MakeGroupBoxStyle(th, ds);
 
     TTF_Font* fnt = font ? font : (th.font ? th.font : UIConfig::getDefaultFont());
     if (!fnt) return;

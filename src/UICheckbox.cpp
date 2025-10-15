@@ -54,7 +54,8 @@ void UICheckbox::update(float) {
 
 void UICheckbox::render(SDL_Renderer* renderer) {
     const UITheme& th = getTheme();
-    const auto st = MakeCheckboxStyle(th);
+    const UIStyle& ds = getStyle();
+    const auto st = MakeCheckboxStyle(th, ds);
 
     TTF_Font* activeFont = font ? font
                                 : (th.font ? th.font : UIConfig::getDefaultFont());

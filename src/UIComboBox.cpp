@@ -143,7 +143,8 @@ void UIComboBox::update(float) {
 
 void UIComboBox::render(SDL_Renderer* renderer) {
     const UITheme& th = getTheme();
-    const auto st = MakeComboBoxStyle(th);
+    const UIStyle& ds = getStyle();
+    const auto st = MakeComboBoxStyle(th, ds);
     TTF_Font* activeFont = font ? font : (th.font ? th.font : UIConfig::getDefaultFont());
     if (!activeFont) return;
 

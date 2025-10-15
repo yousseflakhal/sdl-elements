@@ -136,7 +136,9 @@ UIGroupBoxStyle  MakeGroupBoxStyle (const UITheme& t, const UIStyle& s);
 UIRadioStyle     MakeRadioStyle    (const UITheme& t, const UIStyle& s);
 UIComboBoxStyle  MakeComboBoxStyle (const UITheme& t, const UIStyle& s);
 UISpinnerStyle   MakeSpinnerStyle  (const UITheme& t, const UIStyle& s);
+UISliderStyle    MakeSliderStyle   (const UITheme& t, const UIStyle&);
 UISliderStyle    MakeSliderStyle   (const UITheme& t);
+UILabelStyle     MakeLabelStyle    (const UITheme& th, const UIStyle&);
 UILabelStyle     MakeLabelStyle    (const UITheme& th);
 PopupStyle       MakePopupStyle    (const UITheme& th, const UIStyle& s);
 

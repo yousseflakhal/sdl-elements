@@ -29,7 +29,7 @@ void UIDialog::render(SDL_Renderer* renderer) {
 
     const UITheme& th = getTheme();
     const auto lst = MakeLabelStyle(th);
-    const auto pst = MakePopupStyle(th);
+    const auto pst = MakePopupStyle(th, getStyle());
     TTF_Font* font = UIConfig::getDefaultFont();
     if (!font) return;
 
@@ -90,7 +90,7 @@ void UIDialog::setBounds(int x, int y, int w, int h) {
 void UIDialog::layoutButtons() {
     if (!okButton || !cancelButton) return;
 
-    const auto pst = MakePopupStyle(getTheme());
+    const auto pst = MakePopupStyle(getTheme(), getStyle());
     const int btnW = 100, btnH = 40;
     const int gap  = pst.pad / 2;
 
