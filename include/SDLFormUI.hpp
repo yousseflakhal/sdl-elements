@@ -281,13 +281,20 @@ public:
     virtual void setSize(int w, int h) { bounds.w = w; bounds.h = h; }
     virtual void setBounds(int x, int y, int w, int h) { bounds = {x, y, w, h}; }
     virtual bool isFocusable() const { return false; }
+
     void setTheme(const UITheme& theme) { customTheme = theme; hasCustomTheme = true; }
     const UITheme& getTheme() const { return hasCustomTheme ? customTheme : UIConfig::getTheme(); }
+
+    void setStyle(const UIStyle& style) { customStyle = style; hasCustomStyle = true; }
+    const UIStyle& getStyle() const { return hasCustomStyle ? customStyle : UIConfig::getStyle(); }
+    void clearThemeOverride() { hasCustomTheme = false; }
+    void clearStyleOverride() { hasCustomStyle = false; }
+
     SDL_Point getPosition() const { return { bounds.x, bounds.y }; }
     SDL_Point getSize() const { return { bounds.w, bounds.h }; }
     virtual bool isInside(int x, int y) const {
-    return x >= bounds.x && x <= bounds.x + bounds.w &&
-           y >= bounds.y && y <= bounds.y + bounds.h;
+        return x >= bounds.x && x <= bounds.x + bounds.w &&
+               y >= bounds.y && y <= bounds.y + bounds.h;
     }
     void setEnabled(bool e) { enabled = e; }
     bool isEnabled() const { return enabled; }
@@ -296,7 +303,9 @@ public:
 
 private:
     UITheme customTheme;
+    UIStyle customStyle;
     bool hasCustomTheme = false;
+    bool hasCustomStyle = false;
 };
 
 
