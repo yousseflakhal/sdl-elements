@@ -1,5 +1,4 @@
 #include "UITheme.hpp"
-#include "UIConfig.hpp"
 
 UITheme::UITheme() : font(nullptr) {}
 
@@ -30,4 +29,30 @@ UITheme MakeBootstrapLight() {
 
     t.font = nullptr;
     return t;
+}
+
+UITheme MakeBootstrapDark() {
+    UITheme th;
+
+    th.backgroundColor   = { 18, 18, 20, 255 };
+    th.hoverColor        = { 28, 28, 32, 255 };
+    th.borderColor       = { 60, 60, 66, 255 };
+    th.borderHoverColor  = {108,117,125,255};
+
+    th.textColor         = {222,226,230,255};
+    th.placeholderColor  = {134,142,150,255};
+    th.cursorColor       = {255,255,255,255};
+
+    th.selectionBg       = { 13,110,253,120 };
+    th.focusRing         = { 13,110,253,178 };
+
+    th.sliderTrackColor  = { 44, 44, 50, 255 };
+    th.sliderThumbColor  = {108,117,125,255};
+    th.checkboxTickColor = {255,255,255,255};
+
+    th.radiusSm = 6; th.radiusMd = 10; th.radiusLg = 16;
+    th.borderThin = 1; th.borderThick = 2;
+    th.padSm = 6; th.padMd = 10; th.padLg = 16;
+
+    return th;
 }

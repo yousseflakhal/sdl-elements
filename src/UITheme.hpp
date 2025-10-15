@@ -46,5 +46,6 @@ struct UITheme {
 };
 
 UITheme MakeBootstrapLight();
+UITheme MakeBootstrapDark();
 
 TTF_Font* getThemeFont(const UITheme& theme); 
