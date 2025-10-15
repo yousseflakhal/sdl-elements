@@ -39,5 +39,6 @@ struct UITheme {
 
 UITheme MakeLightTheme();
 UITheme MakeDarkTheme();
+UITheme MakeHighContrastTheme();
 
 TTF_Font* getThemeFont(const UITheme& theme);

@@ -23,7 +23,7 @@ enum class InputType {
 
 
 enum class StyleId { Classic, Minimal /*, Material*/ };
-enum class ThemeId { Light, Dark /*, HighContrast*/ };
+enum class ThemeId { Light, Dark, HighContrast };
 
 
 struct UIConfig;
@@ -62,6 +62,7 @@ struct UITheme {
 
 UITheme MakeLightTheme();
 UITheme MakeDarkTheme();
+UITheme MakeHighContrastTheme();
 
 TTF_Font* getThemeFont(const UITheme& theme);
 
@@ -1055,6 +1056,22 @@ UITheme MakeDarkTheme() {
     return th;
 }
 
+UITheme MakeHighContrastTheme() {
+    UITheme t;
+    t.backgroundColor   = {0,0,0,255};
+    t.textColor         = {255,255,255,255};
+    t.placeholderColor  = {200,200,200,255};
+    t.borderColor       = {255,255,255,255};
+    t.borderHoverColor  = {255,255,0,255};
+    t.focusRing         = {255,255,0,255};
+    t.selectionBg       = {255,255,0,120};
+    t.sliderTrackColor  = {120,120,120,255};
+    t.sliderThumbColor  = {255,255,255,255};
+    t.checkboxTickColor = {0,0,0,255};
+    t.cursorColor       = {255,255,255,255};
+    return t;
+}
+
 
 TTF_Font* UIConfig::defaultFont = nullptr;
 UITheme   UIConfig::defaultTheme;
@@ -1070,8 +1087,9 @@ static UIStyle styleFromEnum(StyleId id) {
 
 static UITheme themeFromEnum(ThemeId id) {
     switch (id) {
-        case ThemeId::Light: return MakeLightTheme();
-        case ThemeId::Dark:  return MakeDarkTheme();
+        case ThemeId::Light:        return MakeLightTheme();
+        case ThemeId::Dark:         return MakeDarkTheme();
+        case ThemeId::HighContrast: return MakeHighContrastTheme();
     }
     return MakeLightTheme();
 }
@@ -1092,9 +1110,11 @@ static std::unordered_map<std::string, UIConfig::StyleFactory, NoThrowHash, NoTh
     {"minimal", &MakeMinimalStyle},
 };
 
+
 static std::unordered_map<std::string, UIConfig::ThemeFactory, NoThrowHash, NoThrowEq> gThemeReg = {
     {"light",  &MakeLightTheme},
     {"dark",   &MakeDarkTheme},
+    {"high-contrast", &MakeHighContrastTheme},
     {"classic-light",  &MakeLightTheme},
     {"classic-dark",   &MakeDarkTheme},
     {"bootstrap-light",&MakeLightTheme},

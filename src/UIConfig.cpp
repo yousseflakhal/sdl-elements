@@ -20,8 +20,9 @@ static UIStyle styleFromEnum(StyleId id) {
 
 static UITheme themeFromEnum(ThemeId id) {
     switch (id) {
-        case ThemeId::Light: return MakeLightTheme();
-        case ThemeId::Dark:  return MakeDarkTheme();
+        case ThemeId::Light:        return MakeLightTheme();
+        case ThemeId::Dark:         return MakeDarkTheme();
+        case ThemeId::HighContrast: return MakeHighContrastTheme();
     }
     return MakeLightTheme();
 }
@@ -42,9 +43,11 @@ static std::unordered_map<std::string, UIConfig::StyleFactory, NoThrowHash, NoTh
     {"minimal", &MakeMinimalStyle},
 };
 
+
 static std::unordered_map<std::string, UIConfig::ThemeFactory, NoThrowHash, NoThrowEq> gThemeReg = {
     {"light",  &MakeLightTheme},
     {"dark",   &MakeDarkTheme},
+    {"high-contrast", &MakeHighContrastTheme},
     {"classic-light",  &MakeLightTheme},
     {"classic-dark",   &MakeDarkTheme},
     {"bootstrap-light",&MakeLightTheme},

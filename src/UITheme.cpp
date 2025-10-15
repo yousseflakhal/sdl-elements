@@ -39,3 +39,19 @@ UITheme MakeDarkTheme() {
     th.checkboxTickColor = {255,255,255,255};
     return th;
 }
+
+UITheme MakeHighContrastTheme() {
+    UITheme t;
+    t.backgroundColor   = {0,0,0,255};
+    t.textColor         = {255,255,255,255};
+    t.placeholderColor  = {200,200,200,255};
+    t.borderColor       = {255,255,255,255};
+    t.borderHoverColor  = {255,255,0,255};
+    t.focusRing         = {255,255,0,255};
+    t.selectionBg       = {255,255,0,120};
+    t.sliderTrackColor  = {120,120,120,255};
+    t.sliderThumbColor  = {255,255,255,255};
+    t.checkboxTickColor = {0,0,0,255};
+    t.cursorColor       = {255,255,255,255};
+    return t;
+}
