@@ -1,58 +1,52 @@
 #include "UIStyles.hpp"
+#include "UIConfig.hpp"
 
-UITextFieldStyle MakeTextFieldStyle(const UITheme& t) {
+UITextFieldStyle MakeTextFieldStyle(const UITheme& t, const UIStyle& ds) {
     UITextFieldStyle s;
-    s.radius       = t.radiusMd;
-    s.borderPx     = t.borderThin;
-
+    s.radius       = ds.radiusMd;
+    s.borderPx     = ds.borderThin;
     s.bg           = t.backgroundColor;
     s.fg           = t.textColor;
     s.placeholder  = t.placeholderColor;
-
     s.border       = t.borderColor;
     s.borderHover  = t.borderHoverColor;
     s.borderFocus  = t.focusRing;
-
     s.selectionBg  = t.selectionBg;
     s.caret        = t.cursorColor;
     return s;
 }
 
-UITextAreaStyle MakeTextAreaStyle(const UITheme& t) {
+UITextAreaStyle MakeTextAreaStyle(const UITheme& t, const UIStyle& ds) {
     UITextAreaStyle s;
-    s.radius       = t.radiusMd;
-    s.borderPx     = t.borderThin;
-
+    s.radius       = ds.radiusMd;
+    s.borderPx     = ds.borderThin;
     s.bg           = t.backgroundColor;
     s.fg           = t.textColor;
     s.placeholder  = t.placeholderColor;
-
     s.border       = t.borderColor;
     s.borderHover  = t.borderHoverColor;
     s.borderFocus  = t.focusRing;
-
     s.selectionBg  = t.selectionBg;
     s.caret        = t.cursorColor;
     return s;
 }
 
-UIButtonStyle MakeButtonStyle(const UITheme& t) {
+UIButtonStyle MakeButtonStyle(const UITheme& t, const UIStyle& ds) {
     UIButtonStyle s;
-    s.radius      = t.radiusMd;
-    s.borderPx    = t.borderThin;
+    s.radius      = ds.radiusMd;
+    s.borderPx    = ds.borderThin;
     s.text        = t.textColor;
     s.border      = t.borderColor;
     s.borderFocus = t.focusRing;
     return s;
 }
 
-UICheckboxStyle MakeCheckboxStyle(const UITheme& t) {
+UICheckboxStyle MakeCheckboxStyle(const UITheme& t, const UIStyle& ds) {
     UICheckboxStyle s;
     s.boxSize     = 18;
-    s.radius      = std::min(t.radiusSm, 6);
-    s.borderPx    = t.borderThin;
+    s.radius      = std::min(ds.radiusSm, 6);
+    s.borderPx    = ds.borderThin;
     s.spacingPx   = 8;
-
     s.text        = t.textColor;
     s.boxBg       = t.backgroundColor;
     s.border      = t.borderColor;
@@ -62,24 +56,23 @@ UICheckboxStyle MakeCheckboxStyle(const UITheme& t) {
     return s;
 }
 
-UIGroupBoxStyle MakeGroupBoxStyle(const UITheme& t) {
+UIGroupBoxStyle MakeGroupBoxStyle(const UITheme& t, const UIStyle& ds) {
     UIGroupBoxStyle s;
-    s.radius   = t.radiusMd;
-    s.borderPx = t.borderThin;
+    s.radius   = ds.radiusMd;
+    s.borderPx = ds.borderThin;
     s.title    = t.textColor;
     s.border   = t.borderColor;
     s.bg       = {0,0,0,0};
     return s;
 }
 
-UIRadioStyle MakeRadioStyle(const UITheme& t) {
+UIRadioStyle MakeRadioStyle(const UITheme& t, const UIStyle& ds) {
     UIRadioStyle s;
-    s.outerRadius     = std::max(7, t.radiusSm);
+    s.outerRadius     = std::max(7, ds.radiusSm);
     s.ringThickness   = std::max(3, s.outerRadius / 3);
-    s.borderThickness = std::max(1, t.borderThin);
+    s.borderThickness = std::max(1, ds.borderThin);
     s.spacingPx       = 12;
     s.gapTextPx       = 18;
-
     s.text        = t.textColor;
     s.border      = t.borderColor;
     s.borderHover = t.borderHoverColor;
@@ -88,12 +81,11 @@ UIRadioStyle MakeRadioStyle(const UITheme& t) {
     return s;
 }
 
-UIComboBoxStyle MakeComboBoxStyle(const UITheme& t) {
+UIComboBoxStyle MakeComboBoxStyle(const UITheme& t, const UIStyle& ds) {
     UIComboBoxStyle s;
-    s.radius    = t.radiusMd;
-    s.borderPx  = t.borderThin;
-    s.padX      = t.padMd;
-
+    s.radius    = ds.radiusMd;
+    s.borderPx  = ds.borderThin;
+    s.padX      = ds.padMd;
     s.fieldBg   = t.backgroundColor;
     s.fieldFg   = t.textColor;
     s.placeholder = t.placeholderColor;
@@ -101,10 +93,8 @@ UIComboBoxStyle MakeComboBoxStyle(const UITheme& t) {
     s.borderHover = t.borderHoverColor;
     s.borderFocus = t.focusRing;
     s.caret     = t.textColor;
-
     s.menuBg    = t.backgroundColor;
     s.menuBorder= t.borderColor;
-
     s.itemFg        = t.textColor;
     s.itemHoverBg   = UIHelpers::PickHoverColor(t.backgroundColor);
     s.itemSelectedBg= UIHelpers::Darken(t.backgroundColor, 8);
@@ -112,21 +102,18 @@ UIComboBoxStyle MakeComboBoxStyle(const UITheme& t) {
     return s;
 }
 
-UISpinnerStyle MakeSpinnerStyle(const UITheme& t) {
+UISpinnerStyle MakeSpinnerStyle(const UITheme& t, const UIStyle& ds) {
     UISpinnerStyle s;
-    s.radius      = t.radiusMd;
-    s.borderPx    = t.borderThin;
-    s.padX        = t.padMd;
-
+    s.radius      = ds.radiusMd;
+    s.borderPx    = ds.borderThin;
+    s.padX        = ds.padMd;
     s.fieldBg     = t.backgroundColor;
     s.fieldBorder = t.borderColor;
     s.text        = t.textColor;
-
     s.btnBg       = t.backgroundColor;
     s.btnBgHover  = UIHelpers::PickHoverColor(t.backgroundColor);
     s.btnBorder   = t.borderColor;
     s.btnGlyph    = t.textColor;
-
     s.focusRing   = t.focusRing;
     return s;
 }
@@ -146,13 +133,25 @@ UILabelStyle MakeLabelStyle(const UITheme& th) {
     return st;
 }
 
-PopupStyle MakePopupStyle(const UITheme& th) {
+PopupStyle MakePopupStyle(const UITheme& th, const UIStyle& ds) {
     PopupStyle st;
     st.bg          = UIHelpers::RGBA(th.backgroundColor.r, th.backgroundColor.g, th.backgroundColor.b, 245);
     st.border      = th.borderColor;
     st.borderFocus = th.focusRing;
-    st.radius      = th.radiusMd;
-    st.borderPx    = th.borderThin;
-    st.pad         = th.padLg;
+    st.radius      = ds.radiusMd;
+    st.borderPx    = ds.borderThin;
+    st.pad         = ds.padLg;
     return st;
 }
+
+#include "UIConfig.hpp"
+
+UITextFieldStyle MakeTextFieldStyle(const UITheme& t) { return MakeTextFieldStyle(t, UIConfig::getStyle()); }
+UITextAreaStyle  MakeTextAreaStyle (const UITheme& t) { return MakeTextAreaStyle (t, UIConfig::getStyle()); }
+UIButtonStyle    MakeButtonStyle   (const UITheme& t) { return MakeButtonStyle   (t, UIConfig::getStyle()); }
+UICheckboxStyle  MakeCheckboxStyle (const UITheme& t) { return MakeCheckboxStyle (t, UIConfig::getStyle()); }
+UIGroupBoxStyle  MakeGroupBoxStyle (const UITheme& t) { return MakeGroupBoxStyle (t, UIConfig::getStyle()); }
+UIRadioStyle     MakeRadioStyle    (const UITheme& t) { return MakeRadioStyle    (t, UIConfig::getStyle()); }
+UIComboBoxStyle  MakeComboBoxStyle (const UITheme& t) { return MakeComboBoxStyle (t, UIConfig::getStyle()); }
+UISpinnerStyle   MakeSpinnerStyle  (const UITheme& t) { return MakeSpinnerStyle  (t, UIConfig::getStyle()); }
+PopupStyle       MakePopupStyle    (const UITheme& th){ return MakePopupStyle    (th, UIConfig::getStyle()); }

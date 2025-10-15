@@ -16,16 +16,8 @@ struct UITheme {
     SDL_Color sliderTrackColor  = {80,80,80,255};
     SDL_Color sliderThumbColor  = {180,180,255,255};
     SDL_Color checkboxTickColor = {255,255,255,255};
-
     SDL_Color focusRing         = {13,110,253,178};
     SDL_Color selectionBg       = {0,120,215,120};
-
-    int radiusSm = 6;
-    int radiusMd = 10;
-    int radiusLg = 16;
-    int borderThin = 1;
-    int borderThick = 2;
-    int padSm = 6, padMd = 10, padLg = 16;
 
     TTF_Font* font = nullptr;
 
@@ -45,7 +37,7 @@ struct UITheme {
     };
 };
 
-UITheme MakeBootstrapLight();
-UITheme MakeBootstrapDark();
+UITheme MakeLightTheme();
+UITheme MakeDarkTheme();
 
-TTF_Font* getThemeFont(const UITheme& theme); 
+TTF_Font* getThemeFont(const UITheme& theme);
