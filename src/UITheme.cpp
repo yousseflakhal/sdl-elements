@@ -51,7 +51,7 @@ UITheme MakeHighContrastTheme() {
     t.selectionBg       = {255,255,0,120};
     t.sliderTrackColor  = {120,120,120,255};
     t.sliderThumbColor  = {255,255,255,255};
-    t.checkboxTickColor = {0,0,0,255};
+    t.checkboxTickColor = {255,255,0,255};
     t.cursorColor       = {255,255,255,255};
     return t;
 }
