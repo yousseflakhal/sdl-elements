@@ -214,13 +214,12 @@ void UITextField::handleEvent(const SDL_Event& e) {
         int xLocal = mx - (innerR.x + pad) + scrollX;
         if (!activeFont || xLocal <= 0) return 0;
         int n = (int)textRef.size();
-        int i = 0, lastGood = 0, w = 0, h = 0;
+        int i = 0, lastGood = 0;
         while (i <= n) {
             std::string pref = maskedPrefixForWidth(i);
             rebuildGlyphX(activeFont);
-            int w = prefixWidth(pref.size());
-            int h = TTF_FontHeight(activeFont);
-            if (w > xLocal) break;
+            int wPref = prefixWidth(pref.size());
+            if (wPref > xLocal) break;
             lastGood = i;
             if (i == n) break;
             i = nextCP(textRef, i);
@@ -286,17 +285,6 @@ void UITextField::handleEvent(const SDL_Event& e) {
         cursorVisible  = true;
         lastBlinkTicks = SDL_GetTicks();
     };
-    auto deleteSelection = [&]() {
-        if (!hasSelection()) return false;
-        auto [a, b] = selRange();
-        if (b < a) std::swap(a, b);
-        a = clampi(a, 0, (int)textRef.size());
-        b = clampi(b, 0, (int)textRef.size());
-        textRef.erase(a, b - a);
-        caret = a;
-        clearSelection();
-        return true;
-    };
     auto moveLeft = [&](bool word, bool withSel) {
         int oldCaret = caret;
         int c;
@@ -323,18 +311,6 @@ void UITextField::handleEvent(const SDL_Event& e) {
         if (withSel) { if (selAnchor < 0) selAnchor = oldCaret; }
         else { clearSelection(); }
         caret = c;
-    };
-    auto insertTextAtCaret = [&](const char* utf8) {
-        if (!utf8 || !*utf8) return;
-        deleteSelection();
-        textRef.insert(caret, utf8);
-        caret += (int)strlen(utf8);
-        preedit.clear();
-        cursorVisible = true;
-        lastBlinkTicks = SDL_GetTicks();
-        ensureCaretVisibleLocal();
-        updateImeRect();
-        clearSelection();
     };
 
     switch (e.type) {

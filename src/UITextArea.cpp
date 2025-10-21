@@ -592,10 +592,8 @@ void UITextArea::update(float) {
 
     if (focused && selectingMouse) {
         const int borderPx = st.borderPx;
-        const int innerX0  = bounds.x + borderPx + paddingPx;
         const int innerY0  = bounds.y + borderPx + paddingPx;
         const int innerH   = std::max(0, bounds.h - 2*borderPx - 2*paddingPx);
-        const int lh       = TTF_FontHeight(fnt);
 
         if (my < innerY0 || my >= innerY0 + innerH) {
             int dist = (my < innerY0) ? (innerY0 - my)
