@@ -3294,11 +3294,17 @@ void UISpinner::update(float) {
     Uint32 now = SDL_GetTicks();
     if (heldButton != HeldButton::NONE && now - pressStartTime > 400 && now - lastStepTime > 100) {
         if (heldButton == HeldButton::INCREMENT && value.get() < maxValue) {
-            value.get() += step;
-            if (onChange) onChange(value.get());
+            int newValue = value.get() + step;
+            if (newValue <= maxValue) {
+                value.get() = newValue;
+                if (onChange) onChange(value.get());
+            }
         } else if (heldButton == HeldButton::DECREMENT && value.get() > minValue) {
-            value.get() -= step;
-            if (onChange) onChange(value.get());
+            int newValue = value.get() - step;
+            if (newValue >= minValue) {
+                value.get() = newValue;
+                if (onChange) onChange(value.get());
+            }
         }
         lastStepTime = now;
     }
