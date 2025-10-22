@@ -143,7 +143,12 @@ UITextField* UITextField::setPlaceholder(const std::string& text) {
 }
 
 UITextField* UITextField::setFont(TTF_Font* f) {
-    font = f;
+    if (font != f) {
+        font = f;
+        cacheFont = nullptr;
+        measuredTextCache.clear();
+        glyphX.clear();
+    }
     return this;
 }
 
@@ -768,8 +773,14 @@ void UITextField::render(SDL_Renderer* renderer) {
 
 void UITextField::rebuildGlyphX(TTF_Font* f) {
     const std::string& s = linkedText.get();
-    if (measuredTextCache == s && !glyphX.empty()) return;
-
+    
+    if (measuredTextCache == s && !glyphX.empty() && cacheFont == f) {
+        return;
+    }
+    
+    cacheFont = f;
+    measuredTextCache = s;
+    
     glyphX.assign(s.size() + 1, 0);
     int w = 0, h = 0;
     for (size_t i = 1; i <= s.size(); ++i) {
@@ -777,6 +788,5 @@ void UITextField::rebuildGlyphX(TTF_Font* f) {
         TTF_SizeUTF8(f, sub.c_str(), &w, &h);
         glyphX[i] = w;
     }
-    measuredTextCache = s;
 }
 
