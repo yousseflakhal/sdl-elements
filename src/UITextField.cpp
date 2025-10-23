@@ -368,6 +368,7 @@ void UITextField::handleEvent(const SDL_Event& e) {
                     if (shiftHeld) { if (selAnchor < 0) selAnchor = oldCaret; }
                     else { clearSelection(); selAnchor = caret; }
                     selectingDrag = true;
+                    SDL_CaptureMouse(SDL_TRUE);
                     ensureCaretVisibleLocal();
                     updateImeRect();
                     cursorVisible = true;
@@ -380,6 +381,15 @@ void UITextField::handleEvent(const SDL_Event& e) {
         } break;
 
         case SDL_MOUSEMOTION: {
+            if (selectingDrag) {
+                Uint32 btns = SDL_GetMouseState(nullptr, nullptr);
+                if ((btns & SDL_BUTTON(SDL_BUTTON_LEFT)) == 0) {
+                    selectingDrag = false;
+                    SDL_CaptureMouse(SDL_FALSE);
+                    if (!hasSelection()) clearSelection();
+                    return;
+                }
+            }
             if (focused && selectingDrag) {
                 int pad = 8;
                 int leftEdge  = innerR.x + pad;
@@ -403,6 +413,7 @@ void UITextField::handleEvent(const SDL_Event& e) {
         case SDL_MOUSEBUTTONUP: {
             if (e.button.button == SDL_BUTTON_LEFT) {
                 selectingDrag = false;
+                SDL_CaptureMouse(SDL_FALSE);
                 if (!hasSelection()) clearSelection();
                 return;
             }
@@ -596,8 +607,75 @@ void UITextField::handleEvent(const SDL_Event& e) {
 
 void UITextField::update(float) {
     int mx, my; SDL_GetMouseState(&mx, &my);
+    Uint32 btns = SDL_GetMouseState(nullptr, nullptr);
+    if (selectingDrag && (btns & SDL_BUTTON(SDL_BUTTON_LEFT)) == 0) {
+        selectingDrag = false;
+        SDL_CaptureMouse(SDL_FALSE);
+        if (!hasSelection()) clearSelection();
+    }
+
     hovered = (mx >= bounds.x && mx < bounds.x + bounds.w &&
                my >= bounds.y && my < bounds.y + bounds.h);
+
+    if (focused && selectingDrag) {
+        TTF_Font* activeFont = font ? font : UIConfig::getDefaultFont();
+        if (activeFont) {
+            SDL_Rect innerR = (borderPx <= 0)
+                ? bounds
+                : SDL_Rect{ bounds.x + borderPx, bounds.y + borderPx,
+                            bounds.w - 2*borderPx, bounds.h - 2*borderPx };
+
+            const int pad = 8;
+            const int leftEdge  = innerR.x + pad;
+            const int rightEdge = innerR.x + innerR.w - pad;
+
+            int distL = leftEdge  - mx;
+            int distR = mx        - rightEdge;
+
+            int step = 0;
+            if (distL > 0) step = (distL / 6) + 6;
+            else if (distR > 0) step = (distR / 6) + 6;
+
+            if (distL > 0)      scrollX = std::max(0, scrollX - step);
+            else if (distR > 0) scrollX = scrollX + step;
+
+            rebuildGlyphX(activeFont);
+            int innerW    = std::max(0, innerR.w - 2*pad);
+            int contentW  = glyphX.empty() ? 0 : glyphX.back();
+            int maxScroll = std::max(0, contentW - innerW);
+            if (scrollX > maxScroll) scrollX = maxScroll;
+
+            auto isContB = [](unsigned char c){ return (c & 0xC0) == 0x80; };
+            auto nextCPi = [&](const std::string& s, int i){
+                int n = (int)s.size();
+                if (i < 0) return 0;
+                if (i >= n) return n;
+                i++;
+                while (i < n && isContB((unsigned char)s[i])) i++;
+                return i;
+            };
+
+            const std::string& s = linkedText.get();
+            int xLocal = mx - (innerR.x + pad) + scrollX;
+            int n = (int)s.size();
+            int i = 0, lastGood = 0;
+
+            while (i <= n) {
+                int wPref = prefixWidth(i);
+                if (wPref > xLocal) break;
+                lastGood = i;
+                if (i == n) break;
+                i = nextCPi(s, i);
+            }
+
+            if (lastGood != caret) {
+                caret = lastGood;
+                lastInputTicks = SDL_GetTicks();
+                cursorVisible  = true;
+                lastBlinkTicks = lastInputTicks;
+            }
+        }
+    }
 
     if (!enabled) { cursorVisible = false; return; }
     if (!focused) { cursorVisible = false; return; }
