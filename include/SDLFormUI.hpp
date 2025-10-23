@@ -2871,6 +2871,13 @@ void UITextField::render(SDL_Renderer* renderer) {
 void UITextField::rebuildGlyphX(TTF_Font* f) {
     const std::string& s = linkedText.get();
 
+    if (!f) {
+        glyphX.clear();
+        cacheFont = nullptr;
+        measuredTextCache.clear();
+        return;
+    }
+
     if (measuredTextCache == s && !glyphX.empty() && cacheFont == f) {
         return;
     }
