@@ -413,6 +413,28 @@ namespace UIHelpers {
     }
 
     void DrawChevronDown(SDL_Renderer* r, int cx, int cy, int width, int height, float thickness, SDL_Color color);
+    struct SurfaceDeleter {
+        void operator()(SDL_Surface* s) const noexcept {
+            if (s) SDL_FreeSurface(s);
+        }
+    };
+
+    struct TextureDeleter {
+        void operator()(SDL_Texture* t) const noexcept {
+            if (t) SDL_DestroyTexture(t);
+        }
+    };
+
+    using UniqueSurface = std::unique_ptr<SDL_Surface, SurfaceDeleter>;
+    using UniqueTexture = std::unique_ptr<SDL_Texture, TextureDeleter>;
+
+    inline UniqueSurface MakeSurface(SDL_Surface* raw) {
+        return UniqueSurface(raw);
+    }
+
+    inline UniqueTexture MakeTexture(SDL_Texture* raw) {
+        return UniqueTexture(raw);
+    }
 
 }
 
@@ -1439,25 +1461,33 @@ void UIDialog::render(SDL_Renderer* renderer) {
     int y = bounds.y + pst.pad;
 
     if (!title.empty()) {
-        SDL_Surface* s = TTF_RenderUTF8_Blended(font, title.c_str(), lst.fg);
-        if (s) {
-            SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
-            SDL_Rect dst{ x, y, s->w, s->h };
-            SDL_RenderCopy(renderer, t, nullptr, &dst);
-            y += s->h + (pst.pad / 2);
-            SDL_DestroyTexture(t);
-            SDL_FreeSurface(s);
+        auto surface = UIHelpers::MakeSurface(
+            TTF_RenderUTF8_Blended(font, title.c_str(), lst.fg)
+        );
+
+        if (surface) {
+            auto texture = UIHelpers::MakeTexture(
+                SDL_CreateTextureFromSurface(renderer, surface.get())
+            );
+
+            SDL_Rect dst{ x, y, surface->w, surface->h };
+            SDL_RenderCopy(renderer, texture.get(), nullptr, &dst);
+            y += surface->h + (pst.pad / 2);
         }
     }
 
     if (!message.empty()) {
-        SDL_Surface* s = TTF_RenderUTF8_Blended(font, message.c_str(), lst.fg);
-        if (s) {
-            SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
-            SDL_Rect dst{ x, y, s->w, s->h };
-            SDL_RenderCopy(renderer, t, nullptr, &dst);
-            SDL_DestroyTexture(t);
-            SDL_FreeSurface(s);
+        auto surface = UIHelpers::MakeSurface(
+            TTF_RenderUTF8_Blended(font, message.c_str(), lst.fg)
+        );
+
+        if (surface) {
+            auto texture = UIHelpers::MakeTexture(
+                SDL_CreateTextureFromSurface(renderer, surface.get())
+            );
+
+            SDL_Rect dst{ x, y, surface->w, surface->h };
+            SDL_RenderCopy(renderer, texture.get(), nullptr, &dst);
         }
     }
 }
@@ -1760,7 +1790,8 @@ void UIRadioButton::render(SDL_Renderer* renderer) {
     textCol.a   = globalAlpha;
 
     if (focusable && focused) {
-        SDL_Color halo = st.borderFocus; halo.a = std::min<int>(halo.a, globalAlpha);
+        SDL_Color halo = st.borderFocus;
+        halo.a = std::min<int>(halo.a, globalAlpha);
         UIHelpers::DrawCircleRing(renderer, cx, cy, st.outerRadius + 3, 3, halo);
     }
 
@@ -1772,14 +1803,24 @@ void UIRadioButton::render(SDL_Renderer* renderer) {
         UIHelpers::DrawCircleRing(renderer, cx, cy, st.outerRadius, st.borderThickness, c);
     }
 
-    SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, label.c_str(), textCol);
-    if (!s) return;
-    SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
-    SDL_Rect textRect = { bounds.x + st.spacingPx + st.outerRadius + st.gapTextPx - st.outerRadius,
-                          bounds.y + (bounds.h - s->h)/2, s->w, s->h };
-    SDL_RenderCopy(renderer, t, nullptr, &textRect);
-    SDL_DestroyTexture(t);
-    SDL_FreeSurface(s);
+    auto surface = UIHelpers::MakeSurface(
+        TTF_RenderUTF8_Blended(activeFont, label.c_str(), textCol)
+    );
+
+    if (!surface) return;
+
+    auto texture = UIHelpers::MakeTexture(
+        SDL_CreateTextureFromSurface(renderer, surface.get())
+    );
+
+    SDL_Rect textRect = {
+        bounds.x + st.spacingPx + st.outerRadius + st.gapTextPx - st.outerRadius,
+        bounds.y + (bounds.h - surface->h)/2,
+        surface->w,
+        surface->h
+    };
+
+    SDL_RenderCopy(renderer, texture.get(), nullptr, &textRect);
 }
 
 
@@ -1888,7 +1929,12 @@ void UIButton::render(SDL_Renderer* renderer) {
     }
 
     SDL_Rect dst = bounds;
-    if (pressed) { dst.y += pressOffset; dst.x += 1; dst.w -= 2; dst.h -= 2; }
+    if (pressed) {
+        dst.y += pressOffset;
+        dst.x += 1;
+        dst.w -= 2;
+        dst.h -= 2;
+    }
 
     if (effBorderPx > 0) {
         UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, effRadius, baseBorder);
@@ -1904,17 +1950,30 @@ void UIButton::render(SDL_Renderer* renderer) {
                                 : (th.font ? th.font : UIConfig::getDefaultFont());
     if (!activeFont) return;
 
-    SDL_Color txt = baseText; txt.a = globalAlpha;
-    SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, label.c_str(), txt);
-    if (!s) return;
-    SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
-    if (!t) { SDL_FreeSurface(s); return; }
-    SDL_Rect r = { dst.x + (dst.w - s->w)/2, dst.y + (dst.h - s->h)/2, s->w, s->h };
-    SDL_RenderCopy(renderer, t, nullptr, &r);
-    SDL_FreeSurface(s);
-    SDL_DestroyTexture(t);
-}
+    SDL_Color txt = baseText;
+    txt.a = globalAlpha;
 
+    auto surface = UIHelpers::MakeSurface(
+        TTF_RenderUTF8_Blended(activeFont, label.c_str(), txt)
+    );
+
+    if (!surface) return;
+
+    auto texture = UIHelpers::MakeTexture(
+        SDL_CreateTextureFromSurface(renderer, surface.get())
+    );
+
+    if (!texture) return;
+
+    SDL_Rect r = {
+        dst.x + (dst.w - surface->w)/2,
+        dst.y + (dst.h - surface->h)/2,
+        surface->w,
+        surface->h
+    };
+
+    SDL_RenderCopy(renderer, texture.get(), nullptr, &r);
+}
 
 
 void UIButton::setFont(TTF_Font* f) {
@@ -1955,20 +2014,23 @@ void UILabel::render(SDL_Renderer* renderer) {
 
     SDL_Color txtCol = (color.a != 0) ? color : st.fg;
 
-    SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, text.c_str(), txtCol);
-    if (!s) return;
-    SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
+    auto surface = UIHelpers::MakeSurface(
+        TTF_RenderUTF8_Blended(activeFont, text.c_str(), txtCol)
+    );
+    if (!surface) return;
+
+    auto texture = UIHelpers::MakeTexture(
+        SDL_CreateTextureFromSurface(renderer, surface.get())
+    );
 
     SDL_Rect dstRect = {
         bounds.x,
-        bounds.y + (bounds.h - s->h) / 2,
-        s->w,
-        s->h
+        bounds.y + (bounds.h - surface->h) / 2,
+        surface->w,
+        surface->h
     };
 
-    SDL_RenderCopy(renderer, t, nullptr, &dstRect);
-    SDL_DestroyTexture(t);
-    SDL_FreeSurface(s);
+    SDL_RenderCopy(renderer, texture.get(), nullptr, &dstRect);
 }
 
 UILabel* UILabel::setColor(SDL_Color c) {
@@ -2038,8 +2100,7 @@ void UICheckbox::render(SDL_Renderer* renderer) {
     const UIStyle& ds = getStyle();
     const auto st = MakeCheckboxStyle(th, ds);
 
-    TTF_Font* activeFont = font ? font
-                                : (th.font ? th.font : UIConfig::getDefaultFont());
+    TTF_Font* activeFont = font ? font : (th.font ? th.font : UIConfig::getDefaultFont());
     if (!activeFont) return;
 
     const bool isChecked = linkedValue.get();
@@ -2063,7 +2124,8 @@ void UICheckbox::render(SDL_Renderer* renderer) {
     SDL_Rect inner = { box.x + stroke, box.y + stroke, box.w - 2*stroke, box.h - 2*stroke };
 
     if (focusable && focused) {
-        SDL_Color ring = st.borderFocus; ring.a = std::min<int>(ring.a, globalAlpha);
+        SDL_Color ring = st.borderFocus;
+        ring.a = std::min<int>(ring.a, globalAlpha);
         UIHelpers::StrokeRoundedRectOutside(renderer, inner, innerRadius, stroke + 1, ring, fillCol);
     }
 
@@ -2082,18 +2144,24 @@ void UICheckbox::render(SDL_Renderer* renderer) {
     if (isChecked) {
         float pad   = 3.5f;
         float thick = std::clamp(box.w * 0.16f, 1.5f, 3.0f);
-        SDL_Rect markBox = box; markBox.y -= 1;
+        SDL_Rect markBox = box;
+        markBox.y -= 1;
         UIHelpers::DrawCheckmark(renderer, markBox, thick, tickCol, pad);
     }
 
     const int textLeft = box.x + box.w + st.spacingPx;
-    SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, label.c_str(), textCol);
-    if (!s) return;
-    SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
-    SDL_Rect tr = { textLeft, bounds.y + (bounds.h - s->h)/2, s->w, s->h };
-    SDL_RenderCopy(renderer, t, nullptr, &tr);
-    SDL_DestroyTexture(t);
-    SDL_FreeSurface(s);
+    auto surface = UIHelpers::MakeSurface(
+        TTF_RenderUTF8_Blended(activeFont, label.c_str(), textCol)
+    );
+
+    if (!surface) return;
+
+    auto texture = UIHelpers::MakeTexture(
+        SDL_CreateTextureFromSurface(renderer, surface.get())
+    );
+
+    SDL_Rect tr = { textLeft, bounds.y + (bounds.h - surface->h)/2, surface->w, surface->h };
+    SDL_RenderCopy(renderer, texture.get(), nullptr, &tr);
 }
 
 
@@ -2842,9 +2910,15 @@ void UITextField::render(SDL_Renderer* renderer) {
     SDL_RenderSetClipRect(renderer, &clip);
 
     if (!toRender.empty()) {
-        SDL_Surface* textSurface = TTF_RenderUTF8_Blended(activeFont, toRender.c_str(), drawCol);
+        auto textSurface = UIHelpers::MakeSurface(
+            TTF_RenderUTF8_Blended(activeFont, toRender.c_str(), drawCol)
+        );
+
         if (textSurface) {
-            SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+            auto textTexture = UIHelpers::MakeTexture(
+                SDL_CreateTextureFromSurface(renderer, textSurface.get())
+            );
+
             SDL_Rect textRect = {
                 dst.x + 8 - scrollX,
                 dst.y + (dst.h - textSurface->h) / 2,
@@ -2867,13 +2941,11 @@ void UITextField::render(SDL_Renderer* renderer) {
                 }
             }
 
-            SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
-            SDL_DestroyTexture(textTexture);
+            SDL_RenderCopy(renderer, textTexture.get(), nullptr, &textRect);
 
             cursorH = textSurface->h;
             cursorY = textRect.y;
 
-            SDL_FreeSurface(textSurface);
         }
     }
 
@@ -2888,22 +2960,28 @@ void UITextField::render(SDL_Renderer* renderer) {
         int prefixW = textWidth(activeFont, prefixMeasure);
 
         SDL_Color preCol = st.fg;
-        SDL_Surface* preSurf = TTF_RenderUTF8_Blended(activeFont, preToDraw.c_str(), preCol);
+
+        auto preSurf = UIHelpers::MakeSurface(
+            TTF_RenderUTF8_Blended(activeFont, preToDraw.c_str(), preCol)
+        );
+
         if (preSurf) {
-            SDL_Texture* preTex = SDL_CreateTextureFromSurface(renderer, preSurf);
+            auto preTex = UIHelpers::MakeTexture(
+                SDL_CreateTextureFromSurface(renderer, preSurf.get())
+            );
+
             SDL_Rect preRect = {
                 dst.x + 8 + prefixW - scrollX,
                 dst.y + (dst.h - preSurf->h) / 2,
                 preSurf->w,
                 preSurf->h
             };
+
             SDL_SetRenderDrawColor(renderer, preCol.r, preCol.g, preCol.b, preCol.a);
             SDL_Rect underline = { preRect.x, preRect.y + preRect.h - 1, preRect.w, 1 };
             SDL_RenderFillRect(renderer, &underline);
 
-            SDL_RenderCopy(renderer, preTex, nullptr, &preRect);
-            SDL_DestroyTexture(preTex);
-            SDL_FreeSurface(preSurf);
+            SDL_RenderCopy(renderer, preTex.get(), nullptr, &preRect);
 
             auto isContB = [](unsigned char c){ return (c & 0xC0) == 0x80; };
             int preByte = 0, cpLeft = std::max(0, preeditCursor);
@@ -2913,7 +2991,7 @@ void UITextField::render(SDL_Renderer* renderer) {
             }
             std::string preCaretSub = (inputType == InputType::PASSWORD)
                 ? std::string((int)std::count_if(preedit.begin(), preedit.begin() + preByte,
-                    [&](unsigned char ch){ return ((ch & 0xC0) != 0x80); }), '*')
+                    [&](unsigned char ch){ return !isContB(ch); }), '*')
                 : preedit.substr(0, preByte);
 
             int preCaretW = 0, preCaretH = 0;
@@ -2924,6 +3002,7 @@ void UITextField::render(SDL_Renderer* renderer) {
                 SDL_Rect preCaret = { preRect.x + preCaretW, preRect.y, 1, preRect.h };
                 SDL_RenderFillRect(renderer, &preCaret);
             }
+
         }
     }
 
@@ -3145,13 +3224,17 @@ void UIComboBox::render(SDL_Renderer* renderer) {
     SDL_Color textCol   = (sel >= 0) ? st.fieldFg : st.placeholder;
     if (customTextColor) textCol = *customTextColor;
 
-    SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, display.c_str(), textCol);
-    if (s) {
-        SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
-        SDL_Rect tr = { field.x + st.padX, field.y + (field.h - s->h)/2, s->w, s->h };
-        SDL_RenderCopy(renderer, t, nullptr, &tr);
-        SDL_DestroyTexture(t);
-        SDL_FreeSurface(s);
+    auto surface = UIHelpers::MakeSurface(
+        TTF_RenderUTF8_Blended(activeFont, display.c_str(), textCol)
+    );
+
+    if (surface) {
+        auto texture = UIHelpers::MakeTexture(
+            SDL_CreateTextureFromSurface(renderer, surface.get())
+        );
+
+        SDL_Rect tr = { field.x + st.padX, field.y + (field.h - surface->h)/2, surface->w, surface->h };
+        SDL_RenderCopy(renderer, texture.get(), nullptr, &tr);
     }
 
     const int caretW = 12;
@@ -3191,14 +3274,20 @@ void UIComboBox::render(SDL_Renderer* renderer) {
             }
 
             SDL_Color ic = isSel ? st.itemSelectedFg : st.itemFg;
-            SDL_Surface* it = TTF_RenderUTF8_Blended(activeFont, options[i].c_str(), ic);
-            if (it) {
-                SDL_Texture* tt = SDL_CreateTextureFromSurface(renderer, it);
-                SDL_Rect ir = { row.x + 8, row.y + (row.h - it->h)/2, it->w, it->h };
-                SDL_RenderCopy(renderer, tt, nullptr, &ir);
-                SDL_DestroyTexture(tt);
-                SDL_FreeSurface(it);
+
+            auto itemSurface = UIHelpers::MakeSurface(
+                TTF_RenderUTF8_Blended(activeFont, options[i].c_str(), ic)
+            );
+
+            if (itemSurface) {
+                auto itemTexture = UIHelpers::MakeTexture(
+                    SDL_CreateTextureFromSurface(renderer, itemSurface.get())
+                );
+
+                SDL_Rect ir = { row.x + 8, row.y + (row.h - itemSurface->h)/2, itemSurface->w, itemSurface->h };
+                SDL_RenderCopy(renderer, itemTexture.get(), nullptr, &ir);
             }
+
             y += ih;
         }
     }
@@ -3445,18 +3534,29 @@ void UISpinner::render(SDL_Renderer* renderer) {
     SDL_RenderDrawLine(renderer, plusRect.x + plusRect.w/4, plusRect.y + plusRect.h/2, plusRect.x + 3*plusRect.w/4, plusRect.y + plusRect.h/2);
     SDL_RenderDrawLine(renderer, plusRect.x + plusRect.w/2, plusRect.y + plusRect.h/4, plusRect.x + plusRect.w/2, plusRect.y + 3*plusRect.h/4);
 
-    std::ostringstream oss; oss << value.get();
+    std::ostringstream oss;
+    oss << value.get();
     SDL_Color txtCol = st.text;
-    SDL_Surface* surface = TTF_RenderUTF8_Blended(activeFont, oss.str().c_str(), txtCol);
+
+    auto surface = UIHelpers::MakeSurface(
+        TTF_RenderUTF8_Blended(activeFont, oss.str().c_str(), txtCol)
+    );
+
     if (surface) {
-        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-        SDL_Rect textRect = { centerRect.x + (centerRect.w - surface->w)/2, centerRect.y + (centerRect.h - surface->h)/2, surface->w, surface->h };
-        SDL_RenderCopy(renderer, texture, nullptr, &textRect);
-        SDL_DestroyTexture(texture);
-        SDL_FreeSurface(surface);
+        auto texture = UIHelpers::MakeTexture(
+            SDL_CreateTextureFromSurface(renderer, surface.get())
+        );
+
+        SDL_Rect textRect = {
+            centerRect.x + (centerRect.w - surface->w)/2,
+            centerRect.y + (centerRect.h - surface->h)/2,
+            surface->w,
+            surface->h
+        };
+
+        SDL_RenderCopy(renderer, texture.get(), nullptr, &textRect);
     }
 }
-
 
 
 void UITextArea::clearRedo() { redoStack.clear(); }
@@ -4138,6 +4238,7 @@ std::vector<std::string> UITextArea::wrapTextToLines(const std::string& text, TT
 void UITextArea::render(SDL_Renderer* renderer) {
     TTF_Font* fnt = font ? font : (getTheme().font ? getTheme().font : UIConfig::getDefaultFont());
     if (!fnt) return;
+
     const UITheme& th = getTheme();
     const UIStyle& ds = getStyle();
     const auto st = MakeTextAreaStyle(th, ds);
@@ -4149,6 +4250,7 @@ void UITextArea::render(SDL_Renderer* renderer) {
     if (focused) {
         UIHelpers::StrokeRoundedRectOutside(renderer, dst, effRadius, effBorderPx + 1, st.borderFocus, st.bg);
     }
+
     SDL_Color borderNow = focused ? st.borderFocus : st.border;
     if (effBorderPx > 0) {
         UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, effRadius, borderNow);
@@ -4170,16 +4272,21 @@ void UITextArea::render(SDL_Renderer* renderer) {
     const int viewH = std::max(0, dst.h - 2*paddingPx);
 
     if (showPlaceholder) {
-        SDL_Surface* s = TTF_RenderUTF8_Blended(fnt, placeholder.c_str(), st.placeholder);
-        if (s) {
-            SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
-            SDL_Rect tr{ innerX, innerY, s->w, s->h };
-            SDL_RenderCopy(renderer, t, nullptr, &tr);
-            SDL_DestroyTexture(t);
-            SDL_FreeSurface(s);
+        auto surface = UIHelpers::MakeSurface(
+            TTF_RenderUTF8_Blended(fnt, placeholder.c_str(), st.placeholder)
+        );
+
+        if (surface) {
+            auto texture = UIHelpers::MakeTexture(
+                SDL_CreateTextureFromSurface(renderer, surface.get())
+            );
+
+            SDL_Rect tr{ innerX, innerY, surface->w, surface->h };
+            SDL_RenderCopy(renderer, texture.get(), nullptr, &tr);
         }
+
         contentHeight = float(lh);
-        scrollOffsetY = std::clamp(scrollOffsetY, 0.0f,  std::max(0.0f, contentHeight - float(viewH)));
+        scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, std::max(0.0f, contentHeight - float(viewH)));
         SDL_RenderSetClipRect(renderer, nullptr);
         if (contentHeight > dst.h) renderScrollbar(renderer);
         return;
@@ -4187,13 +4294,15 @@ void UITextArea::render(SDL_Renderer* renderer) {
 
     rebuildLayout(fnt, innerW);
     contentHeight = float(std::max(1, (int)lines.size()) * lh);
-    scrollOffsetY = std::clamp(scrollOffsetY, 0.0f,  std::max(0.0f, contentHeight - float(viewH)));
+    scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, std::max(0.0f, contentHeight - float(viewH)));
 
     const std::string& full = linkedText.get();
 
     size_t selA_orig = 0, selB_orig = 0;
     bool drawSelection = hasSelection();
-    if (drawSelection) { std::tie(selA_orig, selB_orig) = selectionRange(); }
+    if (drawSelection) {
+        std::tie(selA_orig, selB_orig) = selectionRange();
+    }
 
     const size_t N = full.size();
     size_t selA = mapOrigToNoNL[std::min(selA_orig, N)];
@@ -4218,7 +4327,6 @@ void UITextArea::render(SDL_Renderer* renderer) {
 
             if (drawSelection && line.empty()) {
                 const size_t boundaryNoNL = lineStart[li];
-
                 bool isLineSelected = false;
 
                 if (boundaryNoNL < mapNoNLToOrig.size()) {
@@ -4240,13 +4348,17 @@ void UITextArea::render(SDL_Renderer* renderer) {
         }
 
         if (!line.empty()) {
-            SDL_Surface* s = TTF_RenderUTF8_Blended(fnt, line.c_str(), st.fg);
-            if (s) {
-                SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
-                SDL_Rect tr{ innerX, y, s->w, s->h };
-                SDL_RenderCopy(renderer, t, nullptr, &tr);
-                SDL_DestroyTexture(t);
-                SDL_FreeSurface(s);
+            auto surface = UIHelpers::MakeSurface(
+                TTF_RenderUTF8_Blended(fnt, line.c_str(), st.fg)
+            );
+
+            if (surface) {
+                auto texture = UIHelpers::MakeTexture(
+                    SDL_CreateTextureFromSurface(renderer, surface.get())
+                );
+
+                SDL_Rect tr{ innerX, y, surface->w, surface->h };
+                SDL_RenderCopy(renderer, texture.get(), nullptr, &tr);
             }
         }
         y += lh;
@@ -4321,10 +4433,6 @@ void UITextArea::render(SDL_Renderer* renderer) {
     SDL_RenderSetClipRect(renderer, nullptr);
     if (contentHeight > dst.h) renderScrollbar(renderer);
 }
-
-
-
-
 
 void UITextArea::updateCursorPosition() {
     TTF_Font* fnt = font ? font : UIConfig::getDefaultFont();
@@ -4705,13 +4813,19 @@ void UIGroupBox::render(SDL_Renderer* renderer) {
     if (!fnt) return;
 
     int titleW = 0, titleH = 0;
-    SDL_Texture* titleTex = nullptr;
+    UIHelpers::UniqueTexture titleTex = nullptr;
+
     if (!title.empty()) {
-        SDL_Surface* ts = TTF_RenderUTF8_Blended(fnt, title.c_str(), st.title);
+        auto ts = UIHelpers::MakeSurface(
+            TTF_RenderUTF8_Blended(fnt, title.c_str(), st.title)
+        );
+
         if (ts) {
-            titleW = ts->w; titleH = ts->h;
-            titleTex = SDL_CreateTextureFromSurface(renderer, ts);
-            SDL_FreeSurface(ts);
+            titleW = ts->w;
+            titleH = ts->h;
+            titleTex = UIHelpers::MakeTexture(
+                SDL_CreateTextureFromSurface(renderer, ts.get())
+            );
         }
     }
 
@@ -4742,8 +4856,7 @@ void UIGroupBox::render(SDL_Renderer* renderer) {
 
     if (titleTex) {
         SDL_Rect td { titleStartX, frame.y + st.titlePadY, titleW, titleH };
-        SDL_RenderCopy(renderer, titleTex, nullptr, &td);
-        SDL_DestroyTexture(titleTex);
+        SDL_RenderCopy(renderer, titleTex.get(), nullptr, &td);
     }
 
     for (auto& child : children) {

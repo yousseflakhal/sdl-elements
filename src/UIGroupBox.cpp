@@ -34,13 +34,19 @@ void UIGroupBox::render(SDL_Renderer* renderer) {
     if (!fnt) return;
 
     int titleW = 0, titleH = 0;
-    SDL_Texture* titleTex = nullptr;
+    UIHelpers::UniqueTexture titleTex = nullptr;
+    
     if (!title.empty()) {
-        SDL_Surface* ts = TTF_RenderUTF8_Blended(fnt, title.c_str(), st.title);
+        auto ts = UIHelpers::MakeSurface(
+            TTF_RenderUTF8_Blended(fnt, title.c_str(), st.title)
+        );
+        
         if (ts) {
-            titleW = ts->w; titleH = ts->h;
-            titleTex = SDL_CreateTextureFromSurface(renderer, ts);
-            SDL_FreeSurface(ts);
+            titleW = ts->w; 
+            titleH = ts->h;
+            titleTex = UIHelpers::MakeTexture(
+                SDL_CreateTextureFromSurface(renderer, ts.get())
+            );
         }
     }
 
@@ -71,8 +77,7 @@ void UIGroupBox::render(SDL_Renderer* renderer) {
 
     if (titleTex) {
         SDL_Rect td { titleStartX, frame.y + st.titlePadY, titleW, titleH };
-        SDL_RenderCopy(renderer, titleTex, nullptr, &td);
-        SDL_DestroyTexture(titleTex);
+        SDL_RenderCopy(renderer, titleTex.get(), nullptr, &td);
     }
 
     for (auto& child : children) {

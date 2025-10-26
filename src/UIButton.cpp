@@ -92,7 +92,12 @@ void UIButton::render(SDL_Renderer* renderer) {
     }
 
     SDL_Rect dst = bounds;
-    if (pressed) { dst.y += pressOffset; dst.x += 1; dst.w -= 2; dst.h -= 2; }
+    if (pressed) { 
+        dst.y += pressOffset; 
+        dst.x += 1; 
+        dst.w -= 2; 
+        dst.h -= 2; 
+    }
 
     if (effBorderPx > 0) {
         UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, effRadius, baseBorder);
@@ -108,17 +113,30 @@ void UIButton::render(SDL_Renderer* renderer) {
                                 : (th.font ? th.font : UIConfig::getDefaultFont());
     if (!activeFont) return;
 
-    SDL_Color txt = baseText; txt.a = globalAlpha;
-    SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, label.c_str(), txt);
-    if (!s) return;
-    SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
-    if (!t) { SDL_FreeSurface(s); return; }
-    SDL_Rect r = { dst.x + (dst.w - s->w)/2, dst.y + (dst.h - s->h)/2, s->w, s->h };
-    SDL_RenderCopy(renderer, t, nullptr, &r);
-    SDL_FreeSurface(s);
-    SDL_DestroyTexture(t);
+    SDL_Color txt = baseText; 
+    txt.a = globalAlpha;
+    
+    auto surface = UIHelpers::MakeSurface(
+        TTF_RenderUTF8_Blended(activeFont, label.c_str(), txt)
+    );
+    
+    if (!surface) return;
+    
+    auto texture = UIHelpers::MakeTexture(
+        SDL_CreateTextureFromSurface(renderer, surface.get())
+    );
+    
+    if (!texture) return;
+    
+    SDL_Rect r = { 
+        dst.x + (dst.w - surface->w)/2, 
+        dst.y + (dst.h - surface->h)/2, 
+        surface->w, 
+        surface->h 
+    };
+    
+    SDL_RenderCopy(renderer, texture.get(), nullptr, &r);
 }
-
 
 
 void UIButton::setFont(TTF_Font* f) {

@@ -125,15 +125,26 @@ void UISpinner::render(SDL_Renderer* renderer) {
     SDL_RenderDrawLine(renderer, plusRect.x + plusRect.w/4, plusRect.y + plusRect.h/2, plusRect.x + 3*plusRect.w/4, plusRect.y + plusRect.h/2);
     SDL_RenderDrawLine(renderer, plusRect.x + plusRect.w/2, plusRect.y + plusRect.h/4, plusRect.x + plusRect.w/2, plusRect.y + 3*plusRect.h/4);
 
-    std::ostringstream oss; oss << value.get();
+    std::ostringstream oss; 
+    oss << value.get();
     SDL_Color txtCol = st.text;
-    SDL_Surface* surface = TTF_RenderUTF8_Blended(activeFont, oss.str().c_str(), txtCol);
+    
+    auto surface = UIHelpers::MakeSurface(
+        TTF_RenderUTF8_Blended(activeFont, oss.str().c_str(), txtCol)
+    );
+    
     if (surface) {
-        SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
-        SDL_Rect textRect = { centerRect.x + (centerRect.w - surface->w)/2, centerRect.y + (centerRect.h - surface->h)/2, surface->w, surface->h };
-        SDL_RenderCopy(renderer, texture, nullptr, &textRect);
-        SDL_DestroyTexture(texture);
-        SDL_FreeSurface(surface);
+        auto texture = UIHelpers::MakeTexture(
+            SDL_CreateTextureFromSurface(renderer, surface.get())
+        );
+        
+        SDL_Rect textRect = { 
+            centerRect.x + (centerRect.w - surface->w)/2, 
+            centerRect.y + (centerRect.h - surface->h)/2, 
+            surface->w, 
+            surface->h 
+        };
+        
+        SDL_RenderCopy(renderer, texture.get(), nullptr, &textRect);
     }
 }
-

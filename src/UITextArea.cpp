@@ -679,6 +679,7 @@ std::vector<std::string> UITextArea::wrapTextToLines(const std::string& text, TT
 void UITextArea::render(SDL_Renderer* renderer) {
     TTF_Font* fnt = font ? font : (getTheme().font ? getTheme().font : UIConfig::getDefaultFont());
     if (!fnt) return;
+    
     const UITheme& th = getTheme();
     const UIStyle& ds = getStyle();
     const auto st = MakeTextAreaStyle(th, ds);
@@ -690,6 +691,7 @@ void UITextArea::render(SDL_Renderer* renderer) {
     if (focused) {
         UIHelpers::StrokeRoundedRectOutside(renderer, dst, effRadius, effBorderPx + 1, st.borderFocus, st.bg);
     }
+    
     SDL_Color borderNow = focused ? st.borderFocus : st.border;
     if (effBorderPx > 0) {
         UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, effRadius, borderNow);
@@ -711,16 +713,21 @@ void UITextArea::render(SDL_Renderer* renderer) {
     const int viewH = std::max(0, dst.h - 2*paddingPx);
 
     if (showPlaceholder) {
-        SDL_Surface* s = TTF_RenderUTF8_Blended(fnt, placeholder.c_str(), st.placeholder);
-        if (s) {
-            SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
-            SDL_Rect tr{ innerX, innerY, s->w, s->h };
-            SDL_RenderCopy(renderer, t, nullptr, &tr);
-            SDL_DestroyTexture(t);
-            SDL_FreeSurface(s);
+        auto surface = UIHelpers::MakeSurface(
+            TTF_RenderUTF8_Blended(fnt, placeholder.c_str(), st.placeholder)
+        );
+        
+        if (surface) {
+            auto texture = UIHelpers::MakeTexture(
+                SDL_CreateTextureFromSurface(renderer, surface.get())
+            );
+            
+            SDL_Rect tr{ innerX, innerY, surface->w, surface->h };
+            SDL_RenderCopy(renderer, texture.get(), nullptr, &tr);
         }
+        
         contentHeight = float(lh);
-        scrollOffsetY = std::clamp(scrollOffsetY, 0.0f,  std::max(0.0f, contentHeight - float(viewH)));
+        scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, std::max(0.0f, contentHeight - float(viewH)));
         SDL_RenderSetClipRect(renderer, nullptr);
         if (contentHeight > dst.h) renderScrollbar(renderer);
         return;
@@ -728,13 +735,15 @@ void UITextArea::render(SDL_Renderer* renderer) {
 
     rebuildLayout(fnt, innerW);
     contentHeight = float(std::max(1, (int)lines.size()) * lh);
-    scrollOffsetY = std::clamp(scrollOffsetY, 0.0f,  std::max(0.0f, contentHeight - float(viewH)));
+    scrollOffsetY = std::clamp(scrollOffsetY, 0.0f, std::max(0.0f, contentHeight - float(viewH)));
 
     const std::string& full = linkedText.get();
 
     size_t selA_orig = 0, selB_orig = 0;
     bool drawSelection = hasSelection();
-    if (drawSelection) { std::tie(selA_orig, selB_orig) = selectionRange(); }
+    if (drawSelection) { 
+        std::tie(selA_orig, selB_orig) = selectionRange(); 
+    }
 
     const size_t N = full.size();
     size_t selA = mapOrigToNoNL[std::min(selA_orig, N)];
@@ -759,7 +768,6 @@ void UITextArea::render(SDL_Renderer* renderer) {
             
             if (drawSelection && line.empty()) {
                 const size_t boundaryNoNL = lineStart[li];
-                
                 bool isLineSelected = false;
                 
                 if (boundaryNoNL < mapNoNLToOrig.size()) {
@@ -781,13 +789,17 @@ void UITextArea::render(SDL_Renderer* renderer) {
         }
 
         if (!line.empty()) {
-            SDL_Surface* s = TTF_RenderUTF8_Blended(fnt, line.c_str(), st.fg);
-            if (s) {
-                SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
-                SDL_Rect tr{ innerX, y, s->w, s->h };
-                SDL_RenderCopy(renderer, t, nullptr, &tr);
-                SDL_DestroyTexture(t);
-                SDL_FreeSurface(s);
+            auto surface = UIHelpers::MakeSurface(
+                TTF_RenderUTF8_Blended(fnt, line.c_str(), st.fg)
+            );
+            
+            if (surface) {
+                auto texture = UIHelpers::MakeTexture(
+                    SDL_CreateTextureFromSurface(renderer, surface.get())
+                );
+                
+                SDL_Rect tr{ innerX, y, surface->w, surface->h };
+                SDL_RenderCopy(renderer, texture.get(), nullptr, &tr);
             }
         }
         y += lh;
@@ -862,10 +874,6 @@ void UITextArea::render(SDL_Renderer* renderer) {
     SDL_RenderSetClipRect(renderer, nullptr);
     if (contentHeight > dst.h) renderScrollbar(renderer);
 }
-
-
-
-
 
 void UITextArea::updateCursorPosition() {
     TTF_Font* fnt = font ? font : UIConfig::getDefaultFont();

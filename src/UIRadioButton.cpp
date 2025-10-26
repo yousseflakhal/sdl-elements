@@ -76,7 +76,8 @@ void UIRadioButton::render(SDL_Renderer* renderer) {
     textCol.a   = globalAlpha;
 
     if (focusable && focused) {
-        SDL_Color halo = st.borderFocus; halo.a = std::min<int>(halo.a, globalAlpha);
+        SDL_Color halo = st.borderFocus; 
+        halo.a = std::min<int>(halo.a, globalAlpha);
         UIHelpers::DrawCircleRing(renderer, cx, cy, st.outerRadius + 3, 3, halo);
     }
 
@@ -88,12 +89,22 @@ void UIRadioButton::render(SDL_Renderer* renderer) {
         UIHelpers::DrawCircleRing(renderer, cx, cy, st.outerRadius, st.borderThickness, c);
     }
 
-    SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, label.c_str(), textCol);
-    if (!s) return;
-    SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
-    SDL_Rect textRect = { bounds.x + st.spacingPx + st.outerRadius + st.gapTextPx - st.outerRadius,
-                          bounds.y + (bounds.h - s->h)/2, s->w, s->h };
-    SDL_RenderCopy(renderer, t, nullptr, &textRect);
-    SDL_DestroyTexture(t);
-    SDL_FreeSurface(s);
+    auto surface = UIHelpers::MakeSurface(
+        TTF_RenderUTF8_Blended(activeFont, label.c_str(), textCol)
+    );
+    
+    if (!surface) return;
+    
+    auto texture = UIHelpers::MakeTexture(
+        SDL_CreateTextureFromSurface(renderer, surface.get())
+    );
+    
+    SDL_Rect textRect = { 
+        bounds.x + st.spacingPx + st.outerRadius + st.gapTextPx - st.outerRadius,
+        bounds.y + (bounds.h - surface->h)/2, 
+        surface->w, 
+        surface->h 
+    };
+    
+    SDL_RenderCopy(renderer, texture.get(), nullptr, &textRect);
 }

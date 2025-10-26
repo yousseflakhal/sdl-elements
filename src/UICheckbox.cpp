@@ -57,8 +57,7 @@ void UICheckbox::render(SDL_Renderer* renderer) {
     const UIStyle& ds = getStyle();
     const auto st = MakeCheckboxStyle(th, ds);
 
-    TTF_Font* activeFont = font ? font
-                                : (th.font ? th.font : UIConfig::getDefaultFont());
+    TTF_Font* activeFont = font ? font : (th.font ? th.font : UIConfig::getDefaultFont());
     if (!activeFont) return;
 
     const bool isChecked = linkedValue.get();
@@ -82,7 +81,8 @@ void UICheckbox::render(SDL_Renderer* renderer) {
     SDL_Rect inner = { box.x + stroke, box.y + stroke, box.w - 2*stroke, box.h - 2*stroke };
 
     if (focusable && focused) {
-        SDL_Color ring = st.borderFocus; ring.a = std::min<int>(ring.a, globalAlpha);
+        SDL_Color ring = st.borderFocus; 
+        ring.a = std::min<int>(ring.a, globalAlpha);
         UIHelpers::StrokeRoundedRectOutside(renderer, inner, innerRadius, stroke + 1, ring, fillCol);
     }
 
@@ -101,16 +101,22 @@ void UICheckbox::render(SDL_Renderer* renderer) {
     if (isChecked) {
         float pad   = 3.5f;
         float thick = std::clamp(box.w * 0.16f, 1.5f, 3.0f);
-        SDL_Rect markBox = box; markBox.y -= 1;
+        SDL_Rect markBox = box; 
+        markBox.y -= 1;
         UIHelpers::DrawCheckmark(renderer, markBox, thick, tickCol, pad);
     }
 
     const int textLeft = box.x + box.w + st.spacingPx;
-    SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, label.c_str(), textCol);
-    if (!s) return;
-    SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
-    SDL_Rect tr = { textLeft, bounds.y + (bounds.h - s->h)/2, s->w, s->h };
-    SDL_RenderCopy(renderer, t, nullptr, &tr);
-    SDL_DestroyTexture(t);
-    SDL_FreeSurface(s);
+    auto surface = UIHelpers::MakeSurface(
+        TTF_RenderUTF8_Blended(activeFont, label.c_str(), textCol)
+    );
+    
+    if (!surface) return;
+    
+    auto texture = UIHelpers::MakeTexture(
+        SDL_CreateTextureFromSurface(renderer, surface.get())
+    );
+    
+    SDL_Rect tr = { textLeft, bounds.y + (bounds.h - surface->h)/2, surface->w, surface->h };
+    SDL_RenderCopy(renderer, texture.get(), nullptr, &tr);
 }

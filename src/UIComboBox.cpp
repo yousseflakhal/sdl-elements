@@ -171,13 +171,17 @@ void UIComboBox::render(SDL_Renderer* renderer) {
     SDL_Color textCol   = (sel >= 0) ? st.fieldFg : st.placeholder;
     if (customTextColor) textCol = *customTextColor;
 
-    SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, display.c_str(), textCol);
-    if (s) {
-        SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
-        SDL_Rect tr = { field.x + st.padX, field.y + (field.h - s->h)/2, s->w, s->h };
-        SDL_RenderCopy(renderer, t, nullptr, &tr);
-        SDL_DestroyTexture(t);
-        SDL_FreeSurface(s);
+    auto surface = UIHelpers::MakeSurface(
+        TTF_RenderUTF8_Blended(activeFont, display.c_str(), textCol)
+    );
+    
+    if (surface) {
+        auto texture = UIHelpers::MakeTexture(
+            SDL_CreateTextureFromSurface(renderer, surface.get())
+        );
+        
+        SDL_Rect tr = { field.x + st.padX, field.y + (field.h - surface->h)/2, surface->w, surface->h };
+        SDL_RenderCopy(renderer, texture.get(), nullptr, &tr);
     }
 
     const int caretW = 12;
@@ -217,14 +221,20 @@ void UIComboBox::render(SDL_Renderer* renderer) {
             }
 
             SDL_Color ic = isSel ? st.itemSelectedFg : st.itemFg;
-            SDL_Surface* it = TTF_RenderUTF8_Blended(activeFont, options[i].c_str(), ic);
-            if (it) {
-                SDL_Texture* tt = SDL_CreateTextureFromSurface(renderer, it);
-                SDL_Rect ir = { row.x + 8, row.y + (row.h - it->h)/2, it->w, it->h };
-                SDL_RenderCopy(renderer, tt, nullptr, &ir);
-                SDL_DestroyTexture(tt);
-                SDL_FreeSurface(it);
+            
+            auto itemSurface = UIHelpers::MakeSurface(
+                TTF_RenderUTF8_Blended(activeFont, options[i].c_str(), ic)
+            );
+            
+            if (itemSurface) {
+                auto itemTexture = UIHelpers::MakeTexture(
+                    SDL_CreateTextureFromSurface(renderer, itemSurface.get())
+                );
+                
+                SDL_Rect ir = { row.x + 8, row.y + (row.h - itemSurface->h)/2, itemSurface->w, itemSurface->h };
+                SDL_RenderCopy(renderer, itemTexture.get(), nullptr, &ir);
             }
+            
             y += ih;
         }
     }

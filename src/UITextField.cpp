@@ -745,9 +745,15 @@ void UITextField::render(SDL_Renderer* renderer) {
     SDL_RenderSetClipRect(renderer, &clip);
 
     if (!toRender.empty()) {
-        SDL_Surface* textSurface = TTF_RenderUTF8_Blended(activeFont, toRender.c_str(), drawCol);
+        auto textSurface = UIHelpers::MakeSurface(
+            TTF_RenderUTF8_Blended(activeFont, toRender.c_str(), drawCol)
+        );
+        
         if (textSurface) {
-            SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+            auto textTexture = UIHelpers::MakeTexture(
+                SDL_CreateTextureFromSurface(renderer, textSurface.get())
+            );
+            
             SDL_Rect textRect = {
                 dst.x + 8 - scrollX,
                 dst.y + (dst.h - textSurface->h) / 2,
@@ -770,13 +776,11 @@ void UITextField::render(SDL_Renderer* renderer) {
                 }
             }
 
-            SDL_RenderCopy(renderer, textTexture, nullptr, &textRect);
-            SDL_DestroyTexture(textTexture);
+            SDL_RenderCopy(renderer, textTexture.get(), nullptr, &textRect);
 
             cursorH = textSurface->h;
             cursorY = textRect.y;
-
-            SDL_FreeSurface(textSurface);
+            
         }
     }
 
@@ -791,22 +795,28 @@ void UITextField::render(SDL_Renderer* renderer) {
         int prefixW = textWidth(activeFont, prefixMeasure);
 
         SDL_Color preCol = st.fg;
-        SDL_Surface* preSurf = TTF_RenderUTF8_Blended(activeFont, preToDraw.c_str(), preCol);
+        
+        auto preSurf = UIHelpers::MakeSurface(
+            TTF_RenderUTF8_Blended(activeFont, preToDraw.c_str(), preCol)
+        );
+        
         if (preSurf) {
-            SDL_Texture* preTex = SDL_CreateTextureFromSurface(renderer, preSurf);
+            auto preTex = UIHelpers::MakeTexture(
+                SDL_CreateTextureFromSurface(renderer, preSurf.get())
+            );
+            
             SDL_Rect preRect = {
                 dst.x + 8 + prefixW - scrollX,
                 dst.y + (dst.h - preSurf->h) / 2,
                 preSurf->w,
                 preSurf->h
             };
+            
             SDL_SetRenderDrawColor(renderer, preCol.r, preCol.g, preCol.b, preCol.a);
             SDL_Rect underline = { preRect.x, preRect.y + preRect.h - 1, preRect.w, 1 };
             SDL_RenderFillRect(renderer, &underline);
 
-            SDL_RenderCopy(renderer, preTex, nullptr, &preRect);
-            SDL_DestroyTexture(preTex);
-            SDL_FreeSurface(preSurf);
+            SDL_RenderCopy(renderer, preTex.get(), nullptr, &preRect);
 
             auto isContB = [](unsigned char c){ return (c & 0xC0) == 0x80; };
             int preByte = 0, cpLeft = std::max(0, preeditCursor);
@@ -816,7 +826,7 @@ void UITextField::render(SDL_Renderer* renderer) {
             }
             std::string preCaretSub = (inputType == InputType::PASSWORD)
                 ? std::string((int)std::count_if(preedit.begin(), preedit.begin() + preByte,
-                    [&](unsigned char ch){ return ((ch & 0xC0) != 0x80); }), '*')
+                    [&](unsigned char ch){ return !isContB(ch); }), '*')
                 : preedit.substr(0, preByte);
 
             int preCaretW = 0, preCaretH = 0;
@@ -827,6 +837,7 @@ void UITextField::render(SDL_Renderer* renderer) {
                 SDL_Rect preCaret = { preRect.x + preCaretW, preRect.y, 1, preRect.h };
                 SDL_RenderFillRect(renderer, &preCaret);
             }
+            
         }
     }
 

@@ -1,6 +1,7 @@
 #pragma once
 #include <SDL2/SDL.h>
 #include <cmath>
+#include <memory>
 #include <algorithm>
 
 namespace UIHelpers {
@@ -52,5 +53,27 @@ namespace UIHelpers {
     }
 
     void DrawChevronDown(SDL_Renderer* r, int cx, int cy, int width, int height, float thickness, SDL_Color color);
+    struct SurfaceDeleter { 
+        void operator()(SDL_Surface* s) const noexcept { 
+            if (s) SDL_FreeSurface(s); 
+        } 
+    };
+    
+    struct TextureDeleter { 
+        void operator()(SDL_Texture* t) const noexcept { 
+            if (t) SDL_DestroyTexture(t); 
+        } 
+    };
+    
+    using UniqueSurface = std::unique_ptr<SDL_Surface, SurfaceDeleter>;
+    using UniqueTexture = std::unique_ptr<SDL_Texture, TextureDeleter>;
+    
+    inline UniqueSurface MakeSurface(SDL_Surface* raw) {
+        return UniqueSurface(raw);
+    }
+    
+    inline UniqueTexture MakeTexture(SDL_Texture* raw) {
+        return UniqueTexture(raw);
+    }
 
 }

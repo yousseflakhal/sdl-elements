@@ -37,25 +37,33 @@ void UIDialog::render(SDL_Renderer* renderer) {
     int y = bounds.y + pst.pad;
 
     if (!title.empty()) {
-        SDL_Surface* s = TTF_RenderUTF8_Blended(font, title.c_str(), lst.fg);
-        if (s) {
-            SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
-            SDL_Rect dst{ x, y, s->w, s->h };
-            SDL_RenderCopy(renderer, t, nullptr, &dst);
-            y += s->h + (pst.pad / 2);
-            SDL_DestroyTexture(t);
-            SDL_FreeSurface(s);
+        auto surface = UIHelpers::MakeSurface(
+            TTF_RenderUTF8_Blended(font, title.c_str(), lst.fg)
+        );
+        
+        if (surface) {
+            auto texture = UIHelpers::MakeTexture(
+                SDL_CreateTextureFromSurface(renderer, surface.get())
+            );
+            
+            SDL_Rect dst{ x, y, surface->w, surface->h };
+            SDL_RenderCopy(renderer, texture.get(), nullptr, &dst);
+            y += surface->h + (pst.pad / 2);
         }
     }
 
     if (!message.empty()) {
-        SDL_Surface* s = TTF_RenderUTF8_Blended(font, message.c_str(), lst.fg);
-        if (s) {
-            SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
-            SDL_Rect dst{ x, y, s->w, s->h };
-            SDL_RenderCopy(renderer, t, nullptr, &dst);
-            SDL_DestroyTexture(t);
-            SDL_FreeSurface(s);
+        auto surface = UIHelpers::MakeSurface(
+            TTF_RenderUTF8_Blended(font, message.c_str(), lst.fg)
+        );
+        
+        if (surface) {
+            auto texture = UIHelpers::MakeTexture(
+                SDL_CreateTextureFromSurface(renderer, surface.get())
+            );
+            
+            SDL_Rect dst{ x, y, surface->w, surface->h };
+            SDL_RenderCopy(renderer, texture.get(), nullptr, &dst);
         }
     }
 }

@@ -17,20 +17,23 @@ void UILabel::render(SDL_Renderer* renderer) {
 
     SDL_Color txtCol = (color.a != 0) ? color : st.fg;
 
-    SDL_Surface* s = TTF_RenderUTF8_Blended(activeFont, text.c_str(), txtCol);
-    if (!s) return;
-    SDL_Texture* t = SDL_CreateTextureFromSurface(renderer, s);
-
+    auto surface = UIHelpers::MakeSurface(
+        TTF_RenderUTF8_Blended(activeFont, text.c_str(), txtCol)
+    );
+    if (!surface) return;
+    
+    auto texture = UIHelpers::MakeTexture(
+        SDL_CreateTextureFromSurface(renderer, surface.get())
+    );
+    
     SDL_Rect dstRect = {
         bounds.x,
-        bounds.y + (bounds.h - s->h) / 2,
-        s->w,
-        s->h
+        bounds.y + (bounds.h - surface->h) / 2,
+        surface->w,
+        surface->h
     };
-
-    SDL_RenderCopy(renderer, t, nullptr, &dstRect);
-    SDL_DestroyTexture(t);
-    SDL_FreeSurface(s);
+    
+    SDL_RenderCopy(renderer, texture.get(), nullptr, &dstRect);
 }
 
 UILabel* UILabel::setColor(SDL_Color c) {
