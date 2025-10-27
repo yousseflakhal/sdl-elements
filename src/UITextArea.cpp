@@ -1106,6 +1106,13 @@ void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {
     auto flushPara = [&](size_t end_i){
         auto wrapped = wrapTextToLines(para, fnt, maxWidthPx);
 
+        const size_t MAX_INDEX = 1000000;
+        if (noNLIndex > MAX_INDEX) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, 
+                        "TextArea layout exceeded index limit");
+            return;
+        }
+
         size_t offsetInPara = 0;
         if (wrapped.empty()) {
             lines.push_back("");
