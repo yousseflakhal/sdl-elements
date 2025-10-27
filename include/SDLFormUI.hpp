@@ -840,9 +840,6 @@ private:
     bool imeActive = false;
     bool selectingMouse = false;
     size_t selectAnchor = 0;
-    size_t selectionStart = 0;
-    size_t selectionEnd   = 0;
-    bool   selectionActive = false;
     Uint32 lastClickTicks = 0;
     int clickCount = 0;
     int lastClickX = -10000;
@@ -3576,7 +3573,6 @@ void UITextArea::applyReplaceNoHistory(size_t a, size_t b, std::string_view repl
 
     if (hasSelRange(newSelA, newSelB)) {
         selStart = newSelA; selEnd = newSelB;
-        selectionActive = true;
     } else {
         clearSelection();
     }
@@ -4638,10 +4634,6 @@ void UITextArea::setSelection(size_t a, size_t b) {
         selStart = a;
         selEnd   = b;
     }
-
-    selectionStart  = (a == b) ? 0 : a;
-    selectionEnd    = (a == b) ? 0 : b;
-    selectionActive = (b > a);
 }
 
 void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {

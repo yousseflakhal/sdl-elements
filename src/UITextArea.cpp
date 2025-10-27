@@ -17,7 +17,6 @@ void UITextArea::applyReplaceNoHistory(size_t a, size_t b, std::string_view repl
 
     if (hasSelRange(newSelA, newSelB)) {
         selStart = newSelA; selEnd = newSelB;
-        selectionActive = true;
     } else {
         clearSelection();
     }
@@ -1079,10 +1078,6 @@ void UITextArea::setSelection(size_t a, size_t b) {
         selStart = a;
         selEnd   = b;
     }
-
-    selectionStart  = (a == b) ? 0 : a;
-    selectionEnd    = (a == b) ? 0 : b;
-    selectionActive = (b > a);
 }
 
 void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {

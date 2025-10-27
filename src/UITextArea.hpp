@@ -87,9 +87,6 @@ private:
     bool imeActive = false;
     bool selectingMouse = false;
     size_t selectAnchor = 0;
-    size_t selectionStart = 0;
-    size_t selectionEnd   = 0;
-    bool   selectionActive = false;
     Uint32 lastClickTicks = 0;
     int clickCount = 0;
     int lastClickX = -10000;
