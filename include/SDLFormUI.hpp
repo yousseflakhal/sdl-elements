@@ -4304,6 +4304,11 @@ void UITextArea::render(SDL_Renderer* renderer) {
     size_t selA = mapOrigToNoNL[std::min(selA_orig, N)];
     size_t selB = mapOrigToNoNL[std::min(selB_orig, N)];
 
+    std::vector<SDL_Rect> selectionRects;
+    if (drawSelection) {
+        selectionRects.reserve(lines.size());
+    }
+
     int y = innerY - (int)scrollOffsetY;
     for (size_t li = 0; li < lines.size(); ++li) {
         const auto& line = lines[li];
@@ -4316,12 +4321,11 @@ void UITextArea::render(SDL_Renderer* renderer) {
                 size_t Rcol = Rg - lineStart[li];
                 int wLeft = prefixX[li][(int)Lcol];
                 int wMid  = prefixX[li][(int)Rcol] - prefixX[li][(int)Lcol];
-                SDL_SetRenderDrawColor(renderer, th.selectionBg.r, th.selectionBg.g, th.selectionBg.b, th.selectionBg.a);
-                SDL_Rect selR{ innerX + wLeft, y, wMid, lh };
-                SDL_RenderFillRect(renderer, &selR);
+
+                selectionRects.push_back({innerX + wLeft, y, wMid, lh});
             }
 
-            if (drawSelection && line.empty()) {
+            if (line.empty()) {
                 const size_t boundaryNoNL = lineStart[li];
                 bool isLineSelected = false;
 
@@ -4336,9 +4340,7 @@ void UITextArea::render(SDL_Renderer* renderer) {
 
                 if (isLineSelected) {
                     int tickW = std::max(2, lh / 8);
-                    SDL_SetRenderDrawColor(renderer, th.selectionBg.r, th.selectionBg.g, th.selectionBg.b, th.selectionBg.a);
-                    SDL_Rect tickRect{ innerX, y, tickW, lh };
-                    SDL_RenderFillRect(renderer, &tickRect);
+                    selectionRects.push_back({innerX, y, tickW, lh});
                 }
             }
         }
@@ -4358,6 +4360,13 @@ void UITextArea::render(SDL_Renderer* renderer) {
             }
         }
         y += lh;
+    }
+
+    if (!selectionRects.empty()) {
+        SDL_SetRenderDrawColor(renderer, th.selectionBg.r, th.selectionBg.g,
+                               th.selectionBg.b, th.selectionBg.a);
+        SDL_RenderFillRects(renderer, selectionRects.data(),
+                           static_cast<int>(selectionRects.size()));
     }
 
     if (focused && cursorVisible && !hasSelection()) {
@@ -4661,6 +4670,13 @@ void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {
 
     auto flushPara = [&](size_t end_i){
         auto wrapped = wrapTextToLines(para, fnt, maxWidthPx);
+
+        const size_t MAX_INDEX = 1000000;
+        if (noNLIndex > MAX_INDEX) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                        "TextArea layout exceeded index limit");
+            return;
+        }
 
         size_t offsetInPara = 0;
         if (wrapped.empty()) {
