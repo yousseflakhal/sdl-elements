@@ -479,9 +479,26 @@ void UITextField::handleEvent(const SDL_Event& e) {
                 return;
             }
 
-            if (key == SDLK_LEFT)  { moveLeft(ctrl,  shift); ensureCaretVisibleLocal(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return; }
-            if (key == SDLK_RIGHT) { moveRight(ctrl, shift); ensureCaretVisibleLocal(); updateImeRect(); cursorVisible = true; lastBlinkTicks = SDL_GetTicks(); return; }
-
+            if (key == SDLK_LEFT || key == SDLK_RIGHT) {
+                if (shift) {
+                    if (key == SDLK_LEFT)  moveLeft(ctrl, true);
+                    else                   moveRight(ctrl, true);
+                } else {
+                    if (hasSelection()) {
+                        auto [a, b] = selRange();
+                        caret = (key == SDLK_LEFT) ? a : b;
+                        clearSelection();
+                    } else {
+                        if (key == SDLK_LEFT)  moveLeft(ctrl, false);
+                        else                   moveRight(ctrl, false);
+                    }
+                }
+                ensureCaretVisibleLocal();
+                updateImeRect();
+                cursorVisible = true;
+                lastBlinkTicks = SDL_GetTicks();
+                return;
+            }
             if (key == SDLK_HOME) {
                 int before = caret;
                 caret = 0;
