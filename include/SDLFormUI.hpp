@@ -4056,19 +4056,28 @@ void UITextArea::handleEvent(const SDL_Event& e) {
         }
 
         if (e.key.keysym.sym == SDLK_LEFT || e.key.keysym.sym == SDLK_RIGHT) {
-            size_t newPos = cursorPos;
-            if (e.key.keysym.sym == SDLK_LEFT)  { if (newPos > 0) newPos--; }
-            else                                { newPos = std::min(newPos + 1, linkedText.get().size()); }
-
             if (shift) {
+                size_t newPos = cursorPos;
+                if (e.key.keysym.sym == SDLK_LEFT)  { if (newPos > 0) newPos--; }
+                else                                { newPos = std::min(newPos + 1, linkedText.get().size()); }
+
                 if (!hasSelection()) selectAnchor = cursorPos;
                 cursorPos = newPos;
                 setSelection(std::min(selectAnchor, cursorPos), std::max(selectAnchor, cursorPos));
             } else {
-                cursorPos = newPos;
-                clearSelection();
+                if (hasSelection()) {
+                    auto [a, b] = selRange();
+                    cursorPos = (e.key.keysym.sym == SDLK_LEFT) ? a : b;
+                    clearSelection();
+                } else {
+                    size_t newPos = cursorPos;
+                    if (e.key.keysym.sym == SDLK_LEFT)  { if (newPos > 0) newPos--; }
+                    else                                { newPos = std::min(newPos + 1, linkedText.get().size()); }
+                    cursorPos = newPos;
+                }
                 selectAnchor = cursorPos;
             }
+
             preferredColumn = -1; preferredXpx = -1;
             lastBlinkTime = SDL_GetTicks(); cursorVisible = true;
             updateCursorPosition(); setIMERectAtCaret();
