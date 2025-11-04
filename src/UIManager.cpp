@@ -41,6 +41,7 @@ void UIManager::addElement(std::shared_ptr<UIElement> el) {
     if (el && el->isFocusable()) registerElement(el.get(), true);
 }
 void UIManager::showPopup(std::shared_ptr<UIPopup> popup) {
+    if (activePopup) closePopup();
     activePopup = std::move(popup);
 
     savedFocusOrder_  = focusOrder_;
