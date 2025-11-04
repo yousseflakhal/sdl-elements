@@ -1,6 +1,5 @@
 #include "UIComboBox.hpp"
 
-
 UIComboBox::UIComboBox(int x, int y, int w, int h, const std::vector<std::string>& options, int& selectedIndex)
     : options(options), selectedIndex(selectedIndex)
 {
@@ -21,7 +20,6 @@ bool UIComboBox::isHovered() const {
 
 bool UIComboBox::isExpanded() const { 
     return expanded;
-
 }
 
 int UIComboBox::getItemCount() const { 
@@ -36,10 +34,37 @@ const SDL_Rect& UIComboBox::getBounds() const {
     return bounds;
 }
 
+void UIComboBox::updateDropdownRect(SDL_Renderer* renderer) const {
+    const int ih = bounds.h;
+    SDL_Rect menu = { bounds.x, bounds.y + bounds.h, bounds.w, ih * (int)options.size() };
+    
+    if (renderer) {
+        int windowH = 0;
+        SDL_GetRendererOutputSize(renderer, nullptr, &windowH);
+        
+        bool fitsBelow = (menu.y + menu.h) <= windowH;
+        if (!fitsBelow) {
+            menu.y = bounds.y - menu.h;
+        }
+    }
+    
+    cachedDropdownRect = menu;
+    dropdownPositionValid = true;
+}
+
+SDL_Rect UIComboBox::getDropdownRect() const {
+    return cachedDropdownRect;
+}
+
 void UIComboBox::handleEvent(const SDL_Event& e) {
     if (e.type == SDL_USEREVENT) {
         if (e.user.code == 0xF001) { focused = true; return; }
-        if (e.user.code == 0xF002) { focused = false; expanded = false; return; }
+        if (e.user.code == 0xF002) { 
+            focused = false; 
+            expanded = false; 
+            dropdownPositionValid = false;
+            return; 
+        }
     }
     if (!enabled) return;
 
@@ -51,21 +76,28 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
             if (expanded) {
                 const int hi = (int)options.size() - 1;
                 if (hi >= 0) hoveredIndex = std::clamp((int)selectedIndex.get(), 0, hi);
+            } else {
+                dropdownPositionValid = false;
             }
             return;
         }
 
-        if (expanded) {
+        if (expanded && dropdownPositionValid) {
+            SDL_Rect dropdownRect = getDropdownRect();
             const int ih = bounds.h;
+            
             for (int i = 0; i < (int)options.size(); ++i) {
-                SDL_Rect itemRect{ bounds.x, bounds.y + (i + 1) * ih, bounds.w, ih };
+                SDL_Rect itemRect{ dropdownRect.x, dropdownRect.y + i * ih, dropdownRect.w, ih };
                 if (SDL_PointInRect(&p, &itemRect)) {
                     selectedIndex.get() = i;
                     if (onSelect) onSelect(i);
                     expanded = false;
+                    dropdownPositionValid = false;
                     return;
                 }
             }
+            expanded = false;
+            dropdownPositionValid = false;
         }
     }
 
@@ -74,7 +106,11 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
     if (e.type == SDL_KEYDOWN) {
         switch (e.key.keysym.sym) {
             case SDLK_ESCAPE:
-                if (expanded) { expanded = false; return; }
+                if (expanded) { 
+                    expanded = false; 
+                    dropdownPositionValid = false;
+                    return; 
+                }
                 break;
 
             case SDLK_SPACE:
@@ -85,6 +121,7 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
                         if (onSelect) onSelect(hoveredIndex);
                     }
                     expanded = false;
+                    dropdownPositionValid = false;
                 } else {
                     expanded = true;
                     const int hi = (int)options.size() - 1;
@@ -130,18 +167,36 @@ void UIComboBox::update(float) {
 
     if (!expanded || options.empty()) return;
 
-    const int ih = bounds.h;
-    SDL_Rect listRect{ bounds.x, bounds.y + bounds.h, bounds.w, ih * (int)options.size() };
+    if (dropdownPositionValid) {
+        SDL_Rect listRect = getDropdownRect();
+        const int ih = bounds.h;
 
-    if (SDL_PointInRect(&p, &listRect)) {
-        int relY = my - listRect.y;
-        int idx = relY / ih;
-        idx = std::clamp(idx, 0, (int)options.size() - 1);
-        hoveredIndex = idx;
+        if (SDL_PointInRect(&p, &listRect)) {
+            int relY = my - listRect.y;
+            int idx = relY / ih;
+            idx = std::clamp(idx, 0, (int)options.size() - 1);
+            hoveredIndex = idx;
+        }
     }
 }
 
-void UIComboBox::render(SDL_Renderer* renderer) {
+
+bool UIComboBox::isInside(int x, int y) const {
+    SDL_Point p{ x, y };
+    if (SDL_PointInRect(&p, &bounds)) return true;
+    if (expanded && dropdownPositionValid) {
+        SDL_Rect listRect = getDropdownRect();
+        if (SDL_PointInRect(&p, &listRect)) return true;
+    }
+    return false;
+}
+
+UIComboBox* UIComboBox::setTextColor(SDL_Color c) {
+    customTextColor = c;
+    return this;
+}
+
+void UIComboBox::renderField(SDL_Renderer* renderer) {
     const UITheme& th = getTheme();
     const UIStyle& ds = getStyle();
     const auto st = MakeComboBoxStyle(th, ds);
@@ -192,30 +247,72 @@ void UIComboBox::render(SDL_Renderer* renderer) {
     if (!enabled) caretCol.a = 160;
     float thick = std::max(1.5f, float(st.borderPx) + 0.5f);
     UIHelpers::DrawChevronDown(renderer, cx, cy, caretW, caretH, thick, caretCol);
+}
 
-    if (expanded && !options.empty()) {
-        const int ih = bounds.h;
-        SDL_Rect menu = { bounds.x, bounds.y + bounds.h, bounds.w, ih * (int)options.size() };
+void UIComboBox::renderDropdown(SDL_Renderer* renderer) {
+    if (!expanded || options.empty()) return;
+    
+    const UITheme& th = getTheme();
+    const UIStyle& ds = getStyle();
+    const auto st = MakeComboBoxStyle(th, ds);
+    TTF_Font* activeFont = font ? font : (th.font ? th.font : UIConfig::getDefaultFont());
+    if (!activeFont) return;
+
+    const int effRadius   = (cornerRadius > 0 ? cornerRadius : st.radius);
+    const int effBorderPx = st.borderPx;
+    const int ih = bounds.h;
+    
+    updateDropdownRect(renderer);
+    SDL_Rect menu = getDropdownRect();
+    
+    SDL_Color mb = st.menuBg;
+    SDL_Color mborder = st.menuBorder;
+    int sel = selectedIndex.get();
+
+    if (effBorderPx > 0) {
+        UIHelpers::FillRoundedRect(renderer, menu.x, menu.y, menu.w, menu.h, effRadius, mborder);
         
-        int windowH = 0;
-        SDL_GetRendererOutputSize(renderer, nullptr, &windowH);
+        SDL_Rect innerMenu = { 
+            menu.x + effBorderPx, 
+            menu.y + effBorderPx, 
+            menu.w - 2*effBorderPx, 
+            menu.h - 2*effBorderPx 
+        };
+        UIHelpers::FillRoundedRect(renderer, innerMenu.x, innerMenu.y, innerMenu.w, innerMenu.h, 
+                                   std::max(0, effRadius - effBorderPx), mb);
         
-        bool fitsBelow = (menu.y + menu.h) <= windowH;
-        if (!fitsBelow) {
-            menu.y = bounds.y - menu.h;
-        }
-        SDL_Color mb = st.menuBg;
-        SDL_Color mborder = st.menuBorder;
+        int y = innerMenu.y;
+        for (int i = 0; i < (int)options.size(); ++i) {
+            SDL_Rect row{ innerMenu.x + 4, y, innerMenu.w - 8, ih };
+            bool isSel = (i == sel);
+            bool isHot = (i == hoveredIndex);
 
-        if (effBorderPx > 0) {
-            UIHelpers::FillRoundedRect(renderer, menu.x, menu.y, menu.w, menu.h, effRadius, mborder);
-            SDL_Rect inner = { menu.x + effBorderPx, menu.y + effBorderPx, menu.w - 2*effBorderPx, menu.h - 2*effBorderPx };
-            UIHelpers::FillRoundedRect(renderer, inner.x, inner.y, inner.w, inner.h, std::max(0, effRadius - effBorderPx), mb);
-            menu = inner;
-        } else {
-            UIHelpers::FillRoundedRect(renderer, menu.x, menu.y, menu.w, menu.h, effRadius, mb);
-        }
+            if (isSel) {
+                UIHelpers::FillRoundedRect(renderer, row.x, row.y + 2, row.w, row.h - 4, 6, st.itemSelectedBg);
+            } else if (isHot) {
+                UIHelpers::FillRoundedRect(renderer, row.x, row.y + 2, row.w, row.h - 4, 6, st.itemHoverBg);
+            }
 
+            SDL_Color ic = isSel ? st.itemSelectedFg : st.itemFg;
+            
+            auto itemSurface = UIHelpers::MakeSurface(
+                TTF_RenderUTF8_Blended(activeFont, options[i].c_str(), ic)
+            );
+            
+            if (itemSurface) {
+                auto itemTexture = UIHelpers::MakeTexture(
+                    SDL_CreateTextureFromSurface(renderer, itemSurface.get())
+                );
+                
+                SDL_Rect ir = { row.x + 8, row.y + (row.h - itemSurface->h)/2, itemSurface->w, itemSurface->h };
+                SDL_RenderCopy(renderer, itemTexture.get(), nullptr, &ir);
+            }
+            
+            y += ih;
+        }
+    } else {
+        UIHelpers::FillRoundedRect(renderer, menu.x, menu.y, menu.w, menu.h, effRadius, mb);
+        
         int y = menu.y;
         for (int i = 0; i < (int)options.size(); ++i) {
             SDL_Rect row{ menu.x + 4, y, menu.w - 8, ih };
@@ -248,19 +345,17 @@ void UIComboBox::render(SDL_Renderer* renderer) {
     }
 }
 
-
-bool UIComboBox::isInside(int x, int y) const {
-    SDL_Point p{ x, y };
-    if (SDL_PointInRect(&p, &bounds)) return true;
+void UIComboBox::render(SDL_Renderer* renderer) {
+    renderField(renderer);
     if (expanded) {
-        const int ih = bounds.h;
-        SDL_Rect listRect{ bounds.x, bounds.y + bounds.h, bounds.w, ih * (int)options.size() };
-        if (SDL_PointInRect(&p, &listRect)) return true;
+        renderDropdown(renderer);
     }
-    return false;
 }
 
-UIComboBox* UIComboBox::setTextColor(SDL_Color c) {
-    customTextColor = c;
-    return this;
+bool UIComboBox::isHoveringDropdown(int mx, int my) const {
+    if (!expanded || !dropdownPositionValid) return false;
+    
+    SDL_Point p{ mx, my };
+    SDL_Rect dropdownRect = getDropdownRect();
+    return SDL_PointInRect(&p, &dropdownRect);
 }

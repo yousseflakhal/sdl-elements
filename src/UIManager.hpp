@@ -40,6 +40,8 @@ public:
     void setActiveModal(UIElement* m);
     UIElement* activeModal() const;
     void registerShortcut(SDL_Keycode key, Uint16 mods, ShortcutScope scope, std::function<void()> cb);
+    void setActiveComboBox(UIElement* combo) { activeComboBox_ = combo; }
+    UIElement* getActiveComboBox() const { return activeComboBox_; }
 
 private:
     bool tryShortcuts_(const SDL_Event& e);
@@ -72,4 +74,5 @@ private:
     void cleanupCursors_();
     std::vector<UIElement*> savedFocusOrder_;
     int savedFocusedIndex_ = -1;
+    UIElement* activeComboBox_ = nullptr;
 };

@@ -191,6 +191,17 @@ void UIManager::handleEvent(const SDL_Event& e) {
         activePopup->handleEvent(e);
         return;
     }
+
+    if (activeComboBox_) {
+        activeComboBox_->handleEvent(e);
+        
+        auto* combo = dynamic_cast<UIComboBox*>(activeComboBox_);
+        if (combo && !combo->isExpanded()) {
+            activeComboBox_ = nullptr;
+        }
+        return;
+    }
+
     if (activeModal_) { activeModal_->handleEvent(e); return; }
 
     if (isMouseEvent(e) && mouseCaptured_) { mouseCaptured_->handleEvent(e); return; }
@@ -258,6 +269,23 @@ void UIManager::update(float dt) {
             checkCursorForElement(child, cursorToUse);
         }
     } else {
+        if (activeComboBox_) {
+            auto* combo = dynamic_cast<UIComboBox*>(activeComboBox_);
+            if (combo && combo->isExpanded()) {
+                combo->update(dt);
+                
+                int mx, my;
+                SDL_GetMouseState(&mx, &my);
+                if (combo->isHoveringDropdown(mx, my)) {
+                    cursorToUse = handCursor;
+                }
+                
+                if (SDL_GetCursor() != cursorToUse) SDL_SetCursor(cursorToUse);
+                return;
+            } else {
+                activeComboBox_ = nullptr;
+            }
+        }
         for (const auto& el : elements) {
             auto combo = dynamic_cast<UIComboBox*>(el.get());
             if (combo && combo->isExpanded()) {
@@ -276,7 +304,21 @@ void UIManager::update(float dt) {
 }
 
 void UIManager::render(SDL_Renderer* renderer) {
-    for (auto& el : elements) if (el->visible) el->render(renderer);
+    UIComboBox* expandedCombo = nullptr;
+    for (auto& el : elements) {
+        if (!el->visible) continue;
+        
+        auto* combo = dynamic_cast<UIComboBox*>(el.get());
+        if (combo && combo->isExpanded()) {
+            expandedCombo = combo;
+            combo->renderField(renderer);
+        } else {
+            el->render(renderer);
+        }
+    }
+    if (expandedCombo) {
+        expandedCombo->renderDropdown(renderer);
+    }
     if (activePopup && activePopup->visible) {
         SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 150);

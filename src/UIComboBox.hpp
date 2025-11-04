@@ -35,6 +35,9 @@ public:
 
     UIComboBox* setFocusable(bool f) { focusable = f; return this; }
     bool isFocused() const { return focused; }
+    void renderField(SDL_Renderer* renderer);
+    void renderDropdown(SDL_Renderer* renderer);
+    bool isHoveringDropdown(int mx, int my) const;
 
 private:
     std::vector<std::string> options;
@@ -51,4 +54,10 @@ private:
     bool focusable = true;
     int  cornerRadius = 8;
     std::string placeholder;
+    
+    mutable SDL_Rect cachedDropdownRect = {0, 0, 0, 0};
+    mutable bool dropdownPositionValid = false;
+    
+    void updateDropdownRect(SDL_Renderer* renderer) const;
+    SDL_Rect getDropdownRect() const;
 };
