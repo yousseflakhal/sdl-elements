@@ -196,6 +196,14 @@ void UIComboBox::render(SDL_Renderer* renderer) {
     if (expanded && !options.empty()) {
         const int ih = bounds.h;
         SDL_Rect menu = { bounds.x, bounds.y + bounds.h, bounds.w, ih * (int)options.size() };
+        
+        int windowH = 0;
+        SDL_GetRendererOutputSize(renderer, nullptr, &windowH);
+        
+        bool fitsBelow = (menu.y + menu.h) <= windowH;
+        if (!fitsBelow) {
+            menu.y = bounds.y - menu.h;
+        }
         SDL_Color mb = st.menuBg;
         SDL_Color mborder = st.menuBorder;
 
