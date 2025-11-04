@@ -778,6 +778,8 @@ class UISpinner : public UIElement {
 
 
 
+static constexpr size_t MAX_UNDO_STACK = 100;
+
 class UITextArea : public UIElement {
 public:
     UITextArea(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen = 512);
@@ -3696,6 +3698,10 @@ void UITextArea::pushEdit(EditRec e, bool tryCoalesce)
     }
 
     undoStack.push_back(std::move(e));
+
+    if (undoStack.size() > MAX_UNDO_STACK) {
+        undoStack.erase(undoStack.begin());
+    }
 }
 
 void UITextArea::replaceRange(size_t a, size_t b, std::string_view repl, EditRec::Kind kind,

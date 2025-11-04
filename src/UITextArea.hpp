@@ -11,6 +11,8 @@
 #include "UIConfig.hpp"
 #include <SDL2/SDL.h>
 
+static constexpr size_t MAX_UNDO_STACK = 100;
+
 class UITextArea : public UIElement {
 public:
     UITextArea(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen = 512);
