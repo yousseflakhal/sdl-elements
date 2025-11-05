@@ -5557,8 +5557,16 @@ static void sendFocusEvent(UIElement* el, int code);
 
 void UIManager::setFocusedIndex_(int idx) {
     if (idx == focusedIndex_) return;
+
+    if (idx >= 0 && idx >= (int)focusOrder_.size()) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                    "Invalid focus index %d (size: %zu)", idx, focusOrder_.size());
+        idx = -1;
+    }
+
     if (focusedIndex_ >= 0 && focusedIndex_ < (int)focusOrder_.size())
         sendFocusEvent(focusOrder_[focusedIndex_], 0xF002);
+
     focusedIndex_ = -1;
     if (idx >= 0 && idx < (int)focusOrder_.size()) {
         focusedIndex_ = idx;
