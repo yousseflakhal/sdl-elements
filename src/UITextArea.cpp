@@ -646,9 +646,12 @@ int UITextArea::getWordCount() const {
     return count;
 }
 
-std::vector<std::string> UITextArea::wrapTextToLines(const std::string& text, TTF_Font* font, int maxWidth) const  {
+std::vector<std::string> UITextArea::wrapTextToLines(const std::string& text, TTF_Font* font, int maxWidth) const {
     std::vector<std::string> lines;
     if (!font) return lines;
+    
+    const size_t MAX_LINE_CHARS = 10000;
+    
     std::string currentLine, currentWord;
     for (char c : text) {
         if (c == '\n') {
@@ -657,7 +660,22 @@ std::vector<std::string> UITextArea::wrapTextToLines(const std::string& text, TT
             currentWord.clear();
             continue;
         }
+        
         currentWord += c;
+        
+        if ((currentLine.size() + currentWord.size()) > MAX_LINE_CHARS) {
+            if (!currentLine.empty()) {
+                lines.push_back(currentLine);
+                currentLine.clear();
+            }
+            if (currentWord.size() > MAX_LINE_CHARS) {
+                while (currentWord.size() > MAX_LINE_CHARS) {
+                    lines.push_back(currentWord.substr(0, MAX_LINE_CHARS));
+                    currentWord = currentWord.substr(MAX_LINE_CHARS);
+                }
+            }
+        }
+        
         std::string temp = currentLine + currentWord;
         int w, h;
         TTF_SizeUTF8(font, temp.c_str(), &w, &h);
@@ -670,7 +688,7 @@ std::vector<std::string> UITextArea::wrapTextToLines(const std::string& text, TT
                     if (w > maxWidth) break;
                     part = test;
                 }
-                if (part.empty()) part = currentWord.substr(0,1);
+                if (part.empty()) part = currentWord.substr(0, 1);
                 lines.push_back(part);
                 currentWord = currentWord.substr(part.size());
             } else {
@@ -679,11 +697,13 @@ std::vector<std::string> UITextArea::wrapTextToLines(const std::string& text, TT
                 currentWord.clear();
             }
         }
+        
         if (c == ' ') {
             currentLine += currentWord;
             currentWord.clear();
         }
     }
+    
     lines.push_back(currentLine + currentWord);
     return lines;
 }
