@@ -76,6 +76,7 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
             if (expanded) {
                 const int hi = (int)options.size() - 1;
                 if (hi >= 0) hoveredIndex = std::clamp((int)selectedIndex.get(), 0, hi);
+                notifyExpanded = true;
             } else {
                 dropdownPositionValid = false;
             }
@@ -96,6 +97,7 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
                     return;
                 }
             }
+            
             expanded = false;
             dropdownPositionValid = false;
         }
@@ -124,6 +126,7 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
                     dropdownPositionValid = false;
                 } else {
                     expanded = true;
+                    notifyExpanded = true;
                     const int hi = (int)options.size() - 1;
                     if (hi >= 0) hoveredIndex = std::clamp((int)selectedIndex.get(), 0, hi);
                 }
@@ -133,6 +136,7 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
                 if (!expanded) {
                     if (!options.empty()) {
                         expanded = true;
+                        notifyExpanded = true;
                         const int hi = (int)options.size() - 1;
                         hoveredIndex = std::clamp((int)selectedIndex.get(), 0, hi);
                     }
@@ -147,6 +151,7 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
                 if (!expanded) {
                     if (!options.empty()) {
                         expanded = true;
+                        notifyExpanded = true;
                         const int hi = (int)options.size() - 1;
                         hoveredIndex = std::clamp((int)selectedIndex.get(), 0, hi);
                     }

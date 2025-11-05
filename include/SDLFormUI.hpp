@@ -709,6 +709,12 @@ public:
     void renderDropdown(SDL_Renderer* renderer);
     bool isHoveringDropdown(int mx, int my) const;
 
+    bool shouldNotifyExpanded() {
+        bool result = notifyExpanded;
+        notifyExpanded = false;
+        return result;
+    }
+
 private:
     std::vector<std::string> options;
     std::reference_wrapper<int> selectedIndex;
@@ -727,6 +733,8 @@ private:
 
     mutable SDL_Rect cachedDropdownRect = {0, 0, 0, 0};
     mutable bool dropdownPositionValid = false;
+
+    bool notifyExpanded = false;
 
     void updateDropdownRect(SDL_Renderer* renderer) const;
     SDL_Rect getDropdownRect() const;
@@ -3219,6 +3227,7 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
             if (expanded) {
                 const int hi = (int)options.size() - 1;
                 if (hi >= 0) hoveredIndex = std::clamp((int)selectedIndex.get(), 0, hi);
+                notifyExpanded = true;
             } else {
                 dropdownPositionValid = false;
             }
@@ -3239,6 +3248,7 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
                     return;
                 }
             }
+
             expanded = false;
             dropdownPositionValid = false;
         }
@@ -3267,6 +3277,7 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
                     dropdownPositionValid = false;
                 } else {
                     expanded = true;
+                    notifyExpanded = true;
                     const int hi = (int)options.size() - 1;
                     if (hi >= 0) hoveredIndex = std::clamp((int)selectedIndex.get(), 0, hi);
                 }
@@ -3276,6 +3287,7 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
                 if (!expanded) {
                     if (!options.empty()) {
                         expanded = true;
+                        notifyExpanded = true;
                         const int hi = (int)options.size() - 1;
                         hoveredIndex = std::clamp((int)selectedIndex.get(), 0, hi);
                     }
@@ -3290,6 +3302,7 @@ void UIComboBox::handleEvent(const SDL_Event& e) {
                 if (!expanded) {
                     if (!options.empty()) {
                         expanded = true;
+                        notifyExpanded = true;
                         const int hi = (int)options.size() - 1;
                         hoveredIndex = std::clamp((int)selectedIndex.get(), 0, hi);
                     }
@@ -5261,37 +5274,41 @@ void UIManager::checkCursorForElement(const std::shared_ptr<UIElement>& el, SDL_
         if (ta->isScrollbarHovered() || ta->isScrollbarDragging()) return;
         if (ta->isHovered()) { cursorToUse = ibeamCursor; return; }
     }
-    if (el->isHovered()) {
-        if (dynamic_cast<UITextField*>(el.get())) { cursorToUse = ibeamCursor; return; }
-        if (cursorToUse != ibeamCursor &&
-            (dynamic_cast<UIButton*>(el.get())   ||
-             dynamic_cast<UICheckbox*>(el.get()) ||
-             dynamic_cast<UISlider*>(el.get())   ||
-             dynamic_cast<UIComboBox*>(el.get()) ||
-             dynamic_cast<UISpinner*>(el.get()))) {
+
+    if (el->isHovered() && dynamic_cast<UITextField*>(el.get())) {
+        cursorToUse = ibeamCursor;
+        return;
+    }
+
+    if (auto combo = dynamic_cast<UIComboBox*>(el.get())) {
+        if (combo->isHovered() && cursorToUse != ibeamCursor) {
+            cursorToUse = handCursor;
+        }
+
+        if (combo->isExpanded()) {
+            int mx, my;
+            SDL_GetMouseState(&mx, &my);
+            if (combo->isHoveringDropdown(mx, my) && cursorToUse != ibeamCursor) {
+                cursorToUse = handCursor;
+                return;
+            }
+        }
+        return;
+    }
+
+    if (el->isHovered() && cursorToUse != ibeamCursor) {
+        if (dynamic_cast<UIButton*>(el.get())   ||
+            dynamic_cast<UICheckbox*>(el.get()) ||
+            dynamic_cast<UISlider*>(el.get())   ||
+            dynamic_cast<UISpinner*>(el.get())) {
             cursorToUse = handCursor;
         }
     }
+
     if (auto group = dynamic_cast<UIGroupBox*>(el.get())) {
         for (auto& child : group->getChildren()) {
             checkCursorForElement(child, cursorToUse);
             if (cursorToUse == ibeamCursor) return;
-        }
-    }
-    if (auto combo = dynamic_cast<UIComboBox*>(el.get())) {
-        if (combo->isExpanded()) {
-            int mx, my; SDL_GetMouseState(&mx, &my);
-            int itemHeight = combo->getItemHeight();
-            int baseY = combo->getBounds().y;
-            int itemCount = combo->getItemCount();
-            for (int i = 0; i < itemCount; ++i) {
-                SDL_Rect itemRect = { combo->getBounds().x, baseY + (i + 1) * itemHeight, combo->getBounds().w, itemHeight };
-                SDL_Point pt{ mx, my };
-                if (SDL_PointInRect(&pt, &itemRect)) {
-                    if (cursorToUse != ibeamCursor) cursorToUse = handCursor;
-                    return;
-                }
-            }
         }
     }
 }
@@ -5442,6 +5459,14 @@ void UIManager::update(float dt) {
             checkCursorForElement(child, cursorToUse);
         }
     } else {
+        for (const auto& el : elements) {
+            auto* combo = dynamic_cast<UIComboBox*>(el.get());
+            if (combo && combo->shouldNotifyExpanded()) {
+                activeComboBox_ = combo;
+                break;
+            }
+        }
+
         if (activeComboBox_) {
             auto* combo = dynamic_cast<UIComboBox*>(activeComboBox_);
             if (combo && combo->isExpanded()) {
@@ -5449,7 +5474,11 @@ void UIManager::update(float dt) {
 
                 int mx, my;
                 SDL_GetMouseState(&mx, &my);
+
                 if (combo->isHoveringDropdown(mx, my)) {
+                    cursorToUse = handCursor;
+                }
+                else if (combo->isHovered()) {
                     cursorToUse = handCursor;
                 }
 
@@ -5459,15 +5488,7 @@ void UIManager::update(float dt) {
                 activeComboBox_ = nullptr;
             }
         }
-        for (const auto& el : elements) {
-            auto combo = dynamic_cast<UIComboBox*>(el.get());
-            if (combo && combo->isExpanded()) {
-                combo->update(dt);
-                checkCursorForElement(el, cursorToUse);
-                if (SDL_GetCursor() != cursorToUse) SDL_SetCursor(cursorToUse);
-                return;
-            }
-        }
+
         for (const auto& el : elements) {
             el->update(dt);
             checkCursorForElement(el, cursorToUse);

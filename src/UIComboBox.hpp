@@ -38,6 +38,12 @@ public:
     void renderField(SDL_Renderer* renderer);
     void renderDropdown(SDL_Renderer* renderer);
     bool isHoveringDropdown(int mx, int my) const;
+    
+    bool shouldNotifyExpanded() { 
+        bool result = notifyExpanded; 
+        notifyExpanded = false; 
+        return result; 
+    }
 
 private:
     std::vector<std::string> options;
@@ -57,6 +63,8 @@ private:
     
     mutable SDL_Rect cachedDropdownRect = {0, 0, 0, 0};
     mutable bool dropdownPositionValid = false;
+    
+    bool notifyExpanded = false;
     
     void updateDropdownRect(SDL_Renderer* renderer) const;
     SDL_Rect getDropdownRect() const;
