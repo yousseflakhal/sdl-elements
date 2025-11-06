@@ -37,7 +37,12 @@ public:
     void setEnabled(bool e) { enabled = e; }
     bool isEnabled() const { return enabled; }
 
+    UIElement() = default;
     virtual ~UIElement() = default;
+    UIElement(const UIElement&) = delete;
+    UIElement& operator=(const UIElement&) = delete;
+    UIElement(UIElement&&) = default;
+    UIElement& operator=(UIElement&&) = default;
 
 private:
     UITheme customTheme;
