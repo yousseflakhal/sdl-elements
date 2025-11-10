@@ -43,10 +43,7 @@ void UILabel::render(SDL_Renderer* renderer) {
                         std::memcmp(&cachedColor, &txtCol, sizeof(SDL_Color)) != 0;
     
     if (needsRebuild) {
-        if (cachedTexture) {
-            SDL_DestroyTexture(cachedTexture);
-            cachedTexture = nullptr;
-        }
+        invalidateCache();
         
         auto surface = UIHelpers::MakeSurface(
             TTF_RenderUTF8_Blended(activeFont, text.c_str(), txtCol)
@@ -62,7 +59,6 @@ void UILabel::render(SDL_Renderer* renderer) {
         cachedFont = activeFont;
         cachedWidth = surface->w;
         cachedHeight = surface->h;
-        
     }
     
     SDL_Rect dstRect = {
