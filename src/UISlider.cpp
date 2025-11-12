@@ -1,16 +1,25 @@
 #include "UISlider.hpp"
 
-
-
 UISlider::UISlider(const std::string& label, int x, int y, int w, int h, float& bind, float min, float max)
     : label(label), linkedValue(bind), minVal(min), maxVal(max)
 {
     bounds = { x, y, w, h };
+    
+    if (maxVal <= minVal) {
+        maxVal = minVal + 1.0f;
+    }
+    
+    linkedValue.get() = std::clamp(linkedValue.get(), minVal, maxVal);
 }
 
 void UISlider::handleEvent(const SDL_Event& e) {
     if (!enabled) return;
 
+    float range = maxVal - minVal;
+    if (range <= 0.0f) {
+        range = 1.0f;
+    }
+    
     auto clamp01 = [](float v){ return v < 0.f ? 0.f : (v > 1.f ? 1.f : v); };
 
     const int trackH = 6;
@@ -21,7 +30,7 @@ void UISlider::handleEvent(const SDL_Event& e) {
         trackH
     };
 
-    float t = (linkedValue.get() - minVal) / (maxVal - minVal);
+    float t = (linkedValue.get() - minVal) / range;
     t = clamp01(t);
     const int usable = track.w - 2*thumbRadius;
     const int cx = track.x + thumbRadius + int(std::round(t * usable));
@@ -40,7 +49,7 @@ void UISlider::handleEvent(const SDL_Event& e) {
             dragging = true;
 
             float nt = clamp01( (float(mx) - (track.x + thumbRadius)) / float(usable) );
-            linkedValue.get() = minVal + nt * (maxVal - minVal);
+            linkedValue.get() = minVal + nt * range;
         } else if (focusable) {
             focused = false;
         }
@@ -49,17 +58,16 @@ void UISlider::handleEvent(const SDL_Event& e) {
     } else if (e.type == SDL_MOUSEMOTION && dragging) {
         int mx = e.motion.x;
         float nt = clamp01( (float(mx) - (track.x + thumbRadius)) / float(usable) );
-        linkedValue.get() = minVal + nt * (maxVal - minVal);
+        linkedValue.get() = minVal + nt * range;
     }
 
     if (focused && e.type == SDL_KEYDOWN) {
-        const float step = (maxVal - minVal) * 0.01f;
+        const float step = range * 0.01f;
         if (e.key.keysym.sym == SDLK_LEFT)  linkedValue.get() = std::max(minVal, linkedValue.get() - step);
         if (e.key.keysym.sym == SDLK_RIGHT) linkedValue.get() = std::min(maxVal, linkedValue.get() + step);
         if (e.key.keysym.sym == SDLK_ESCAPE) focused = false;
     }
 }
-
 
 bool UISlider::isHovered() const {
     return hovered;
@@ -70,7 +78,6 @@ void UISlider::update(float) {
     hovered = (mx >= bounds.x && mx < bounds.x + bounds.w &&
                my >= bounds.y && my < bounds.y + bounds.h);
 }
-
 
 void UISlider::render(SDL_Renderer* renderer) {
     const UITheme& th = getTheme();
@@ -87,8 +94,13 @@ void UISlider::render(SDL_Renderer* renderer) {
 
     UIHelpers::FillRoundedRect(renderer, track.x, track.y, track.w, track.h, trackH/2, st.track);
 
+    float range = maxVal - minVal;
+    if (range <= 0.0f) {
+        range = 1.0f;
+    }
+    
     auto clamp01 = [](float v){ return v < 0.f ? 0.f : (v > 1.f ? 1.f : v); };
-    float t = (linkedValue.get() - minVal) / (maxVal - minVal);
+    float t = (linkedValue.get() - minVal) / range;
     t = clamp01(t);
     const int usable = track.w - 2*thumbRadius;
     const int cx = track.x + thumbRadius + int(std::round(t * usable));
