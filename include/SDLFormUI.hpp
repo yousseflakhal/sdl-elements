@@ -1576,6 +1576,9 @@ void UIDialog::layoutButtons() {
 namespace UIHelpers {
 
 void DrawFilledCircle(SDL_Renderer* renderer, int cx, int cy, int radius, SDL_Color color) {
+    if (!renderer || radius <= 0) return;
+    if (radius > 1000) radius = 1000;
+
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     const float threshold = 0.5f;
     const float maxDist = radius + threshold;
@@ -1598,9 +1601,15 @@ void DrawFilledCircle(SDL_Renderer* renderer, int cx, int cy, int radius, SDL_Co
 }
 
 void DrawCircleRing(SDL_Renderer* renderer, int cx, int cy, int radius, int thickness, SDL_Color color) {
+    if (!renderer || radius <= 0 || thickness <= 0) return;
+    if (radius > 1000) radius = 1000;
+    if (thickness > radius) thickness = radius;
+
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
     const int innerRadius = radius - thickness;
     const float feather = 0.5f;
+
+    if (innerRadius < 0) return;
 
     for (int y = -radius; y <= radius; y++) {
         for (int x = -radius; x <= radius; x++) {
@@ -1624,21 +1633,35 @@ void DrawCircleRing(SDL_Renderer* renderer, int cx, int cy, int radius, int thic
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
 }
 
-}
+void FillRoundedRect(SDL_Renderer* renderer, int x, int y, int w, int h, int radius, SDL_Color color) {
+    if (!renderer) return;
+    if (w <= 0 || h <= 0) return;
+    if (radius < 0) radius = 0;
 
-void UIHelpers::FillRoundedRect(SDL_Renderer* renderer,
-                                         int x, int y, int w, int h,
-                                         int radius, SDL_Color color) {
+    int maxRadius = std::min(w, h) / 2;
+    if (radius > maxRadius) radius = maxRadius;
+    if (radius == 0) {
+        SDL_Rect rect = {x, y, w, h};
+        SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+        SDL_RenderFillRect(renderer, &rect);
+        return;
+    }
+
     SDL_BlendMode original_mode;
     SDL_GetRenderDrawBlendMode(renderer, &original_mode);
     SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 
     SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
 
-    SDL_Rect center = { x + radius, y, w - 2*radius, h };
-    SDL_RenderFillRect(renderer, &center);
-    SDL_Rect sides  = { x, y + radius, w, h - 2*radius };
-    SDL_RenderFillRect(renderer, &sides);
+    SDL_Rect center = { x + radius, y, std::max(0, w - 2*radius), h };
+    if (center.w > 0) {
+        SDL_RenderFillRect(renderer, &center);
+    }
+
+    SDL_Rect sides = { x, y + radius, w, std::max(0, h - 2*radius) };
+    if (sides.h > 0) {
+        SDL_RenderFillRect(renderer, &sides);
+    }
 
     const int centers[4][2] = {
         { x + radius,     y + radius     },
@@ -1655,6 +1678,8 @@ void UIHelpers::FillRoundedRect(SDL_Renderer* renderer,
         int end_x   = (corner % 2 == 0) ? x + radius : x + w;
         int start_y = (corner < 2) ? y : y + h - radius;
         int end_y   = (corner < 2) ? y + radius : y + h;
+
+        if (start_x >= end_x || start_y >= end_y) continue;
 
         for (int py = start_y; py < end_y; ++py) {
             for (int px = start_x; px < end_x; ++px) {
@@ -1677,30 +1702,36 @@ void UIHelpers::FillRoundedRect(SDL_Renderer* renderer,
     SDL_SetRenderDrawBlendMode(renderer, original_mode);
 }
 
-void UIHelpers::DrawShadowRoundedRect(SDL_Renderer* renderer, const SDL_Rect& rect, int radius, int offset, Uint8 alpha) {
+void DrawShadowRoundedRect(SDL_Renderer* renderer, const SDL_Rect& rect, int radius, int offset, Uint8 alpha) {
+    if (!renderer || offset < 0) return;
+    if (rect.w <= 0 || rect.h <= 0) return;
+
     SDL_Rect shadow = { rect.x + offset, rect.y + offset, rect.w, rect.h };
     SDL_Color sc = { 0, 0, 0, alpha };
     FillRoundedRect(renderer, shadow.x, shadow.y, shadow.w, shadow.h, radius, sc);
 }
 
-void UIHelpers::StrokeRoundedRectOutside(SDL_Renderer* renderer,
-                                         const SDL_Rect& innerRect,
-                                         int radius,
-                                         int thickness,
-                                         SDL_Color ringColor,
-                                         SDL_Color innerBg) {
+void StrokeRoundedRectOutside(SDL_Renderer* renderer, const SDL_Rect& innerRect, int radius, int thickness, SDL_Color ringColor, SDL_Color innerBg) {
+    if (!renderer || thickness <= 0) return;
+    if (innerRect.w <= 0 || innerRect.h <= 0) return;
+
     SDL_Rect outer = {
         innerRect.x - thickness,
         innerRect.y - thickness,
         innerRect.w + 2*thickness,
         innerRect.h + 2*thickness
     };
-    FillRoundedRect(renderer, outer.x, outer.y, outer.w, outer.h, radius + thickness, ringColor);
 
+    if (outer.w <= 0 || outer.h <= 0) return;
+
+    FillRoundedRect(renderer, outer.x, outer.y, outer.w, outer.h, radius + thickness, ringColor);
     FillRoundedRect(renderer, innerRect.x, innerRect.y, innerRect.w, innerRect.h, radius, innerBg);
 }
 
-void UIHelpers::DrawRoundStrokeLine(SDL_Renderer* r, float x1, float y1, float x2, float y2, float thickness, SDL_Color color) {
+void DrawRoundStrokeLine(SDL_Renderer* r, float x1, float y1, float x2, float y2, float thickness, SDL_Color color) {
+    if (!r || thickness <= 0.0f) return;
+    if (thickness > 50.0f) thickness = 50.0f;
+
     float dx = x2 - x1, dy = y2 - y1;
     float len = std::sqrt(dx*dx + dy*dy);
     if (len <= 0.0001f) {
@@ -1712,6 +1743,8 @@ void UIHelpers::DrawRoundStrokeLine(SDL_Renderer* r, float x1, float y1, float x
     const float step   = std::max(0.25f, std::min(0.35f, radius * 0.35f));
     const int   n      = (int)std::ceil(len / step);
 
+    if (n > 1000) return;
+
     for (int i = 0; i <= n; ++i) {
         float t = (i * step);
         float px = x1 + ux * t;
@@ -1720,7 +1753,12 @@ void UIHelpers::DrawRoundStrokeLine(SDL_Renderer* r, float x1, float y1, float x
     }
 }
 
-void UIHelpers::DrawCheckmark(SDL_Renderer* r, const SDL_Rect& box, float thickness, SDL_Color color, float pad) {
+void DrawCheckmark(SDL_Renderer* r, const SDL_Rect& box, float thickness, SDL_Color color, float pad) {
+    if (!r || thickness <= 0.0f || box.w <= 0 || box.h <= 0) return;
+    if (thickness > std::min(box.w, box.h) * 0.5f) {
+        thickness = std::min(box.w, box.h) * 0.5f;
+    }
+
     const float scaleX = 0.84f;
     const float scaleY = 0.84f;
 
@@ -1737,11 +1775,12 @@ void UIHelpers::DrawCheckmark(SDL_Renderer* r, const SDL_Rect& box, float thickn
     float t = thickness * std::min(scaleX, scaleY);
     UIHelpers::DrawRoundStrokeLine(r, x1, y1, xm, ym, t, color);
     UIHelpers::DrawRoundStrokeLine(r, xm, ym, x2, y2, t, color);
-    UIHelpers::DrawFilledCircle(r, (int)std::round(xm), (int)std::round(ym),
-                                (int)std::round(t * 0.50f), color);
+    UIHelpers::DrawFilledCircle(r, (int)std::round(xm), (int)std::round(ym), (int)std::round(t * 0.50f), color);
 }
 
-void UIHelpers::DrawChevronDown(SDL_Renderer* r, int cx, int cy, int width, int height, float thickness, SDL_Color color) {
+void DrawChevronDown(SDL_Renderer* r, int cx, int cy, int width, int height, float thickness, SDL_Color color) {
+    if (!r || width <= 0 || height <= 0 || thickness <= 0.0f) return;
+
     const float halfW = width * 0.5f;
     const float halfH = height * 0.5f;
     float x1 = cx - halfW, y1 = cy - halfH;
@@ -1749,6 +1788,8 @@ void UIHelpers::DrawChevronDown(SDL_Renderer* r, int cx, int cy, int width, int 
     float x2 = cx + halfW, y2 = cy - halfH;
     UIHelpers::DrawRoundStrokeLine(r, x1, y1, xm, yxm, thickness, color);
     UIHelpers::DrawRoundStrokeLine(r, xm, yxm, x2, y2, thickness, color);
+}
+
 }
 
 
