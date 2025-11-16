@@ -128,6 +128,17 @@ struct PopupStyle {
     int       pad;
 };
 
+struct UIProgressStyle {
+    int radius      = 6;
+    int borderPx    = 1;
+    int pad         = 2;
+    SDL_Color track{};
+    SDL_Color fill{};
+    SDL_Color buffer{};
+    SDL_Color border{};
+    SDL_Color text{};
+};
+
 UITextFieldStyle MakeTextFieldStyle(const UITheme& t, const UIStyle& s);
 UITextAreaStyle  MakeTextAreaStyle (const UITheme& t, const UIStyle& s);
 UIButtonStyle    MakeButtonStyle   (const UITheme& t, const UIStyle& s);
@@ -141,6 +152,7 @@ UISliderStyle    MakeSliderStyle   (const UITheme& t);
 UILabelStyle     MakeLabelStyle    (const UITheme& th, const UIStyle&);
 UILabelStyle     MakeLabelStyle    (const UITheme& th);
 PopupStyle       MakePopupStyle    (const UITheme& th, const UIStyle& s);
+UIProgressStyle MakeProgressStyle(const UITheme& t, const UIStyle& s);
 
 UITextFieldStyle MakeTextFieldStyle(const UITheme& t);
 UITextAreaStyle  MakeTextAreaStyle (const UITheme& t);
@@ -151,3 +163,4 @@ UIRadioStyle     MakeRadioStyle    (const UITheme& t);
 UIComboBoxStyle  MakeComboBoxStyle (const UITheme& t);
 UISpinnerStyle   MakeSpinnerStyle  (const UITheme& t);
 PopupStyle       MakePopupStyle    (const UITheme& th);
+UIProgressStyle MakeProgressStyle(const UITheme& t);

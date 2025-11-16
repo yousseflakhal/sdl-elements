@@ -152,6 +152,19 @@ UISliderStyle MakeSliderStyle(const UITheme& t, const UIStyle&) {
     return MakeSliderStyle(t);
 }
 
+UIProgressStyle MakeProgressStyle(const UITheme& t, const UIStyle& ds) {
+    UIProgressStyle s;
+    s.radius      = ds.radiusSm;
+    s.borderPx    = ds.borderThin;
+    s.pad         = 2;
+    s.track       = UIHelpers::Darken(t.backgroundColor, 15);
+    s.fill        = t.sliderThumbColor;
+    s.buffer      = UIHelpers::AdjustBrightness(t.sliderThumbColor, -40);
+    s.border      = t.borderColor;
+    s.text        = t.textColor;
+    return s;
+}
+
 UITextFieldStyle MakeTextFieldStyle(const UITheme& t) { return MakeTextFieldStyle(t, UIConfig::getStyle()); }
 UITextAreaStyle  MakeTextAreaStyle (const UITheme& t) { return MakeTextAreaStyle (t, UIConfig::getStyle()); }
 UIButtonStyle    MakeButtonStyle   (const UITheme& t) { return MakeButtonStyle   (t, UIConfig::getStyle()); }
@@ -160,4 +173,5 @@ UIGroupBoxStyle  MakeGroupBoxStyle (const UITheme& t) { return MakeGroupBoxStyle
 UIRadioStyle     MakeRadioStyle    (const UITheme& t) { return MakeRadioStyle    (t, UIConfig::getStyle()); }
 UIComboBoxStyle  MakeComboBoxStyle (const UITheme& t) { return MakeComboBoxStyle (t, UIConfig::getStyle()); }
 UISpinnerStyle   MakeSpinnerStyle  (const UITheme& t) { return MakeSpinnerStyle  (t, UIConfig::getStyle()); }
-PopupStyle       MakePopupStyle    (const UITheme& th){ return MakePopupStyle    (th, UIConfig::getStyle()); }
+PopupStyle       MakePopupStyle    (const UITheme& th) { return MakePopupStyle    (th, UIConfig::getStyle()); }
+UIProgressStyle MakeProgressStyle(const UITheme& t) { return MakeProgressStyle(t, UIConfig::getStyle()); }
