@@ -12,6 +12,9 @@
 #include <SDL2/SDL.h>
 
 static constexpr size_t MAX_UNDO_STACK = 100;
+static constexpr size_t MAX_TEXT_LENGTH = 100000;
+static constexpr size_t MAX_LINES = 10000;
+static constexpr size_t MAX_LAYOUT_INDEX = 1000000;
 
 class UITextArea : public UIElement {
 public:

@@ -135,6 +135,16 @@ void UITextArea::setPlaceholder(const std::string& text) {
 }
 
 void UITextArea::handleEvent(const SDL_Event& e) {
+    auto& text = linkedText.get();
+    if (text.size() > MAX_TEXT_LENGTH) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                   "Text length (%zu) exceeds maximum (%zu), truncating",
+                   text.size(), MAX_TEXT_LENGTH);
+        text.resize(MAX_TEXT_LENGTH);
+        if (cursorPos > MAX_TEXT_LENGTH) cursorPos = MAX_TEXT_LENGTH;
+        if (selStart > MAX_TEXT_LENGTH) selStart = MAX_TEXT_LENGTH;
+        if (selEnd > MAX_TEXT_LENGTH) selEnd = MAX_TEXT_LENGTH;
+    }
     const UITheme& th = getTheme();
     const UIStyle& ds = getStyle();
     if (e.type == SDL_USEREVENT) {
@@ -650,10 +660,26 @@ std::vector<std::string> UITextArea::wrapTextToLines(const std::string& text, TT
     std::vector<std::string> lines;
     if (!font) return lines;
     
+    lines.reserve(std::min(text.size() / 50 + 1, size_t(1000)));
     const size_t MAX_LINE_CHARS = 10000;
+    const size_t MAX_ITERATIONS = text.size() * 2;
     
     std::string currentLine, currentWord;
+    size_t iterCount = 0;
+    
     for (char c : text) {
+        if (++iterCount > MAX_ITERATIONS) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                        "Text wrapping exceeded iteration limit");
+            break;
+        }
+        
+        if (lines.size() >= MAX_LINES) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                       "Maximum line count reached during wrapping");
+            break;
+        }
+        
         if (c == '\n') {
             lines.push_back(currentLine + currentWord);
             currentLine.clear();
@@ -672,23 +698,52 @@ std::vector<std::string> UITextArea::wrapTextToLines(const std::string& text, TT
                 while (currentWord.size() > MAX_LINE_CHARS) {
                     lines.push_back(currentWord.substr(0, MAX_LINE_CHARS));
                     currentWord = currentWord.substr(MAX_LINE_CHARS);
+                    
+                    if (lines.size() >= MAX_LINES) break;
                 }
             }
         }
         
         std::string temp = currentLine + currentWord;
         int w, h;
-        TTF_SizeUTF8(font, temp.c_str(), &w, &h);
+        
+        if (temp.size() > 5000) {
+            if (!currentLine.empty()) {
+                lines.push_back(currentLine);
+                currentLine = currentWord;
+                currentWord.clear();
+            } else {
+                lines.push_back(currentWord);
+                currentWord.clear();
+            }
+            continue;
+        }
+        
+        if (TTF_SizeUTF8(font, temp.c_str(), &w, &h) != 0) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                       "TTF_SizeUTF8 failed, forcing line break");
+            if (!currentLine.empty()) {
+                lines.push_back(currentLine);
+                currentLine = currentWord;
+                currentWord.clear();
+            }
+            continue;
+        }
+        
         if (w > maxWidth) {
             if (currentLine.empty()) {
                 std::string part;
-                for (size_t i = 0; i < currentWord.size(); ++i) {
+                size_t charIter = 0;
+                const size_t maxCharIter = currentWord.size() + 10;
+                
+                for (size_t i = 0; i < currentWord.size() && charIter < maxCharIter; ++i, ++charIter) {
                     std::string test = currentWord.substr(0, i+1);
-                    TTF_SizeUTF8(font, test.c_str(), &w, &h);
+                    if (TTF_SizeUTF8(font, test.c_str(), &w, &h) != 0) break;
                     if (w > maxWidth) break;
                     part = test;
                 }
-                if (part.empty()) part = currentWord.substr(0, 1);
+                
+                if (part.empty()) part = currentWord.substr(0, 1); // At least one char
                 lines.push_back(part);
                 currentWord = currentWord.substr(part.size());
             } else {
@@ -704,7 +759,10 @@ std::vector<std::string> UITextArea::wrapTextToLines(const std::string& text, TT
         }
     }
     
-    lines.push_back(currentLine + currentWord);
+    if (!currentLine.empty() || !currentWord.empty()) {
+        lines.push_back(currentLine + currentWord);
+    }
+    
     return lines;
 }
 
@@ -1124,17 +1182,33 @@ void UITextArea::setSelection(size_t a, size_t b) {
 
 void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {
     const std::string& full = linkedText.get();
+    
+    if (full.size() > MAX_TEXT_LENGTH) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, 
+                    "Text exceeds maximum length (%zu > %zu), truncating layout",
+                    full.size(), MAX_TEXT_LENGTH);
+        if (!lines.empty()) return;
+    }
+    
     if (cacheFont == fnt && cacheWidthPx == maxWidthPx && cacheText == full && !lines.empty())
         return;
 
-    cacheFont = fnt; cacheWidthPx = maxWidthPx; cacheText = full;
+    cacheFont = fnt; 
+    cacheWidthPx = maxWidthPx; 
+    cacheText = full;
 
     lines.clear();
     lineStart.clear();
     prefixX.clear();
 
+    const size_t estimatedLines = (full.size() / 50) + 10;
+    lines.reserve(std::min(estimatedLines, MAX_LINES));
+    lineStart.reserve(std::min(estimatedLines, MAX_LINES));
+    prefixX.reserve(std::min(estimatedLines, MAX_LINES));
+
     mapOrigToNoNL.assign(full.size() + 1, 0);
     mapNoNLToOrig.clear();
+    mapNoNLToOrig.reserve(full.size() + 100);
 
     size_t noNLIndex = 0;
 
@@ -1142,17 +1216,44 @@ void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {
     size_t paraStartOrig = 0;
 
     auto ensure_size = [&](size_t want){
-        if (mapNoNLToOrig.size() <= want) mapNoNLToOrig.resize(want + 1);
+        if (want > MAX_LAYOUT_INDEX) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, 
+                        "Layout index overflow detected (%zu > %zu)", 
+                        want, MAX_LAYOUT_INDEX);
+            return false;
+        }
+        if (mapNoNLToOrig.size() <= want) {
+            if (want > mapNoNLToOrig.capacity() * 2) {
+                SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                           "Excessive vector growth prevented");
+                return false;
+            }
+            mapNoNLToOrig.resize(want + 1);
+        }
+        return true;
     };
 
-    auto flushPara = [&](size_t end_i){
+    auto flushPara = [&](size_t end_i) -> bool {
+        if (lines.size() >= MAX_LINES) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, 
+                        "Maximum line count reached (%zu), stopping layout",
+                        MAX_LINES);
+            return false;
+        }
+
         auto wrapped = wrapTextToLines(para, fnt, maxWidthPx);
 
-        const size_t MAX_INDEX = 1000000;
-        if (noNLIndex > MAX_INDEX) {
-            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, 
-                        "TextArea layout exceeded index limit");
-            return;
+        if (wrapped.size() > 1000) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                       "Paragraph wrapped to excessive lines (%zu), limiting",
+                       wrapped.size());
+            wrapped.resize(1000);
+        }
+
+        if (noNLIndex > MAX_LAYOUT_INDEX) {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, 
+                        "Layout index exceeded limit");
+            return false;
         }
 
         size_t offsetInPara = 0;
@@ -1161,10 +1262,12 @@ void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {
             lineStart.push_back(noNLIndex);
             prefixX.emplace_back(1, 0);
 
-            ensure_size(noNLIndex);
+            if (!ensure_size(noNLIndex)) return false;
             
             if (end_i < full.size() && full[end_i] == '\n') {
-                mapOrigToNoNL[end_i] = noNLIndex;
+                if (end_i < mapOrigToNoNL.size()) {
+                    mapOrigToNoNL[end_i] = noNLIndex;
+                }
                 mapNoNLToOrig[noNLIndex] = end_i;
             } else {
                 mapNoNLToOrig[noNLIndex] = end_i;
@@ -1174,6 +1277,12 @@ void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {
             
         } else {
             for (const std::string& wline : wrapped) {
+                if (lines.size() >= MAX_LINES) {
+                    SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, 
+                               "Hit line limit during wrap processing");
+                    return false;
+                }
+
                 const size_t L = wline.size();
                 const size_t noNLLineStart = noNLIndex;
 
@@ -1183,53 +1292,100 @@ void UITextArea::rebuildLayout(TTF_Font* fnt, int maxWidthPx) const {
                 auto& P = prefixX.emplace_back();
                 P.assign(L + 1, 0);
                 int w=0,h=0;
-                for (size_t j = 1; j <= L; ++j) {
+                
+                const size_t maxPrefixCalc = std::min(L, size_t(5000));
+                for (size_t j = 1; j <= maxPrefixCalc; ++j) {
                     std::string sub = wline.substr(0, j);
                     TTF_SizeUTF8(fnt, sub.c_str(), &w, &h);
                     P[j] = w;
                 }
+                for (size_t j = maxPrefixCalc + 1; j <= L; ++j) {
+                    P[j] = P[maxPrefixCalc];
+                }
 
-                for (size_t j = 0; j < L; ++j) {
+                for (size_t j = 0; j < L && (paraStartOrig + offsetInPara + j) < mapOrigToNoNL.size(); ++j) {
                     size_t origPos = paraStartOrig + offsetInPara + j;
                     mapOrigToNoNL[origPos] = noNLLineStart + j;
                 }
 
-                ensure_size(noNLLineStart + L);
+                if (!ensure_size(noNLLineStart + L)) return false;
+                
                 for (size_t j = 0; j < L; ++j) {
                     size_t origPos = paraStartOrig + offsetInPara + j;
-                    mapNoNLToOrig[noNLLineStart + j] = origPos;
+                    if (origPos < full.size()) {
+                        mapNoNLToOrig[noNLLineStart + j] = origPos;
+                    }
                 }
 
-                ensure_size(noNLLineStart + L);
-                mapNoNLToOrig[noNLLineStart + L] = paraStartOrig + offsetInPara + L;
+                if (!ensure_size(noNLLineStart + L)) return false;
+                
+                if (paraStartOrig + offsetInPara + L <= full.size()) {
+                    mapNoNLToOrig[noNLLineStart + L] = paraStartOrig + offsetInPara + L;
+                }
 
                 noNLIndex    += L;
                 offsetInPara += L;
+                
+                if (noNLIndex > MAX_LAYOUT_INDEX - L) {
+                    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, 
+                                "Layout index approaching overflow");
+                    return false;
+                }
             }
             
             if (end_i < full.size() && full[end_i] == '\n') {
-                mapOrigToNoNL[end_i] = noNLIndex;
+                if (end_i < mapOrigToNoNL.size()) {
+                    mapOrigToNoNL[end_i] = noNLIndex;
+                }
                 noNLIndex += 1;
             }
         }
+        
+        return true;
     };
 
-    for (size_t i = 0; i <= full.size(); ++i) {
+    size_t iterCount = 0;
+    const size_t maxIter = full.size() + 100;
+    
+    for (size_t i = 0; i <= full.size() && iterCount < maxIter; ++i, ++iterCount) {
         const bool atEnd = (i == full.size());
         const char c = atEnd ? '\n' : full[i];
+        
         if (c == '\n') {
-            flushPara(i);
+            if (!flushPara(i)) {
+                SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, 
+                           "Layout incomplete due to safety limits");
+                break;
+            }
             para.clear();
             paraStartOrig = i + 1;
         } else {
             if (para.empty()) paraStartOrig = i;
             para.push_back(c);
+            
+            if (para.size() > 50000) {
+                SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                           "Paragraph too long, forcing line break");
+                if (!flushPara(i)) break;
+                para.clear();
+                paraStartOrig = i + 1;
+            }
         }
     }
 
-    mapOrigToNoNL[full.size()] = noNLIndex;
-    if (mapNoNLToOrig.size() <= noNLIndex) mapNoNLToOrig.resize(noNLIndex + 1);
-    mapNoNLToOrig[noNLIndex] = full.size();
+    if (full.size() < mapOrigToNoNL.size()) {
+        mapOrigToNoNL[full.size()] = noNLIndex;
+    }
+    if (mapNoNLToOrig.size() <= noNLIndex) {
+        if (!ensure_size(noNLIndex)) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, 
+                       "Could not finalize layout mapping");
+        } else {
+            mapNoNLToOrig[noNLIndex] = full.size();
+        }
+    } else {
+        mapNoNLToOrig[noNLIndex] = full.size();
+    }
 }
 
 
