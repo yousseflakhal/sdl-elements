@@ -64,9 +64,17 @@ void UITextField::pushEdit(EditRec e, bool tryCoalesce) {
 void UITextField::replaceRange(size_t a, size_t b, std::string_view repl, EditRec::Kind kind,
                                bool tryCoalesce) {
     auto& txt = linkedText.get();
-    a = std::min(a, txt.size());
-    b = std::min(b, txt.size());
+    
+    const size_t maxSize = txt.size();
+    a = std::min(a, maxSize);
+    b = std::min(b, maxSize);
     if (b < a) std::swap(a, b);
+    
+    if (a > maxSize || b > maxSize) {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                    "replaceRange bounds invalid: a=%zu, b=%zu, size=%zu", a, b, maxSize);
+        return;
+    }
 
     EditRec e;
     e.pos          = a;
@@ -135,6 +143,16 @@ UITextField::UITextField(const std::string& label, int x, int y, int w, int h, s
 {
     bounds = { x, y, w, h };
     lastBlinkTicks = SDL_GetTicks();
+    
+    if (maxLength <= 0 || maxLength > MAX_TEXTFIELD_LENGTH) {
+        maxLength = MAX_TEXTFIELD_LENGTH;
+    }
+    
+    if (linkedText.get().size() > (size_t)maxLength) {
+        linkedText.get().resize(maxLength);
+    }
+    
+    caret = std::min(caret, (int)linkedText.get().size());
 }
 
 UITextField* UITextField::setPlaceholder(const std::string& text) {
@@ -623,6 +641,14 @@ void UITextField::handleEvent(const SDL_Event& e) {
 
 
 void UITextField::update(float) {
+    const std::string& textRef = linkedText.get();
+    const int maxPos = (int)textRef.size();
+    
+    caret = std::clamp(caret, 0, maxPos);
+    if (selAnchor >= 0) {
+        selAnchor = std::clamp(selAnchor, 0, maxPos);
+    }
+    
     int mx, my; SDL_GetMouseState(&mx, &my);
     Uint32 btns = SDL_GetMouseState(nullptr, nullptr);
     if (selectingDrag && (btns & SDL_BUTTON(SDL_BUTTON_LEFT)) == 0) {
@@ -744,9 +770,16 @@ void UITextField::render(SDL_Renderer* renderer) {
         UIHelpers::FillRoundedRect(renderer, dst.x, dst.y, dst.w, dst.h, effRadius, st.bg);
     }
 
+    const std::string& textRef = linkedText.get();
+    
+    caret = std::min(caret, (int)textRef.size());
+    if (selAnchor > (int)textRef.size()) {
+        selAnchor = (int)textRef.size();
+    }
+    
     std::string toRender = (inputType == InputType::PASSWORD)
-        ? std::string(linkedText.get().size(), '*')
-        : linkedText.get();
+        ? std::string(textRef.size(), '*')
+        : textRef;
 
     SDL_Color drawCol = st.fg;
     if (toRender.empty() && !focused && !placeholder.empty()) {
@@ -891,15 +924,47 @@ void UITextField::rebuildGlyphX(TTF_Font* f) {
         return;
     }
     
+    const size_t MAX_GLYPH_MEASURE = 10000;
+    if (s.size() > MAX_GLYPH_MEASURE) {
+        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION,
+                   "Text too long for glyph measurement (%zu > %zu), limiting",
+                   s.size(), MAX_GLYPH_MEASURE);
+        
+        cacheFont = f;
+        measuredTextCache = s;
+        glyphX.assign(MAX_GLYPH_MEASURE + 1, 0);
+        
+        int w = 0, h = 0;
+        for (size_t i = 1; i <= MAX_GLYPH_MEASURE; ++i) {
+            std::string sub = s.substr(0, i);
+            if (TTF_SizeUTF8(f, sub.c_str(), &w, &h) != 0) {
+                SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "TTF_SizeUTF8 failed at position %zu", i);
+                break;
+            }
+            glyphX[i] = w;
+        }
+        return;
+    }
+    
     cacheFont = f;
     measuredTextCache = s;
     
+    glyphX.clear();
+    glyphX.reserve(s.size() + 1);
     glyphX.assign(s.size() + 1, 0);
+    
     int w = 0, h = 0;
     for (size_t i = 1; i <= s.size(); ++i) {
         std::string sub = s.substr(0, i);
-        TTF_SizeUTF8(f, sub.c_str(), &w, &h);
+        
+        if (TTF_SizeUTF8(f, sub.c_str(), &w, &h) != 0) {
+            SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, 
+                       "TTF_SizeUTF8 failed at position %zu, stopping measurement", i);
+            for (size_t j = i; j <= s.size(); ++j) {
+                glyphX[j] = w;
+            }
+            break;
+        }
         glyphX[i] = w;
     }
 }
-

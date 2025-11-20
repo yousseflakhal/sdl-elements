@@ -10,6 +10,8 @@
 #include "UICommon.hpp"
 #include <functional>
 
+static constexpr int MAX_TEXTFIELD_LENGTH = 10000;
+
 class UITextField : public UIElement {
 public:
     UITextField(const std::string& label, int x, int y, int w, int h, std::string& bind, int maxLen = 32);
@@ -100,7 +102,12 @@ private:
     void rebuildGlyphX(TTF_Font* f);
     int  prefixWidth(size_t i) const {
         if (glyphX.empty()) return 0;
-        if (i >= glyphX.size()) return glyphX.back();
+        
+        if (i >= glyphX.size()) {
+            if (glyphX.empty()) return 0;
+            return glyphX.back();
+        }
+        
         return glyphX[i];
     }
 };
