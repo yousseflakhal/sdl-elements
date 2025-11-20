@@ -7,7 +7,7 @@
 class UILabel : public UIElement {
 public:
     UILabel(const std::string& text, int x, int y, int w, int h, TTF_Font* font = nullptr);
-    ~UILabel();
+    ~UILabel() = default;
     
     void render(SDL_Renderer* renderer) override;
     void update(float dt) override { (void)dt; }
@@ -24,7 +24,7 @@ private:
     TTF_Font* font = nullptr;
     SDL_Color color = {255, 255, 255, 255};
     
-    mutable SDL_Texture* cachedTexture = nullptr;
+    mutable UIHelpers::UniqueTexture cachedTexture;
     mutable std::string cachedText;
     mutable SDL_Color cachedColor{0, 0, 0, 0};
     mutable TTF_Font* cachedFont = nullptr;

@@ -541,7 +541,7 @@ private:
 class UILabel : public UIElement {
 public:
     UILabel(const std::string& text, int x, int y, int w, int h, TTF_Font* font = nullptr);
-    ~UILabel();
+    ~UILabel() = default;
 
     void render(SDL_Renderer* renderer) override;
     void update(float dt) override { (void)dt; }
@@ -558,7 +558,7 @@ private:
     TTF_Font* font = nullptr;
     SDL_Color color = {255, 255, 255, 255};
 
-    mutable SDL_Texture* cachedTexture = nullptr;
+    mutable UIHelpers::UniqueTexture cachedTexture;
     mutable std::string cachedText;
     mutable SDL_Color cachedColor{0, 0, 0, 0};
     mutable TTF_Font* cachedFont = nullptr;
@@ -2181,18 +2181,8 @@ UILabel::UILabel(const std::string& text, int x, int y, int w, int h, TTF_Font* 
     bounds = { x, y, w, h };
 }
 
-UILabel::~UILabel() {
-    if (cachedTexture) {
-        SDL_DestroyTexture(cachedTexture);
-        cachedTexture = nullptr;
-    }
-}
-
 void UILabel::invalidateCache() const {
-    if (cachedTexture) {
-        SDL_DestroyTexture(cachedTexture);
-        cachedTexture = nullptr;
-    }
+    cachedTexture.reset();
     cachedText.clear();
     cachedColor = {0, 0, 0, 0};
     cachedFont = nullptr;
@@ -2223,7 +2213,9 @@ void UILabel::render(SDL_Renderer* renderer) {
 
         if (!surface) return;
 
-        cachedTexture = SDL_CreateTextureFromSurface(renderer, surface.get());
+        cachedTexture = UIHelpers::MakeTexture(
+            SDL_CreateTextureFromSurface(renderer, surface.get())
+        );
         if (!cachedTexture) return;
 
         cachedText = text;
@@ -2240,7 +2232,7 @@ void UILabel::render(SDL_Renderer* renderer) {
         cachedHeight
     };
 
-    SDL_RenderCopy(renderer, cachedTexture, nullptr, &dstRect);
+    SDL_RenderCopy(renderer, cachedTexture.get(), nullptr, &dstRect);
 }
 
 UILabel* UILabel::setColor(SDL_Color c) {
